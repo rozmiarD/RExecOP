@@ -2,7 +2,7 @@
 
 **Governance-bound deterministic operations control-plane for profile-defined workflows.**
 
-Status: **pre-alpha / Phase 1** (operation core: plan, status, history).
+Status: **pre-alpha / Phase 2A** (GovEngine port boundary + static adapter apply gating).
 
 RExecOp is the GovEngine-bound **runner, orchestrator, and executor** for profile-defined workflows. It operationalizes domain profiles while preserving strict layer boundaries.
 
@@ -68,7 +68,7 @@ Runtime artifacts are stored under `.rexecop/` (gitignored).
 ## Safety
 
 - No real infrastructure connectors in Phase 0
-- No real GovEngine or SCLite integration in Phase 0
+- No real GovEngine package integration in Phase 2A (static adapter only)
 - Static governance adapters (future) are bootstrap/test only, not production policy
 - Default future operation modes will favor `dry_run` / `observe` over accidental `apply`
 
