@@ -35,3 +35,11 @@ workflow:
       - transient_connector_error
     blocked_on:
       - policy_denied
+
+  rollback:
+    mode: dry_run
+    steps:
+      - id: rollback_marker
+        type: internal
+        action: record_rollback_marker
+        pause_safe: true

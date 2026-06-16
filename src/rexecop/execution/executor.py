@@ -25,6 +25,7 @@ class StepExecutor:
             "correlate_vm_backup_coverage": self._correlate_coverage,
             "capture_agent_state": self._capture_agent_state,
             "verify_agent_state": self._verify_agent_state,
+            "record_rollback_marker": self._record_rollback_marker,
         }
 
     def execute(self, context: StepExecutionContext) -> StepExecutionResult:
@@ -169,3 +170,12 @@ class StepExecutor:
             "after_state": after_state,
             "before_state": context.shared_state.get("agent_before_state"),
         }
+
+    def _record_rollback_marker(self, context: StepExecutionContext) -> dict[str, Any]:
+        marker = {
+            "operation_id": context.operation_id,
+            "target": context.target,
+            "status": "rollback_recorded",
+        }
+        context.shared_state["rollback_marker"] = marker
+        return marker

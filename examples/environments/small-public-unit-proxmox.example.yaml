@@ -22,3 +22,9 @@ environment:
     default_mode: dry_run
     apply_requires_govengine: true
     secrets_source: external
+    max_concurrent_operations: 1
+    target_lock_enabled: true
+    maintenance_windows:
+      - timezone: UTC
+        start: "00:00"
+        end: "23:59"
