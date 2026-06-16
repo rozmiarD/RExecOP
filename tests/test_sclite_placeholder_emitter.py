@@ -3,7 +3,6 @@ from __future__ import annotations
 from rexecop.adapters.sclite_port.contracts import (
     ARTIFACT_SLOTS,
     EVENT_SCLITE_MAPPING,
-    PLACEHOLDER_EMITTER_NOTICE,
     RECEIPT_EXPORT_AUTHORITY,
     SCLITE_SCHEMA_REFS,
 )
@@ -37,7 +36,7 @@ def test_placeholder_emitter_marks_non_authoritative() -> None:
     assert export.authority == RECEIPT_EXPORT_AUTHORITY
     assert export.emitter == "placeholder"
     assert "bootstrap/offline only" in export.migration_note
-    assert PLACEHOLDER_EMITTER_NOTICE in export.migration_note
+    assert "DEPRECATED" in export.migration_note
     for role in ARTIFACT_SLOTS:
         slot = export.artifact_slots[role]
         assert slot["sclite_schema_ref"] == SCLITE_SCHEMA_REFS[role]
