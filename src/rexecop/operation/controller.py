@@ -19,8 +19,6 @@ from rexecop.adapters.govengine_port.contracts import (
     is_mutating_mode,
 )
 from rexecop.adapters.sclite_port.contracts import SCLITE_ARTIFACT_AUTHORITY
-from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
-from rexecop.adapters.sclite_port.placeholder_emitter import PlaceholderSCLiteEmitter
 from rexecop.environment.loader import load_environment
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
@@ -54,6 +52,9 @@ class OperationController:
         self.store = store or FileStore()
         self.evidence = EvidenceManager(self.store)
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
+        from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
+        from rexecop.adapters.sclite_port.placeholder_emitter import PlaceholderSCLiteEmitter
+
         self.sclite_emitter = SCLiteArtifactEmitter()
         self.placeholder_sclite_emitter = PlaceholderSCLiteEmitter()
         self.orchestrator = OperationOrchestrator(
@@ -329,6 +330,7 @@ class OperationController:
         decision = self.govengine_adapter.evaluate(request)
         operation.govengine_decision_type = decision.decision_type.value
         operation.govengine_decision_summary = decision.summary
+        operation.metadata["govengine_admission"] = decision.as_dict()
 
         received_event = self.evidence.emit(
             operation_id=operation.id,

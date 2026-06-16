@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from rexecop.evidence.event import EvidenceEventType
-
 PLACEHOLDER_EMITTER_NOTICE = (
     "DEPRECATED: Placeholder SCLite emitter is bootstrap/offline only. "
     "Use SCLiteArtifactEmitter for real emission (Phase 3B+). "
@@ -19,7 +17,7 @@ SCLITE_SCHEMA_REFS: dict[str, str] = {
     "intent_contract": "schemas/intent_contract.v0.2.schema.json",
     "policy_decision": "schemas/policy_decision.v0.2.schema.json",
     "execution_contract": "schemas/execution_contract.v0.2.schema.json",
-    "execution_ticket": "schemas/execution_ticket.v0.2.schema.json",
+    "execution_ticket": "schemas/execution_ticket.v0.3.schema.json",
     "execution_receipt": "schemas/execution_receipt.v0.2.schema.json",
     "evidence_contract": "schemas/evidence_contract.v0.2.schema.json",
 }
@@ -34,63 +32,63 @@ ARTIFACT_SLOTS = (
 )
 
 EVENT_SCLITE_MAPPING: dict[str, dict[str, str]] = {
-    EvidenceEventType.OPERATION_CREATED.value: {
+    "operation_created": {
         "future_artifact": "intent_contract",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["intent_contract"],
     },
-    EvidenceEventType.PLAN_GENERATED.value: {
+    "plan_generated": {
         "future_artifact": "execution_contract",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_contract"],
     },
-    EvidenceEventType.GOVENGINE_DECISION_REQUESTED.value: {
+    "govengine_decision_requested": {
         "future_artifact": "policy_decision",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["policy_decision"],
     },
-    EvidenceEventType.GOVENGINE_DECISION_RECEIVED.value: {
+    "govengine_decision_received": {
         "future_artifact": "policy_decision",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["policy_decision"],
     },
-    EvidenceEventType.APPROVAL_RECEIVED.value: {
+    "approval_received": {
         "future_artifact": "execution_ticket",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_ticket"],
     },
-    EvidenceEventType.STATE_TRANSITION.value: {
+    "state_transition": {
         "future_artifact": "execution_receipt",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_receipt"],
     },
-    EvidenceEventType.STEP_STARTED.value: {
+    "step_started": {
         "future_artifact": "execution_receipt",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_receipt"],
     },
-    EvidenceEventType.STEP_COMPLETED.value: {
+    "step_completed": {
         "future_artifact": "execution_receipt",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_receipt"],
     },
-    EvidenceEventType.STEP_FAILED.value: {
+    "step_failed": {
         "future_artifact": "execution_receipt",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_receipt"],
     },
-    EvidenceEventType.VALIDATION_STARTED.value: {
+    "validation_started": {
         "future_artifact": "evidence_contract",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["evidence_contract"],
     },
-    EvidenceEventType.VALIDATION_COMPLETED.value: {
+    "validation_completed": {
         "future_artifact": "evidence_contract",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["evidence_contract"],
     },
-    EvidenceEventType.RECEIPT_GENERATED.value: {
+    "receipt_generated": {
         "future_artifact": "execution_receipt",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_receipt"],
     },
-    EvidenceEventType.OPERATION_COMPLETED.value: {
+    "operation_completed": {
         "future_artifact": "execution_receipt",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_receipt"],
     },
-    EvidenceEventType.OPERATION_FAILED.value: {
+    "operation_failed": {
         "future_artifact": "execution_receipt",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["execution_receipt"],
     },
-    EvidenceEventType.OPERATION_ESCALATED.value: {
+    "operation_escalated": {
         "future_artifact": "evidence_contract",
         "sclite_schema_ref": SCLITE_SCHEMA_REFS["evidence_contract"],
     },

@@ -1,7 +1,8 @@
 # SCLite integration
 
-RExecOp does **not** own long-term auditable truth. SCLite does. Phase 3B emits validated
-SCLite v0.2 lifecycle artifacts; Phase 3A placeholder export remains for offline tests only.
+RExecOp does **not** own long-term auditable truth. SCLite does. Phase 3B introduced real
+lifecycle emission; Phase 3C upgrades bundles to GovEngine-integration parity with scoped
+tickets, receipt-bounded evidence, trust/carrier sidecars, and kernel guard manifests.
 
 ## Authority model
 
@@ -11,14 +12,22 @@ SCLite v0.2 lifecycle artifacts; Phase 3A placeholder export remains for offline
 | **RExecOp internal events** | Runtime telemetry under `.rexecop/evidence/` |
 | **RExecOp receipt export** | Summary pointer under `.rexecop/receipts/` (`authority: sclite_artifact`) |
 
-## Phase 3B (current)
+## Phase 3C (current)
 
-- Real emitter: `SCLiteArtifactEmitter` in `adapters/sclite_port/emitter.py`
-- Intent emission at plan/governance boundary (`01_intent_contract.json`)
-- Full lifecycle bundle via `controller.export_receipt()` using `materialize_review_bundle()`
-- `validate_review_bundle_shape()` sanity check on emitted bundles
-- `operation.sclite_refs` populated with descriptor paths + digests
-- Placeholder emitter: **deprecated**, offline/bootstrap tests only
+Full bundle profile aligned with `sclite/examples/govengine-integration/`:
+
+- Six lifecycle artifacts (`contract-lifecycle-v0.2` roles)
+- `execution_ticket.v0.3` scoped ticket with `ticket_use` binding
+- Receipt-bounded `evidence_contract` (no live-vuln claims)
+- `trust_profile_ref.json` and `carrier_profile_ref.json` sidecars
+- `kernel_guard_manifest.json` over `artifact_chain_manifest.json`
+- `verify_ticket_use` + `review_bundle` → verdict `pass` on emission
+- Explicit `target_host` resolution for scope-fidelity review (logical targets map to `{environment}.fixture`)
+- GovEngine admission metadata bridged into `policy_decision.reason_codes` / `risk.reason`
+
+Emitter: `SCLiteArtifactEmitter` in `adapters/sclite_port/emitter.py`  
+Full bundle helpers: `adapters/sclite_port/full_bundle.py`  
+Placeholder emitter: **deprecated**, offline/bootstrap tests only
 
 ## Artifact slots
 
@@ -27,9 +36,12 @@ SCLite v0.2 lifecycle artifacts; Phase 3A placeholder export remains for offline
 | `intent_contract` | `schemas/intent_contract.v0.2.schema.json` |
 | `policy_decision` | `schemas/policy_decision.v0.2.schema.json` |
 | `execution_contract` | `schemas/execution_contract.v0.2.schema.json` |
-| `execution_ticket` | `schemas/execution_ticket.v0.2.schema.json` |
+| `execution_ticket` | `schemas/execution_ticket.v0.3.schema.json` |
 | `execution_receipt` | `schemas/execution_receipt.v0.2.schema.json` |
 | `evidence_contract` | `schemas/evidence_contract.v0.2.schema.json` |
+| `trust_profile_ref` | `schemas/trust_profile_ref.v0.1.schema.json` |
+| `carrier_profile_ref` | `schemas/carrier_profile_ref.v0.1.schema.json` |
+| `kernel_guard_manifest` | `schemas/kernel_guard_hmac_v1.schema.json` |
 
 ## Event → artifact mapping
 
@@ -40,8 +52,8 @@ internal debug event.
 ## GovEngine linkage
 
 `policy_decision` and ticket approval status derive from `operation.govengine_decision_type`
-when mutating modes are evaluated. Dry-run operations default to integrity-only dry-run ticket
-approval.
+and `operation.metadata["govengine_admission"]` when mutating modes are evaluated. Dry-run
+operations default to `approved_for_dry_run` scoped ticket approval.
 
 ## Dependency
 
