@@ -13,25 +13,24 @@ Profile workflow
   -> (Phase 4+) controlled execution when allowed
 ```
 
-## Phase 2A (current)
+## Phase 2B (current)
 
-- Port: `src/rexecop/adapters/govengine_port/`
-- `StaticGovEngineAdapter` — bootstrap/test only, **not production governance**
-- No `govengine` PyPI dependency yet (Phase 2B)
-- Apply/recovery modes call the adapter before mutating execution is permitted
+- Real adapter: `GovEngineClient` via `compose_runtime_admission_result()`
+- Default adapter: `GovEngineClient` (fail-closed without full admission inputs)
+- Bootstrap/tests: `StaticGovEngineAdapter` via `static_govengine_adapter()`
+- Dependency: `govengine>=0.12.2a0,<0.15`
+- Runner shape helper: `build_runner_request_preview()` for Phase 4+
 
 ## Decision types
 
-`allowed`, `blocked`, `approval_required`, `maintenance_window_required`,
-`backup_required`, `read_only_only`, `human_required`, `unsupported`, `error`
+Mapped from `RuntimeAdmissionResult` to RExecOp `GovEngineDecisionType`.
 
 ## Apply hard rule
 
-Mutating modes (`apply`, `recovery`) require a positive `allowed` decision before
-RExecOp may permit mutating workflow steps. Other decisions route to
-`waiting_for_approval` or `blocked` states.
+Mutating modes (`apply`, `recovery`) require `allowed` admission before RExecOp may
+permit mutating workflow steps.
 
-## Phase 2B (future)
+## Boundary
 
-Real adapter maps to `govengine` admission surfaces, `GovRunnerRequest` /
-`GovRunnerReceipt`, and `validate_runner_receipt_binding()`.
+GovEngine validates/contracts admission and runner records. RExecOp remains the
+runner, orchestrator, and executor.

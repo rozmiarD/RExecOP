@@ -35,6 +35,12 @@ WAITING_DECISIONS = frozenset(
     }
 )
 
+MUTATING_MODES = frozenset({"apply", "recovery"})
+
+
+def is_mutating_mode(mode: str) -> bool:
+    return mode in MUTATING_MODES
+
 
 @dataclass(frozen=True)
 class GovEngineRequest:

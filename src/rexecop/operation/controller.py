@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from rexecop.adapters.govengine_port.adapter import default_govengine_adapter, is_mutating_mode
+from rexecop.adapters.govengine_port.adapter import default_govengine_adapter
 from rexecop.adapters.govengine_port.contracts import (
     BLOCKING_DECISIONS,
     WAITING_DECISIONS,
@@ -13,6 +13,7 @@ from rexecop.adapters.govengine_port.contracts import (
     GovEngineDecision,
     GovEngineDecisionType,
     GovEngineRequest,
+    is_mutating_mode,
 )
 from rexecop.environment.loader import load_environment
 from rexecop.errors import RExecOpValidationError
