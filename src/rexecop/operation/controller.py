@@ -28,6 +28,7 @@ from rexecop.evidence.manager import EvidenceManager
 from rexecop.operation.model import Operation, StateTransitionRecord, utc_now_iso
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState, validate_transition
+from rexecop.orchestration.orchestrator import OperationOrchestrator
 from rexecop.profile.loader import load_profile
 from rexecop.storage.file_store import FileStore
 from rexecop.workflow.loader import load_workflow
@@ -55,6 +56,12 @@ class OperationController:
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
         self.sclite_emitter = SCLiteArtifactEmitter()
         self.placeholder_sclite_emitter = PlaceholderSCLiteEmitter()
+        self.orchestrator = OperationOrchestrator(
+            store=self.store,
+            evidence=self.evidence,
+            transition=self._transition,
+            export_receipt=self.export_receipt,
+        )
 
     def plan(
         self,
@@ -264,6 +271,15 @@ class OperationController:
             "transitions": [item.as_dict() for item in operation.history],
             "evidence_events": evidence,
         }
+
+    def start(self, operation_id: str) -> Operation:
+        return self.orchestrator.start(operation_id)
+
+    def validate(self, operation_id: str) -> dict[str, object]:
+        return self.orchestrator.validate(operation_id)
+
+    def escalate(self, operation_id: str) -> dict[str, object]:
+        return self.orchestrator.escalate(operation_id)
 
     def _emit_sclite_intent(self, operation: Operation, plan: OperationPlan) -> None:
         intent = self.sclite_emitter.emit_intent_contract(operation, plan)
