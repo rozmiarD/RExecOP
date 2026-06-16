@@ -1,0 +1,24 @@
+environment:
+  id: small-public-unit-proxmox
+  description: Example environment for bootstrap testing only.
+  profile: tecrax
+
+  targets:
+    all_critical_vms:
+      type: group
+      members:
+        - vm-zabbix-01
+        - vm-pbs-01
+
+  connectors:
+    proxmox:
+      enabled: true
+      mode: mock
+    pbs:
+      enabled: true
+      mode: mock
+
+  safety:
+    default_mode: dry_run
+    apply_requires_govengine: true
+    secrets_source: external

@@ -1,0 +1,7 @@
+intent:
+  id: check_backup_status
+  workflow: workflows/check_backup_status.yaml
+  risk: low
+  modes:
+    - read_only
+    - dry_run
