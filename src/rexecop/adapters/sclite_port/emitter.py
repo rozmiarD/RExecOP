@@ -101,6 +101,10 @@ def _policy_decision_value(govengine_decision_type: str) -> str:
 
 
 def _ticket_approval_status(operation: Operation) -> str:
+    if operation.metadata.get("manual_approval"):
+        if _rexecop_mode(operation.mode) == "dry_run":
+            return "approved_for_dry_run"
+        return "approved"
     if operation.govengine_decision_type in {
         "approval_required",
         "maintenance_window_required",

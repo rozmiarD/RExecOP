@@ -1,0 +1,6 @@
+intent:
+  id: restart_zabbix_agent
+  workflow: workflows/restart_zabbix_agent.yaml
+  risk: medium
+  modes:
+    - apply

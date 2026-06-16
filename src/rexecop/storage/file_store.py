@@ -17,6 +17,7 @@ class FileStore:
         self.evidence_dir = self.root / "evidence"
         self.receipts_dir = self.root / "receipts"
         self.sclite_dir = self.root / "sclite"
+        self.approvals_dir = self.root / "approvals"
 
     def ensure_layout(self) -> None:
         self.operations_dir.mkdir(parents=True, exist_ok=True)
@@ -24,6 +25,7 @@ class FileStore:
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
         self.receipts_dir.mkdir(parents=True, exist_ok=True)
         self.sclite_dir.mkdir(parents=True, exist_ok=True)
+        self.approvals_dir.mkdir(parents=True, exist_ok=True)
 
     def operation_sclite_dir(self, operation_id: str) -> Path:
         self.ensure_layout()
@@ -82,4 +84,16 @@ class FileStore:
         path = self.receipts_dir / f"{operation_id}.json"
         if not path.is_file():
             raise RExecOpValidationError(f"receipt export not found: {operation_id}")
+        return json.loads(path.read_text())
+
+    def save_approval(self, operation_id: str, approval: dict[str, Any]) -> Path:
+        self.ensure_layout()
+        path = self.approvals_dir / f"{operation_id}.json"
+        path.write_text(json.dumps(approval, indent=2, sort_keys=True) + "\n")
+        return path
+
+    def load_approval(self, operation_id: str) -> dict[str, Any]:
+        path = self.approvals_dir / f"{operation_id}.json"
+        if not path.is_file():
+            raise RExecOpValidationError(f"approval not found: {operation_id}")
         return json.loads(path.read_text())

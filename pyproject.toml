@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "0.7.0a0"
+version = "0.8.0a0"
 description = "Governance-bound deterministic operations control-plane for profile-defined workflows."
 readme = "README.md"
 requires-python = ">=3.11"

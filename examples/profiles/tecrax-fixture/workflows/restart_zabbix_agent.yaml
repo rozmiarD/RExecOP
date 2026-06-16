@@ -1,0 +1,37 @@
+workflow:
+  id: tecrax.restart_zabbix_agent
+  intent: restart_zabbix_agent
+  mode: apply
+  risk: medium
+  description: Restart Zabbix agent on a target VM using mock Proxmox connector.
+
+  steps:
+    - id: capture_state
+      type: internal
+      action: capture_agent_state
+      pause_safe: true
+
+    - id: restart_agent
+      type: connector
+      connector: proxmox
+      action: restart
+      timeout: 30s
+      pause_safe: false
+
+    - id: verify_state
+      type: internal
+      action: verify_agent_state
+      pause_safe: true
+
+    - id: produce_receipt
+      type: evidence
+      action: produce_receipt
+      pause_safe: true
+
+  retry:
+    max_attempts: 2
+    allowed_on:
+      - timeout
+      - transient_connector_error
+    blocked_on:
+      - policy_denied
