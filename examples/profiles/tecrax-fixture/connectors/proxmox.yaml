@@ -1,0 +1,7 @@
+connector:
+  name: proxmox
+  capabilities:
+    - list_vms
+  modes:
+    - read_only
+  timeout_default: 10s

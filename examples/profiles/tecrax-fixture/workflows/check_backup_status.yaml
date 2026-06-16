@@ -1,0 +1,42 @@
+workflow:
+  id: tecrax.check_backup_status
+  intent: check_backup_status
+  mode: read_only
+  risk: low
+  description: Check backup coverage for critical VMs using profile-defined connectors.
+
+  steps:
+    - id: resolve_inventory
+      type: internal
+      action: environment.resolve_targets
+      pause_safe: true
+
+    - id: query_proxmox
+      type: connector
+      connector: proxmox
+      action: list_vms
+      timeout: 10s
+      pause_safe: false
+
+    - id: query_pbs
+      type: connector
+      connector: pbs
+      action: list_snapshots
+      timeout: 20s
+      pause_safe: false
+
+    - id: correlate
+      type: internal
+      action: correlate_vm_backup_coverage
+      pause_safe: true
+
+    - id: produce_receipt
+      type: evidence
+      action: produce_receipt
+      pause_safe: true
+
+  retry:
+    max_attempts: 2
+    allowed_on:
+      - timeout
+      - transient_connector_error

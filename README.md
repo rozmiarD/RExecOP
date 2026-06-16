@@ -2,7 +2,7 @@
 
 **Governance-bound deterministic operations control-plane for profile-defined workflows.**
 
-Status: **pre-alpha / bootstrap (Phase 0)**. This repository is an early skeleton only.
+Status: **pre-alpha / Phase 1** (operation core: plan, status, history).
 
 RExecOp is the GovEngine-bound **runner, orchestrator, and executor** for profile-defined workflows. It operationalizes domain profiles while preserving strict layer boundaries.
 
@@ -47,13 +47,23 @@ mypy src/rexecop
 pytest
 ```
 
-## CLI (Phase 0)
+## CLI (Phase 1)
 
 ```bash
 rexecop --help
 rexecop version
+rexecop plan \
+  --profile examples/profiles/tecrax-fixture/profile.yaml \
+  --env examples/environments/small-public-unit-proxmox.example.yaml \
+  --intent check_backup_status \
+  --target all_critical_vms \
+  --mode dry_run
+rexecop status --operation <operation-id>
+rexecop history --operation <operation-id>
 python -m rexecop --help
 ```
+
+Runtime artifacts are stored under `.rexecop/` (gitignored).
 
 ## Safety
 
