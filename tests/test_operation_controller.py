@@ -64,6 +64,18 @@ def test_plan_does_not_execute_connectors(tmp_path: Path) -> None:
     assert operation.current_step_id == ""
 
 
+def test_dry_run_plan_has_no_govengine_decision(tmp_path: Path) -> None:
+    store = FileStore(tmp_path / ".rexecop")
+    operation = OperationController(store=store).plan(
+        profile_path=PROFILE,
+        environment_path=ENVIRONMENT,
+        intent="check_backup_status",
+        target="all_critical_vms",
+        mode="dry_run",
+    )
+    assert operation.govengine_decision_type == ""
+
+
 def test_invalid_manual_transition_helper() -> None:
     with pytest.raises(RExecOpStateError):
         validate_transition(OperationState.CREATED, OperationState.RUNNING)
