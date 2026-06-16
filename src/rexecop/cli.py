@@ -146,6 +146,48 @@ def cancel_cmd(
     typer.echo(json.dumps({"operation_id": item.id, "state": item.state}, indent=2, sort_keys=True))
 
 
+@app.command("retry")
+def retry_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Retry a failed operation when the profile retry policy allows it."""
+    try:
+        item = OperationController().retry(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        json.dumps(
+            {"operation_id": item.id, "state": item.state, "current_step_id": item.current_step_id},
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("rollback")
+def rollback_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Execute explicit workflow rollback steps for a failed operation."""
+    try:
+        result = OperationController().rollback(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@app.command("queue")
+def queue_cmd() -> None:
+    """Show pending run-now queue entries."""
+    controller = OperationController()
+    pending = controller.runtime.queue.list_pending()
+    typer.echo(json.dumps({"pending": pending}, indent=2, sort_keys=True))
+
+
 @app.command("start")
 def start_cmd(
     operation: str = typer.Option(..., "--operation", help="Operation id."),

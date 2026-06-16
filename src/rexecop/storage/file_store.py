@@ -45,6 +45,13 @@ class FileStore:
         data = json.loads(path.read_text())
         return Operation.from_dict(data)
 
+    def list_operations(self) -> list[Operation]:
+        self.ensure_layout()
+        operations: list[Operation] = []
+        for path in sorted(self.operations_dir.glob("*.json")):
+            operations.append(Operation.from_dict(json.loads(path.read_text())))
+        return operations
+
     def save_plan(self, plan: OperationPlan) -> None:
         self.ensure_layout()
         path = self.plans_dir / f"{plan.operation_id}.json"
