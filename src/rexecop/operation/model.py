@@ -52,6 +52,7 @@ class Operation:
     current_step_id: str = ""
     govengine_decision_type: str = ""
     govengine_decision_summary: str = ""
+    sclite_refs: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
     history: list[StateTransitionRecord] = field(default_factory=list)
     evidence_event_ids: list[str] = field(default_factory=list)
@@ -72,6 +73,7 @@ class Operation:
             "current_step_id": self.current_step_id,
             "govengine_decision_type": self.govengine_decision_type,
             "govengine_decision_summary": self.govengine_decision_summary,
+            "sclite_refs": dict(self.sclite_refs),
             "metadata": dict(self.metadata),
             "history": [item.as_dict() for item in self.history],
             "evidence_event_ids": list(self.evidence_event_ids),
@@ -98,6 +100,7 @@ class Operation:
             current_step_id=str(data.get("current_step_id") or ""),
             govengine_decision_type=str(data.get("govengine_decision_type") or ""),
             govengine_decision_summary=str(data.get("govengine_decision_summary") or ""),
+            sclite_refs=dict(data.get("sclite_refs") or {}),
             metadata=dict(data.get("metadata") or {}),
             history=history,
             evidence_event_ids=[str(item) for item in data.get("evidence_event_ids") or []],

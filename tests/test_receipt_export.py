@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from rexecop.adapters.sclite_port.contracts import ARTIFACT_SLOTS, RECEIPT_EXPORT_AUTHORITY
+from rexecop.operation.controller import OperationController
+from rexecop.storage.file_store import FileStore
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+
+
+def test_export_placeholder_receipt_writes_non_authoritative_file(tmp_path: Path) -> None:
+    store = FileStore(tmp_path / ".rexecop")
+    controller = OperationController(store=store)
+    operation = controller.plan(
+        profile_path=PROFILE,
+        environment_path=ENVIRONMENT,
+        intent="check_backup_status",
+        target="all_critical_vms",
+        mode="dry_run",
+    )
+    result = controller.export_placeholder_receipt(operation.id)
+    export = result["export"]
+    assert isinstance(export, dict)
+    assert export["authority"] == RECEIPT_EXPORT_AUTHORITY
+    assert export["emitter"] == "placeholder"
+    for role in ARTIFACT_SLOTS:
+        assert export["artifact_slots"][role]["sclite_schema_ref"].startswith("schemas/")
+
+    saved = store.load_receipt_export(operation.id)
+    assert saved["authority"] == RECEIPT_EXPORT_AUTHORITY
+
+    reloaded = controller.get_operation(operation.id)
+    assert reloaded.sclite_refs
+    assert all(
+        reloaded.sclite_refs[role]["status"] == "placeholder" for role in ARTIFACT_SLOTS
+    )
