@@ -6,4 +6,4 @@ def test_package_import() -> None:
 
 
 def test_version_is_pre_alpha() -> None:
-    assert rexecop.__version__ == "0.8.0a0"
+    assert rexecop.__version__ == "0.9.0a0"

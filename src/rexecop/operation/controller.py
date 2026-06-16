@@ -57,6 +57,11 @@ class OperationController:
 
         self.sclite_emitter = SCLiteArtifactEmitter()
         self.placeholder_sclite_emitter = PlaceholderSCLiteEmitter()
+        from rexecop.runtime_ops.coordinator import RuntimeCoordinator
+        from rexecop.runtime_ops.rollback import RollbackExecutor
+
+        self.runtime = RuntimeCoordinator(self.store)
+        self.rollback_executor = RollbackExecutor()
         self.orchestrator = OperationOrchestrator(
             store=self.store,
             evidence=self.evidence,
@@ -105,6 +110,18 @@ class OperationController:
             updated_at=now,
             correlation_id=correlation_id,
         )
+
+        operation.metadata["runtime_policy"] = {
+            "max_concurrent_operations": int(
+                environment.safety.get("max_concurrent_operations") or 1
+            ),
+            "target_lock_enabled": bool(
+                environment.safety.get("target_lock_enabled", True)
+            ),
+            "maintenance_windows": list(
+                environment.safety.get("maintenance_windows") or []
+            ),
+        }
 
         created_event = self.evidence.emit(
             operation_id=operation.id,
@@ -200,6 +217,13 @@ class OperationController:
             return approval_path.is_file()
         return False
 
+    def _governance_allows_rollback(self, operation: Operation) -> bool:
+        if operation.govengine_decision_type == GovEngineDecisionType.ALLOWED.value:
+            return True
+        if operation.metadata.get("manual_approval"):
+            return True
+        return False
+
     def get_operation(self, operation_id: str) -> Operation:
         return self.store.load_operation(operation_id)
 
@@ -283,10 +307,69 @@ class OperationController:
         }
 
     def start(self, operation_id: str) -> Operation:
-        return self.orchestrator.start(operation_id)
+        return self._start_operation(operation_id, drain_queue=True)
+
+    def process_queue(self) -> list[str]:
+        return self._drain_queue()
+
+    def rollback(self, operation_id: str) -> dict[str, object]:
+        operation = self.get_operation(operation_id)
+        plan = self.store.load_plan(operation_id)
+        result = self.rollback_executor.execute(
+            operation=operation,
+            plan=plan,
+            govengine_allows=self._governance_allows_rollback(operation),
+        )
+        operation.metadata["rollback"] = result
+        self.store.save_operation(operation)
+        return result
+
+    def _start_operation(self, operation_id: str, *, drain_queue: bool) -> Operation:
+        operation = self.get_operation(operation_id)
+        if operation.state == OperationState.APPROVED.value and is_mutating_mode(operation.mode):
+            self.runtime.check_maintenance_window(operation)
+            if self.runtime.admit_for_execution(operation) == "queued":
+                return self.get_operation(operation_id)
+        result = self.orchestrator.start(operation_id)
+        self._release_runtime_if_terminal(result)
+        if drain_queue:
+            self._drain_queue()
+        return self.get_operation(operation_id)
+
+    def _release_runtime_if_terminal(self, operation: Operation) -> None:
+        if operation.state in {
+            OperationState.COMPLETED.value,
+            OperationState.FAILED.value,
+            OperationState.CANCELLED.value,
+            OperationState.ESCALATED.value,
+        }:
+            self.runtime.release_operation(operation)
+
+    def _drain_queue(self) -> list[str]:
+        started: list[str] = []
+        while True:
+            next_id = self.runtime.queue.peek()
+            if not next_id:
+                break
+            candidate = self.get_operation(next_id)
+            if candidate.state != OperationState.APPROVED.value:
+                self.runtime.queue.remove(next_id)
+                continue
+            if self.runtime.admit_for_execution(candidate) != "admitted":
+                break
+            self._start_operation(next_id, drain_queue=False)
+            started.append(next_id)
+        return started
 
     def advance(self, operation_id: str, *, max_steps: int = 1) -> Operation:
-        return self.orchestrator.advance(operation_id, max_steps=max_steps)
+        operation = self.get_operation(operation_id)
+        if operation.state == OperationState.APPROVED.value and is_mutating_mode(operation.mode):
+            self.runtime.check_maintenance_window(operation)
+            if self.runtime.admit_for_execution(operation) == "queued":
+                return self.get_operation(operation_id)
+        result = self.orchestrator.advance(operation_id, max_steps=max_steps)
+        self._release_runtime_if_terminal(result)
+        return self.get_operation(operation_id)
 
     def approve(self, operation_id: str, *, approved_by: str = "operator") -> Operation:
         operation = self.get_operation(operation_id)
@@ -324,13 +407,34 @@ class OperationController:
         return self.orchestrator.pause(operation_id)
 
     def resume(self, operation_id: str) -> Operation:
-        return self.orchestrator.resume(operation_id)
+        operation = self.get_operation(operation_id)
+        if is_mutating_mode(operation.mode):
+            self.runtime.check_maintenance_window(operation)
+            if self.runtime.admit_for_execution(operation) == "queued":
+                return self.get_operation(operation_id)
+        result = self.orchestrator.resume(operation_id)
+        self._release_runtime_if_terminal(result)
+        self._drain_queue()
+        return self.get_operation(operation_id)
 
     def cancel(self, operation_id: str) -> Operation:
-        return self.orchestrator.cancel(operation_id)
+        operation = self.get_operation(operation_id)
+        result = self.orchestrator.cancel(operation_id)
+        self.runtime.release_operation(operation)
+        self.runtime.queue.remove(operation_id)
+        self._drain_queue()
+        return result
 
     def retry(self, operation_id: str) -> Operation:
-        return self.orchestrator.retry(operation_id)
+        operation = self.get_operation(operation_id)
+        if is_mutating_mode(operation.mode):
+            self.runtime.check_maintenance_window(operation)
+            if self.runtime.admit_for_execution(operation) == "queued":
+                return self.get_operation(operation_id)
+        result = self.orchestrator.retry(operation_id)
+        self._release_runtime_if_terminal(result)
+        self._drain_queue()
+        return self.get_operation(operation_id)
 
     def validate(self, operation_id: str) -> dict[str, object]:
         return self.orchestrator.validate(operation_id)
