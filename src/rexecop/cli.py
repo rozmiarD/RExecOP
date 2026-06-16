@@ -83,11 +83,74 @@ def status_cmd(
     )
 
 
+@app.command("approve")
+def approve_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+    approved_by: str = typer.Option("operator", "--by", help="Approver label."),
+) -> None:
+    """Approve an operation waiting for manual approval."""
+    try:
+        item = OperationController().approve(operation, approved_by=approved_by)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(json.dumps({"operation_id": item.id, "state": item.state}, indent=2, sort_keys=True))
+
+
+@app.command("pause")
+def pause_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Pause a running operation at a pause_safe step."""
+    try:
+        item = OperationController().pause(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(json.dumps({"operation_id": item.id, "state": item.state}, indent=2, sort_keys=True))
+
+
+@app.command("resume")
+def resume_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Resume a paused operation."""
+    try:
+        item = OperationController().resume(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        json.dumps(
+            {"operation_id": item.id, "state": item.state, "current_step_id": item.current_step_id},
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("cancel")
+def cancel_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Cancel an operation before completion."""
+    try:
+        item = OperationController().cancel(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(json.dumps({"operation_id": item.id, "state": item.state}, indent=2, sort_keys=True))
+
+
 @app.command("start")
 def start_cmd(
     operation: str = typer.Option(..., "--operation", help="Operation id."),
 ) -> None:
-    """Start a planned read-only operation."""
+    """Start an approved operation (read-only auto-approves; apply requires approval)."""
     try:
         item = OperationController().start(operation)
     except RExecOpError as exc:

@@ -187,9 +187,18 @@ class OperationController:
         operation = self.get_operation(operation_id)
         if not is_mutating_mode(operation.mode):
             return False
-        if operation.govengine_decision_type != GovEngineDecisionType.ALLOWED.value:
+        if operation.govengine_decision_type in {
+            item.value for item in BLOCKING_DECISIONS
+        }:
             return False
-        return operation.state == OperationState.APPROVED.value
+        if operation.govengine_decision_type == GovEngineDecisionType.ALLOWED.value:
+            return operation.state == OperationState.APPROVED.value
+        if operation.govengine_decision_type in {item.value for item in WAITING_DECISIONS}:
+            if operation.state != OperationState.APPROVED.value:
+                return False
+            approval_path = self.store.approvals_dir / f"{operation_id}.json"
+            return approval_path.is_file()
+        return False
 
     def get_operation(self, operation_id: str) -> Operation:
         return self.store.load_operation(operation_id)
@@ -275,6 +284,53 @@ class OperationController:
 
     def start(self, operation_id: str) -> Operation:
         return self.orchestrator.start(operation_id)
+
+    def advance(self, operation_id: str, *, max_steps: int = 1) -> Operation:
+        return self.orchestrator.advance(operation_id, max_steps=max_steps)
+
+    def approve(self, operation_id: str, *, approved_by: str = "operator") -> Operation:
+        operation = self.get_operation(operation_id)
+        if operation.state != OperationState.WAITING_FOR_APPROVAL.value:
+            raise RExecOpValidationError(
+                f"approve requires waiting_for_approval, got {operation.state}"
+            )
+        approval = {
+            "operation_id": operation_id,
+            "approved_by": approved_by,
+            "approved_at": utc_now_iso(),
+            "govengine_decision_type": operation.govengine_decision_type,
+        }
+        self.store.save_approval(operation_id, approval)
+        operation.metadata["manual_approval"] = approval
+        approval_event = self.evidence.emit(
+            operation_id=operation_id,
+            event_type=EvidenceEventType.APPROVAL_RECEIVED,
+            correlation_id=operation.correlation_id,
+            state_before=operation.state,
+            state_after=OperationState.APPROVED.value,
+            payload=approval,
+        )
+        operation.evidence_event_ids.append(approval_event)
+        self._transition(
+            operation,
+            OperationState.APPROVED,
+            reason="manual_approval",
+            correlation_id=operation.correlation_id,
+        )
+        self.store.save_operation(operation)
+        return operation
+
+    def pause(self, operation_id: str) -> Operation:
+        return self.orchestrator.pause(operation_id)
+
+    def resume(self, operation_id: str) -> Operation:
+        return self.orchestrator.resume(operation_id)
+
+    def cancel(self, operation_id: str) -> Operation:
+        return self.orchestrator.cancel(operation_id)
+
+    def retry(self, operation_id: str) -> Operation:
+        return self.orchestrator.retry(operation_id)
 
     def validate(self, operation_id: str) -> dict[str, object]:
         return self.orchestrator.validate(operation_id)

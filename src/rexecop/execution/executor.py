@@ -23,6 +23,8 @@ class StepExecutor:
         self._internal_handlers: dict[str, InternalHandler] = {
             "environment.resolve_targets": self._resolve_targets,
             "correlate_vm_backup_coverage": self._correlate_coverage,
+            "capture_agent_state": self._capture_agent_state,
+            "verify_agent_state": self._verify_agent_state,
         }
 
     def execute(self, context: StepExecutionContext) -> StepExecutionResult:
@@ -55,14 +57,30 @@ class StepExecutor:
             )
         )
         if not response.success:
+            output = response.as_dict()
+            error_class = str(response.data.get("error_class") or "")
+            if error_class:
+                output["error_class"] = error_class
             return StepExecutionResult(
                 step_id=step_id,
                 success=False,
-                output=response.as_dict(),
+                output=output,
                 error=response.error,
             )
+        output = response.as_dict()
+        before_state = response.data.get("before_state")
+        after_state = response.data.get("after_state")
+        if isinstance(before_state, dict):
+            output["before_state"] = before_state
+        if isinstance(after_state, dict):
+            output["after_state"] = after_state
         context.shared_state.setdefault("connector_results", {})[step_id] = response.data
-        return StepExecutionResult(step_id=step_id, success=True, output=response.as_dict())
+        if isinstance(before_state, dict) and isinstance(after_state, dict):
+            context.shared_state.setdefault("mutation_states", {})[step_id] = {
+                "before_state": before_state,
+                "after_state": after_state,
+            }
+        return StepExecutionResult(step_id=step_id, success=True, output=output)
 
     def _execute_internal(
         self,
@@ -127,3 +145,27 @@ class StepExecutor:
         }
         context.shared_state["correlation"] = result
         return result
+
+    def _capture_agent_state(self, context: StepExecutionContext) -> dict[str, Any]:
+        state = {
+            "target": context.target,
+            "agent_status": "running",
+            "vm_id": "vm-101",
+        }
+        context.shared_state["agent_before_state"] = dict(state)
+        return {"before_state": state}
+
+    def _verify_agent_state(self, context: StepExecutionContext) -> dict[str, Any]:
+        mutation = context.shared_state.get("mutation_states", {}).get("restart_agent", {})
+        after_state = mutation.get("after_state")
+        if not isinstance(after_state, dict):
+            return {
+                "verified": False,
+                "reason": "missing restart mutation after_state",
+            }
+        context.shared_state["agent_after_state"] = dict(after_state)
+        return {
+            "verified": after_state.get("agent_status") == "restarted",
+            "after_state": after_state,
+            "before_state": context.shared_state.get("agent_before_state"),
+        }
