@@ -15,6 +15,7 @@ from rexecop.adapters.govengine_port.contracts import (
     GovEngineRequest,
     is_mutating_mode,
 )
+from rexecop.adapters.sclite_port.placeholder_emitter import PlaceholderSCLiteEmitter
 from rexecop.environment.loader import load_environment
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
@@ -47,6 +48,7 @@ class OperationController:
         self.store = store or FileStore()
         self.evidence = EvidenceManager(self.store)
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
+        self.sclite_emitter = PlaceholderSCLiteEmitter()
 
     def plan(
         self,
@@ -175,6 +177,38 @@ class OperationController:
 
     def get_operation(self, operation_id: str) -> Operation:
         return self.store.load_operation(operation_id)
+
+    def export_placeholder_receipt(self, operation_id: str) -> dict[str, object]:
+        operation = self.get_operation(operation_id)
+        plan = self.store.load_plan(operation_id)
+        events = self.store.list_evidence_events(operation_id)
+        export = self.sclite_emitter.export_operation_receipt(
+            operation_id=operation_id,
+            events=events,
+            plan_summary={
+                "profile": plan.profile,
+                "intent": plan.intent,
+                "target": plan.target,
+                "mode": plan.mode,
+            },
+        )
+        operation.sclite_refs = self.sclite_emitter.build_sclite_refs(export)
+        path = self.store.save_receipt_export(operation_id, export.as_dict())
+        receipt_event = self.evidence.emit(
+            operation_id=operation_id,
+            event_type=EvidenceEventType.RECEIPT_GENERATED,
+            correlation_id=operation.correlation_id,
+            state_before=operation.state,
+            state_after=operation.state,
+            payload={
+                "authority": export.authority,
+                "emitter": export.emitter,
+                "receipt_export_path": str(path),
+            },
+        )
+        operation.evidence_event_ids.append(receipt_event)
+        self.store.save_operation(operation)
+        return {"export": export.as_dict(), "path": str(path), "sclite_refs": operation.sclite_refs}
 
     def get_history(self, operation_id: str) -> dict[str, object]:
         operation = self.get_operation(operation_id)

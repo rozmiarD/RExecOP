@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "0.3.0a0"
+version = "0.4.0a0"
 description = "Governance-bound deterministic operations control-plane for profile-defined workflows."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,6 +16,9 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+]
+sclite = [
+    "sclite-core>=1.0.1,<1.1",
 ]
 
 [project.scripts]

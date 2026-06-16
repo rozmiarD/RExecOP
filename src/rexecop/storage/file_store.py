@@ -15,11 +15,13 @@ class FileStore:
         self.operations_dir = self.root / "operations"
         self.plans_dir = self.root / "plans"
         self.evidence_dir = self.root / "evidence"
+        self.receipts_dir = self.root / "receipts"
 
     def ensure_layout(self) -> None:
         self.operations_dir.mkdir(parents=True, exist_ok=True)
         self.plans_dir.mkdir(parents=True, exist_ok=True)
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        self.receipts_dir.mkdir(parents=True, exist_ok=True)
 
     def save_operation(self, operation: Operation) -> None:
         self.ensure_layout()
@@ -61,3 +63,15 @@ class FileStore:
         for path in sorted(op_dir.glob("*.json")):
             events.append(json.loads(path.read_text()))
         return events
+
+    def save_receipt_export(self, operation_id: str, export: dict[str, Any]) -> Path:
+        self.ensure_layout()
+        path = self.receipts_dir / f"{operation_id}.json"
+        path.write_text(json.dumps(export, indent=2, sort_keys=True) + "\n")
+        return path
+
+    def load_receipt_export(self, operation_id: str) -> dict[str, Any]:
+        path = self.receipts_dir / f"{operation_id}.json"
+        if not path.is_file():
+            raise RExecOpValidationError(f"receipt export not found: {operation_id}")
+        return json.loads(path.read_text())
