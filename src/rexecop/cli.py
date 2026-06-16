@@ -83,6 +83,54 @@ def status_cmd(
     )
 
 
+@app.command("start")
+def start_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Start a planned read-only operation."""
+    try:
+        item = OperationController().start(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        json.dumps(
+            {"operation_id": item.id, "state": item.state, "current_step_id": item.current_step_id},
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("validate")
+def validate_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Re-run deterministic validation for an operation."""
+    try:
+        result = OperationController().validate(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@app.command("escalate")
+def escalate_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+) -> None:
+    """Build and persist an escalation package for a failed/blocked operation."""
+    try:
+        package = OperationController().escalate(operation)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(json.dumps(package, indent=2, sort_keys=True))
+
+
 @app.command("history")
 def history_cmd(
     operation: str = typer.Option(..., "--operation", help="Operation id."),
