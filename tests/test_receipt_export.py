@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rexecop.adapters.sclite_port.contracts import ARTIFACT_SLOTS, RECEIPT_EXPORT_AUTHORITY
+from rexecop.adapters.sclite_port.contracts import (
+    ARTIFACT_SLOTS,
+    RECEIPT_EXPORT_AUTHORITY,
+    SCLITE_ARTIFACT_AUTHORITY,
+)
 from rexecop.operation.controller import OperationController
 from rexecop.storage.file_store import FileStore
 
@@ -37,3 +41,24 @@ def test_export_placeholder_receipt_writes_non_authoritative_file(tmp_path: Path
     assert all(
         reloaded.sclite_refs[role]["status"] == "placeholder" for role in ARTIFACT_SLOTS
     )
+
+
+def test_export_receipt_writes_sclite_bundle_and_descriptor_refs(tmp_path: Path) -> None:
+    store = FileStore(tmp_path / ".rexecop")
+    controller = OperationController(store=store)
+    operation = controller.plan(
+        profile_path=PROFILE,
+        environment_path=ENVIRONMENT,
+        intent="check_backup_status",
+        target="all_critical_vms",
+        mode="dry_run",
+    )
+    result = controller.export_receipt(operation.id)
+    export = result["export"]
+    assert export["authority"] == SCLITE_ARTIFACT_AUTHORITY
+    assert export["emitter"] == "sclite"
+    refs = result["sclite_refs"]
+    assert refs["intent_contract"]["status"] == "emitted"
+    assert refs["execution_receipt"]["status"] == "emitted"
+    saved = store.load_receipt_export(operation.id)
+    assert saved["authority"] == SCLITE_ARTIFACT_AUTHORITY

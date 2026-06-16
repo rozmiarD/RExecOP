@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import secrets
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+
+from sclite.integrity import artifact_descriptor
 
 from rexecop.adapters.govengine_port.adapter import default_govengine_adapter
 from rexecop.adapters.govengine_port.contracts import (
@@ -15,6 +18,8 @@ from rexecop.adapters.govengine_port.contracts import (
     GovEngineRequest,
     is_mutating_mode,
 )
+from rexecop.adapters.sclite_port.contracts import SCLITE_ARTIFACT_AUTHORITY
+from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
 from rexecop.adapters.sclite_port.placeholder_emitter import PlaceholderSCLiteEmitter
 from rexecop.environment.loader import load_environment
 from rexecop.errors import RExecOpValidationError
@@ -48,7 +53,8 @@ class OperationController:
         self.store = store or FileStore()
         self.evidence = EvidenceManager(self.store)
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
-        self.sclite_emitter = PlaceholderSCLiteEmitter()
+        self.sclite_emitter = SCLiteArtifactEmitter()
+        self.placeholder_sclite_emitter = PlaceholderSCLiteEmitter()
 
     def plan(
         self,
@@ -159,6 +165,8 @@ class OperationController:
             decision = self._evaluate_governance(operation, plan, correlation_id)
             self._apply_governance_transition(operation, decision, correlation_id)
 
+        self._emit_sclite_intent(operation, plan)
+
         self.store.save_operation(operation)
         return operation
 
@@ -182,7 +190,7 @@ class OperationController:
         operation = self.get_operation(operation_id)
         plan = self.store.load_plan(operation_id)
         events = self.store.list_evidence_events(operation_id)
-        export = self.sclite_emitter.export_operation_receipt(
+        export = self.placeholder_sclite_emitter.export_operation_receipt(
             operation_id=operation_id,
             events=events,
             plan_summary={
@@ -192,7 +200,7 @@ class OperationController:
                 "mode": plan.mode,
             },
         )
-        operation.sclite_refs = self.sclite_emitter.build_sclite_refs(export)
+        operation.sclite_refs = self.placeholder_sclite_emitter.build_sclite_refs(export)
         path = self.store.save_receipt_export(operation_id, export.as_dict())
         receipt_event = self.evidence.emit(
             operation_id=operation_id,
@@ -210,6 +218,41 @@ class OperationController:
         self.store.save_operation(operation)
         return {"export": export.as_dict(), "path": str(path), "sclite_refs": operation.sclite_refs}
 
+    def export_receipt(self, operation_id: str) -> dict[str, object]:
+        operation = self.get_operation(operation_id)
+        plan = self.store.load_plan(operation_id)
+        bundle_dir = self.store.operation_sclite_dir(operation_id)
+        emission = self.sclite_emitter.emit_operation_bundle(
+            operation=operation,
+            plan=plan,
+            bundle_dir=str(bundle_dir),
+        )
+        operation.sclite_refs = emission.sclite_refs
+        export_summary = emission.as_dict()
+        path = self.store.save_receipt_export(operation_id, export_summary)
+        receipt_event = self.evidence.emit(
+            operation_id=operation_id,
+            event_type=EvidenceEventType.RECEIPT_GENERATED,
+            correlation_id=operation.correlation_id,
+            state_before=operation.state,
+            state_after=operation.state,
+            payload={
+                "authority": SCLITE_ARTIFACT_AUTHORITY,
+                "emitter": "sclite",
+                "bundle_dir": emission.bundle_dir,
+                "receipt_export_path": str(path),
+            },
+        )
+        operation.evidence_event_ids.append(receipt_event)
+        self.store.save_operation(operation)
+        return {
+            "export": export_summary,
+            "bundle_dir": emission.bundle_dir,
+            "path": str(path),
+            "sclite_refs": operation.sclite_refs,
+            "review_verdict": emission.review_record.get("verdict"),
+        }
+
     def get_history(self, operation_id: str) -> dict[str, object]:
         operation = self.get_operation(operation_id)
         evidence = self.store.list_evidence_events(operation_id)
@@ -220,6 +263,25 @@ class OperationController:
             "govengine_decision_summary": operation.govengine_decision_summary,
             "transitions": [item.as_dict() for item in operation.history],
             "evidence_events": evidence,
+        }
+
+    def _emit_sclite_intent(self, operation: Operation, plan: OperationPlan) -> None:
+        intent = self.sclite_emitter.emit_intent_contract(operation, plan)
+        bundle_dir = self.store.operation_sclite_dir(operation.id)
+        intent_path = bundle_dir / "01_intent_contract.json"
+        intent_path.write_text(
+            json.dumps(intent, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        descriptor = artifact_descriptor(intent)
+        operation.sclite_refs = {
+            **operation.sclite_refs,
+            "intent_contract": {
+                "sclite_schema_ref": descriptor["schema_ref"],
+                "descriptor_path": str(intent_path),
+                "digest": descriptor["digest"],
+                "status": "emitted",
+            },
         }
 
     def _evaluate_governance(

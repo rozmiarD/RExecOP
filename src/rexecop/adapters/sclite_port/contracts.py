@@ -6,9 +6,12 @@ from typing import Any, Protocol
 from rexecop.evidence.event import EvidenceEventType
 
 PLACEHOLDER_EMITTER_NOTICE = (
-    "Placeholder SCLite emitter is bootstrap/offline only. "
+    "DEPRECATED: Placeholder SCLite emitter is bootstrap/offline only. "
+    "Use SCLiteArtifactEmitter for real emission (Phase 3B+). "
     "Receipt exports under .rexecop/receipts/ are non-authoritative summaries."
 )
+
+SCLITE_ARTIFACT_AUTHORITY = "sclite_artifact"
 
 RECEIPT_EXPORT_AUTHORITY = "non_authoritative_export"
 

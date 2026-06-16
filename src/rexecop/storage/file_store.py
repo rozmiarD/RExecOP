@@ -16,12 +16,20 @@ class FileStore:
         self.plans_dir = self.root / "plans"
         self.evidence_dir = self.root / "evidence"
         self.receipts_dir = self.root / "receipts"
+        self.sclite_dir = self.root / "sclite"
 
     def ensure_layout(self) -> None:
         self.operations_dir.mkdir(parents=True, exist_ok=True)
         self.plans_dir.mkdir(parents=True, exist_ok=True)
         self.evidence_dir.mkdir(parents=True, exist_ok=True)
         self.receipts_dir.mkdir(parents=True, exist_ok=True)
+        self.sclite_dir.mkdir(parents=True, exist_ok=True)
+
+    def operation_sclite_dir(self, operation_id: str) -> Path:
+        self.ensure_layout()
+        path = self.sclite_dir / operation_id
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     def save_operation(self, operation: Operation) -> None:
         self.ensure_layout()
