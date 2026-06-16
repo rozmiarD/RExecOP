@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+from rexecop.adapters.govengine_port.client import GovEngineClient
 from rexecop.adapters.govengine_port.contracts import GovEngineAdapter, GovEngineDecisionType
 from rexecop.adapters.govengine_port.static_adapter import StaticGovEngineAdapter
 
-MUTATING_MODES = frozenset({"apply", "recovery"})
-
-
-def is_mutating_mode(mode: str) -> bool:
-    return mode in MUTATING_MODES
-
 
 def default_govengine_adapter() -> GovEngineAdapter:
-    """Fail-closed bootstrap adapter for local development."""
-    return StaticGovEngineAdapter(
-        GovEngineDecisionType.BLOCKED,
-        summary="default static adapter blocks mutating execution",
-    )
+    """Fail-closed real GovEngine client for local development."""
+    return GovEngineClient()
+
+
+def static_govengine_adapter(
+    decision_type: GovEngineDecisionType,
+    *,
+    summary: str = "",
+) -> GovEngineAdapter:
+    """Explicit bootstrap/test adapter."""
+    return StaticGovEngineAdapter(decision_type, summary=summary)
