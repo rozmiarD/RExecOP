@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "0.4.0a0"
+version = "0.5.0a0"
 description = "Governance-bound deterministic operations control-plane for profile-defined workflows."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -9,6 +9,7 @@ dependencies = [
     "typer>=0.12.0",
     "PyYAML>=6.0",
     "govengine>=0.12.2a0,<0.15",
+    "sclite-core>=1.0.1,<1.1",
 ]
 
 [project.optional-dependencies]

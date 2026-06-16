@@ -2,7 +2,7 @@
 
 **Governance-bound deterministic operations control-plane for profile-defined workflows.**
 
-Status: **pre-alpha / Phase 3A** (SCLite port boundary + placeholder receipt export).
+Status: **pre-alpha / Phase 3B** (real SCLite artifact emission).
 
 RExecOp is the GovEngine-bound **runner, orchestrator, and executor** for profile-defined workflows. It operationalizes domain profiles while preserving strict layer boundaries.
 
