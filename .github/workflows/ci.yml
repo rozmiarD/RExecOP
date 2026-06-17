@@ -26,6 +26,9 @@ jobs:
           python -m pip install -e ./tecrax
           python -m pip install -e ".[dev]"
 
+      - name: Validate public truth
+        run: python scripts/validate_public_truth.py
+
       - name: Ruff
         run: ruff check . --exclude tecrax
 

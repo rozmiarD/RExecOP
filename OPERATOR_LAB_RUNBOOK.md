@@ -1,6 +1,6 @@
 # Operator lab runbook (Phase 11)
 
-RExecOp `0.1.2a0` — validate neutral core, plugin boundaries, and read-only paths before apply.
+RExecOp `0.1.3a0` — validate neutral core, plugin boundaries, and read-only paths before apply.
 
 ## Prerequisites
 
@@ -14,13 +14,14 @@ RExecOp `0.1.2a0` — validate neutral core, plugin boundaries, and read-only pa
 
 ```bash
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
-rexecop version    # 0.1.2a0
+rexecop version    # 0.1.3a0
 ```
 
 ## Lab checklist
 
 ### 1. Core boundary
 
+- [ ] `python scripts/validate_public_truth.py` passes
 - [ ] `ruff check . --exclude tecrax` passes
 - [ ] `rg 'vm-101|proxmox|pbs|zabbix' src/rexecop` returns **no matches**
 - [ ] `rg 'import tecrax' src/rexecop` returns **no matches**

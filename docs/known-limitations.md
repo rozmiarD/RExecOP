@@ -1,6 +1,6 @@
 # Known limitations (alpha)
 
-RExecOp `0.1.1a0` is an **alpha** release for operator evaluation. This document states
+RExecOp `0.1.3a0` is an **alpha** release for operator evaluation. This document states
 what the software does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth

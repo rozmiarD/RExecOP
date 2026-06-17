@@ -11,8 +11,15 @@ import rexecop
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _package_version() -> str:
+    import tomllib
+
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return str(data["project"]["version"])
+
+
 def test_alpha_version_declared() -> None:
-    assert rexecop.__version__ == "0.1.3a0"
+    assert rexecop.__version__ == _package_version()
 
 
 def test_readonly_fixture_e2e_exists() -> None:
@@ -60,4 +67,4 @@ def test_rexecop_cli_entrypoint() -> None:
         pytest.skip("rexecop console script not on PATH")
     result = subprocess.run([rexecop_bin, "version"], check=False, capture_output=True, text=True)
     assert result.returncode == 0
-    assert "0.1.3a0" in result.stdout
+    assert _package_version() in result.stdout
