@@ -40,7 +40,12 @@ def _sample_plan() -> OperationPlan:
         workflow={"id": "check_backup_status"},
         planned_steps=[
             {"id": "resolve_inventory", "type": "internal", "action": "resolve_inventory"},
-            {"id": "query_pbs", "type": "connector", "connector": "pbs", "action": "list_snapshots"},
+            {
+                "id": "query_pbs",
+                "type": "connector",
+                "connector": "pbs",
+                "action": "list_snapshots",
+            },
         ],
         required_connectors=["pbs"],
         risk="low",
@@ -50,14 +55,6 @@ def _sample_plan() -> OperationPlan:
         retry_policy_summary={"max_attempts": 0},
         rollback_available=False,
     )
-
-
-from rexecop.adapters.sclite_port.fixture_bundle import (
-    REXECOP_FIXTURE_GUARD_KEY,
-    emit_fixture_operation_bundle,
-    write_fixture_kernel_guard_manifest,
-)
-from rexecop.adapters.sclite_port.full_bundle import KERNEL_GUARD_MANIFEST_FILE
 
 
 def test_production_emit_skips_fixture_kernel_guard(tmp_path: Path) -> None:
