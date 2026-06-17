@@ -43,13 +43,18 @@ def test_workflow_runner_executes_declared_steps_only() -> None:
 
 
 def test_validator_is_deterministic() -> None:
+    from rexecop.profile.loader import load_profile
+
+    loaded = load_profile(PROFILE)
     passed = validate_operation_result(
         intent="check_backup_status",
         shared_state={"correlation": {"all_critical_covered": True, "rows": []}},
+        profile=loaded,
     )
     failed = validate_operation_result(
         intent="check_backup_status",
         shared_state={"correlation": {"all_critical_covered": False, "rows": []}},
+        profile=loaded,
     )
     assert passed["passed"] is True
     assert failed["passed"] is False

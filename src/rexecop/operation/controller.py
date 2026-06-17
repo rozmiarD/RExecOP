@@ -28,6 +28,7 @@ from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState, validate_transition
 from rexecop.orchestration.orchestrator import OperationOrchestrator
 from rexecop.profile.loader import load_profile
+from rexecop.profile.resolver import resolve_profile_path
 from rexecop.storage.file_store import FileStore
 from rexecop.workflow.loader import load_workflow
 
@@ -72,7 +73,7 @@ class OperationController:
     def plan(
         self,
         *,
-        profile_path: Path,
+        profile_path: str | Path,
         environment_path: Path,
         intent: str,
         target: str,
@@ -82,7 +83,8 @@ class OperationController:
         if mode not in SUPPORTED_MODES:
             raise RExecOpValidationError(f"unsupported mode: {mode}")
 
-        profile = load_profile(profile_path)
+        resolved_profile_path = resolve_profile_path(profile_path)
+        profile = load_profile(resolved_profile_path)
         environment = load_environment(environment_path)
         if environment.profile and environment.profile != profile.name:
             raise RExecOpValidationError(
@@ -111,6 +113,7 @@ class OperationController:
             correlation_id=correlation_id,
         )
 
+        operation.metadata["profile_root"] = str(profile.root)
         operation.metadata["runtime_policy"] = {
             "max_concurrent_operations": int(
                 environment.safety.get("max_concurrent_operations") or 1

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from rexecop.adapters.govengine_port.contracts import (
@@ -16,6 +17,7 @@ from rexecop.execution.executor import StepExecutor
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState
+from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.storage.file_store import FileStore
 from rexecop.validation.validator import validate_operation_result
 from rexecop.workflow.runner import WorkflowRunner
@@ -206,7 +208,11 @@ class OperationOrchestrator:
     def validate(self, operation_id: str) -> dict[str, Any]:
         operation = self.store.load_operation(operation_id)
         shared_state = dict(operation.metadata.get("shared_state") or {})
-        return validate_operation_result(intent=operation.intent, shared_state=shared_state)
+        return validate_operation_result(
+            intent=operation.intent,
+            shared_state=shared_state,
+            profile=self._profile_for_operation(operation),
+        )
 
     def escalate(self, operation_id: str) -> dict[str, Any]:
         operation = self.store.load_operation(operation_id)
@@ -390,6 +396,7 @@ class OperationOrchestrator:
         validation = validate_operation_result(
             intent=operation.intent,
             shared_state=shared_state,
+            profile=self._profile_for_operation(operation),
         )
         operation.metadata["validation"] = validation
         self._emit_simple_event(
@@ -514,6 +521,12 @@ class OperationOrchestrator:
             "paused_at_step_id": None,
             "pause_safe_points": list(plan.pause_safe_points),
         }
+
+    def _profile_for_operation(self, operation: Operation) -> LoadedProfile | None:
+        root = operation.metadata.get("profile_root")
+        if not isinstance(root, str) or not root.strip():
+            return None
+        return load_profile(Path(root))
 
     def _execution_cursor(self, operation: Operation) -> dict[str, Any]:
         cursor = operation.metadata.get("execution_cursor")

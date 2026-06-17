@@ -1,0 +1,13 @@
+validation_rule:
+  intent: check_backup_status
+  steps:
+    - type: require_mapping
+      key: correlation
+      fail:
+        rule: check_backup_status.correlation_required
+        details:
+          reason: missing correlation result
+    - type: require_truthy_path
+      path: correlation.all_critical_covered
+      pass_rule: check_backup_status.all_critical_covered
+      details_from: correlation

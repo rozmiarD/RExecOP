@@ -1,0 +1,18 @@
+validation_rule:
+  intent: restart_zabbix_agent
+  steps:
+    - type: require_mapping
+      key: agent_after_state
+      fail:
+        rule: restart_zabbix_agent.after_state_required
+        details:
+          reason: missing agent_after_state
+    - type: require_equals
+      path: agent_after_state.agent_status
+      value: restarted
+      pass_rule: restart_zabbix_agent.agent_restarted
+      details:
+        agent_after_state: $agent_after_state
+        mutation_states: $mutation_states.restart_agent
+        before_state: $mutation_states.restart_agent.before_state
+        after_state: $mutation_states.restart_agent.after_state
