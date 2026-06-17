@@ -22,9 +22,9 @@ from rexecop.adapters.sclite_port.full_bundle import (
     build_receipt_bounded_evidence_contract,
     build_scoped_execution_receipt,
     build_scoped_execution_ticket,
+    maybe_write_operator_kernel_guard_manifest,
     verify_full_bundle,
     write_full_bundle_sidecars,
-    write_kernel_guard_manifest,
 )
 from rexecop.adapters.sclite_port.govengine_policy_bridge import (
     policy_reason_codes,
@@ -340,10 +340,11 @@ def build_sclite_refs(
             "digest": artifact_descriptor(sidecar).get("digest"),
             "status": "emitted",
         }
+    guard_path = Path(bundle_dir) / KERNEL_GUARD_MANIFEST_FILE
     refs["kernel_guard_manifest"] = {
         "sclite_schema_ref": "schemas/kernel_guard_hmac_v1.schema.json",
         "descriptor_path": f"{bundle_dir}/{KERNEL_GUARD_MANIFEST_FILE}",
-        "status": "emitted",
+        "status": "emitted" if guard_path.is_file() else "not_required",
     }
     return refs
 
@@ -393,7 +394,7 @@ class SCLiteArtifactEmitter:
             execution_ticket=artifacts["execution_ticket"],
             link=_link,
         )
-        write_kernel_guard_manifest(bundle_dir)
+        maybe_write_operator_kernel_guard_manifest(bundle_dir)
         validate_review_bundle_shape(bundle_dir)
         review_record = verify_full_bundle(bundle_dir, artifacts)
         refs = build_sclite_refs(bundle_dir, artifacts, sidecars=sidecars)

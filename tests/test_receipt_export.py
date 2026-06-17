@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from rexecop.adapters.sclite_port.contracts import (
     ARTIFACT_SLOTS,
     RECEIPT_EXPORT_AUTHORITY,
@@ -25,7 +27,8 @@ def test_export_placeholder_receipt_writes_non_authoritative_file(tmp_path: Path
         target="all_critical_vms",
         mode="dry_run",
     )
-    result = controller.export_placeholder_receipt(operation.id)
+    with pytest.warns(DeprecationWarning, match="export_placeholder_receipt is deprecated"):
+        result = controller.export_placeholder_receipt(operation.id)
     export = result["export"]
     assert isinstance(export, dict)
     assert export["authority"] == RECEIPT_EXPORT_AUTHORITY

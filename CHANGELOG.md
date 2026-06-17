@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.1.4a2] - 2026-06-17
+
+### Phase 13.3 — fixture path isolation
+
+- `REXECOP_FIXTURE_GUARD_KEY` moved to `fixture_bundle.py` (tests/lab only)
+- Production `emit_operation_bundle` skips kernel guard unless `REXECOP_KERNEL_GUARD_KEY` is set
+- `emit_fixture_operation_bundle` for CI/lab bundles with fixture HMAC sidecar
+- `export_placeholder_receipt` deprecated; implementation in `rexecop.examples.bootstrap_receipt`
+- CI boundary grep: fixture key must not appear in `full_bundle.py`
+
 ## [0.1.4a1] - 2026-06-17
 
 ### Phase 13.2 — execution receipt honesty

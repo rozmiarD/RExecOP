@@ -56,13 +56,10 @@ class OperationController:
         self.evidence = EvidenceManager(self.store)
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
         from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
-        from rexecop.adapters.sclite_port.placeholder_emitter import PlaceholderSCLiteEmitter
-
-        self.sclite_emitter = SCLiteArtifactEmitter()
-        self.placeholder_sclite_emitter = PlaceholderSCLiteEmitter()
         from rexecop.runtime_ops.coordinator import RuntimeCoordinator
         from rexecop.runtime_ops.rollback import RollbackExecutor
 
+        self.sclite_emitter = SCLiteArtifactEmitter()
         self.runtime = RuntimeCoordinator(self.store)
         self.rollback_executor = RollbackExecutor()
         self.orchestrator = OperationOrchestrator(
@@ -237,36 +234,9 @@ class OperationController:
         return self.store.load_operation(operation_id)
 
     def export_placeholder_receipt(self, operation_id: str) -> dict[str, object]:
-        operation = self.get_operation(operation_id)
-        plan = self.store.load_plan(operation_id)
-        events = self.store.list_evidence_events(operation_id)
-        export = self.placeholder_sclite_emitter.export_operation_receipt(
-            operation_id=operation_id,
-            events=events,
-            plan_summary={
-                "profile": plan.profile,
-                "intent": plan.intent,
-                "target": plan.target,
-                "mode": plan.mode,
-            },
-        )
-        operation.sclite_refs = self.placeholder_sclite_emitter.build_sclite_refs(export)
-        path = self.store.save_receipt_export(operation_id, export.as_dict())
-        receipt_event = self.evidence.emit(
-            operation_id=operation_id,
-            event_type=EvidenceEventType.RECEIPT_GENERATED,
-            correlation_id=operation.correlation_id,
-            state_before=operation.state,
-            state_after=operation.state,
-            payload={
-                "authority": export.authority,
-                "emitter": export.emitter,
-                "receipt_export_path": str(path),
-            },
-        )
-        operation.evidence_event_ids.append(receipt_event)
-        self.store.save_operation(operation)
-        return {"export": export.as_dict(), "path": str(path), "sclite_refs": operation.sclite_refs}
+        from rexecop.examples.bootstrap_receipt import export_placeholder_receipt_with_warning
+
+        return export_placeholder_receipt_with_warning(self, operation_id)
 
     def export_receipt(self, operation_id: str) -> dict[str, object]:
         operation = self.get_operation(operation_id)

@@ -25,15 +25,17 @@ Bundle profile aligned with `sclite/examples/govengine-integration/`:
 - `execution_ticket.v0.3` scoped ticket with `ticket_use` binding
 - Receipt-bounded `evidence_contract` (no live-vuln claims)
 - `trust_profile_ref.json` and `carrier_profile_ref.json` sidecars
-- `kernel_guard_manifest.json` over `artifact_chain_manifest.json`
+- Optional `kernel_guard_manifest.json` when `REXECOP_KERNEL_GUARD_KEY` is set; otherwise `not_required`
+- Fixture/lab guard via `adapters/sclite_port/fixture_bundle.py` (`emit_fixture_operation_bundle`) — not used in production emit
 - `verify_ticket_use` + `review_bundle` → verdict `pass` on emission
 - Explicit `target_host` resolution for scope-fidelity (`adapters/sclite_port/target_host.py`)
 - GovEngine admission metadata bridged into `policy_decision` (`govengine_policy_bridge.py`)
 
 ## Deprecated path
 
-`PlaceholderSCLiteEmitter` — offline/bootstrap tests only. Marked deprecated; do not treat
-placeholder JSON as long-term truth.
+`PlaceholderSCLiteEmitter` — offline/bootstrap tests only via `rexecop.examples.bootstrap_receipt`
+(deprecated). `OperationController.export_placeholder_receipt()` warns and delegates there.
+Do not treat placeholder JSON as long-term truth.
 
 ## Artifact slots
 
@@ -47,7 +49,7 @@ placeholder JSON as long-term truth.
 | `evidence_contract` | `schemas/evidence_contract.v0.2.schema.json` |
 | `trust_profile_ref` | `schemas/trust_profile_ref.v0.1.schema.json` |
 | `carrier_profile_ref` | `schemas/carrier_profile_ref.v0.1.schema.json` |
-| `kernel_guard_manifest` | `schemas/kernel_guard_hmac_v1.schema.json` |
+| `kernel_guard_manifest` | optional — `schemas/kernel_guard_hmac_v1.schema.json` or `not_required` |
 
 ## Event → artifact mapping
 

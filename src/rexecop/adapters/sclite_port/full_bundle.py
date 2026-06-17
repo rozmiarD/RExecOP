@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -19,12 +20,12 @@ from rexecop.adapters.sclite_port.target_host import sclite_target_ref
 
 FULL_BUNDLE_MANIFEST_PROFILE = "sclite-v0.5-rexecop-integrity"
 REXECOP_RUNTIME_REF = "runtime:rexecop-executor"
-REXECOP_FIXTURE_GUARD_KEY = "rexecop-fixture-guard-key"
-REXECOP_FIXTURE_GUARD_KEY_ID = "rexecop-fixture-guard-key"
 
 TRUST_PROFILE_REF_FILE = "trust_profile_ref.json"
 CARRIER_PROFILE_REF_FILE = "carrier_profile_ref.json"
 KERNEL_GUARD_MANIFEST_FILE = "kernel_guard_manifest.json"
+KERNEL_GUARD_KEY_ENV = "REXECOP_KERNEL_GUARD_KEY"
+KERNEL_GUARD_KEY_ID_ENV = "REXECOP_KERNEL_GUARD_KEY_ID"
 
 FULL_BUNDLE_SIDECARS = (
     TRUST_PROFILE_REF_FILE,
@@ -366,19 +367,32 @@ def write_full_bundle_sidecars(
     return sidecars
 
 
-def write_kernel_guard_manifest(bundle_dir: str | Path) -> dict[str, Any]:
+def write_kernel_guard_manifest(
+    bundle_dir: str | Path,
+    *,
+    key: str,
+    key_id: str,
+) -> dict[str, Any]:
     base = Path(bundle_dir)
     manifest_path = base / "artifact_chain_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     guard = build_kernel_guard_manifest(
         manifest,
-        key=REXECOP_FIXTURE_GUARD_KEY,
-        key_id=REXECOP_FIXTURE_GUARD_KEY_ID,
+        key=key,
+        key_id=key_id,
         nonces=[f"nonce-{index}" for index, _entry in enumerate(manifest["entries"])],
     )
     path = base / KERNEL_GUARD_MANIFEST_FILE
     path.write_text(json.dumps(guard, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return guard
+
+
+def maybe_write_operator_kernel_guard_manifest(bundle_dir: str | Path) -> dict[str, Any] | None:
+    key = os.environ.get(KERNEL_GUARD_KEY_ENV, "").strip()
+    if not key:
+        return None
+    key_id = os.environ.get(KERNEL_GUARD_KEY_ID_ENV, "").strip() or "rexecop-operator-guard-key"
+    return write_kernel_guard_manifest(bundle_dir, key=key, key_id=key_id)
 
 
 def _connector_budget_from_contract(execution_contract: dict[str, Any]) -> int:

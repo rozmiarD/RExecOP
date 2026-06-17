@@ -8,6 +8,7 @@ from sclite.bundles import review_bundle
 from sclite.integrity import artifact_descriptor
 
 from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
+from rexecop.adapters.sclite_port.fixture_bundle import emit_fixture_operation_bundle
 from rexecop.adapters.sclite_port.full_bundle import (
     CARRIER_PROFILE_REF_FILE,
     FULL_BUNDLE_SIDECARS,
@@ -84,7 +85,8 @@ def test_full_bundle_review_verdict_pass(tmp_path: Path) -> None:
 def test_full_bundle_sidecars_and_kernel_guard(tmp_path: Path) -> None:
     emitter = SCLiteArtifactEmitter()
     bundle_dir = tmp_path / "bundle"
-    result = emitter.emit_operation_bundle(
+    result = emit_fixture_operation_bundle(
+        emitter,
         operation=_sample_operation(),
         plan=_sample_plan(),
         bundle_dir=str(bundle_dir),

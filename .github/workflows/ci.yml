@@ -41,6 +41,10 @@ jobs:
             echo "domain import detected in rexecop core"
             exit 1
           fi
+          if rg -n 'rexecop-fixture-guard-key' src/rexecop/adapters/sclite_port/full_bundle.py; then
+            echo "fixture guard key must not ship in production full_bundle module"
+            exit 1
+          fi
 
       - name: Secret scan (basic)
         run: bash scripts/secret_scan.sh
