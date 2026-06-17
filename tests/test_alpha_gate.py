@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_alpha_version_declared() -> None:
-    assert rexecop.__version__ == "0.1.0a0"
+    assert rexecop.__version__ == "0.1.1a0"
 
 
 def test_readonly_fixture_e2e_exists() -> None:
@@ -53,4 +53,4 @@ def test_rexecop_cli_entrypoint() -> None:
         pytest.skip("rexecop console script not on PATH")
     result = subprocess.run([rexecop_bin, "version"], check=False, capture_output=True, text=True)
     assert result.returncode == 0
-    assert "0.1.0a0" in result.stdout
+    assert "0.1.1a0" in result.stdout

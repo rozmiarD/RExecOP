@@ -24,6 +24,12 @@ def resolve_profile_path(profile: str | Path) -> Path:
     if not text:
         raise RExecOpValidationError("profile path or name is required")
 
+    # Bare registered names win over accidental cwd directories (e.g. CI checkouts).
+    if "/" not in text and "\\" not in text and not text.startswith("."):
+        registered = _profile_entry_path(text)
+        if registered is not None:
+            return registered
+
     candidate = Path(text).expanduser()
     if candidate.exists():
         return candidate
