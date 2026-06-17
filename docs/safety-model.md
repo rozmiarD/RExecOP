@@ -50,12 +50,8 @@ secrets before sharing artifacts outside the host.
 
 ## Pre-alpha limits
 
-RExecOp is **not** production-ready software:
-
-- No HA scheduler, daemon, or multi-tenant isolation
-- File-based storage only (SQLite port defined, not default)
-- Mock and staging `http_api` paths are proven; live production infra is operator responsibility
-- GovEngine and SCLite remain authoritative for governance and truth — RExecOp does not replace them
+RExecOp is **alpha** software. See [docs/known-limitations.md](docs/known-limitations.md) and
+[OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md) for operator procedures and explicit non-claims.
 
 ## Related documents
 
