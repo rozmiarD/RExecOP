@@ -2,6 +2,8 @@ connector:
   name: proxmox
   capabilities:
     - list_vms
+    - restart
   modes:
     - read_only
+    - apply
   timeout_default: 10s
