@@ -11,7 +11,7 @@ from rexecop.operation.controller import OperationController
 
 app = typer.Typer(
     name="rexecop",
-    help="Governance-bound deterministic operations control-plane for profile-defined workflows.",
+    help="Regulated Execution Operations control-plane for profile-defined workflows.",
     no_args_is_help=True,
 )
 

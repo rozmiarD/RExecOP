@@ -1,20 +1,25 @@
 # SCLite integration
 
-RExecOp does **not** own long-term auditable truth. SCLite does. Phase 3B introduced real
-lifecycle emission; Phase 3C upgrades bundles to GovEngine-integration parity with scoped
-tickets, receipt-bounded evidence, trust/carrier sidecars, and kernel guard manifests.
+RExecOp does **not** own long-term auditable truth. SCLite does. RExecOp maps completed
+operation lifecycles into SCLite-compatible artifact bundles without forking a parallel schema.
 
 ## Authority model
 
-| Layer | Role |
-| --- | --- |
-| **SCLite artifacts** | Authoritative contracts, receipts, evidence bundles (`.rexecop/sclite/<op>/`) |
-| **RExecOp internal events** | Runtime telemetry under `.rexecop/evidence/` |
-| **RExecOp receipt export** | Summary pointer under `.rexecop/receipts/` (`authority: sclite_artifact`) |
+| Layer | Location | Role |
+| --- | --- | --- |
+| **SCLite artifacts** | `.rexecop/sclite/<operation_id>/` | Authoritative contracts, tickets, receipts, evidence |
+| **RExecOp internal events** | `.rexecop/evidence/<operation_id>/` | Runtime telemetry (redacted) |
+| **RExecOp receipt export** | `.rexecop/receipts/<operation_id>.json` | Summary pointer (`authority: sclite_artifact` or export marker) |
 
-## Phase 3C (current)
+`Operation.sclite_refs` stores descriptor links per artifact role after emission.
 
-Full bundle profile aligned with `sclite/examples/govengine-integration/`:
+## Current emission path
+
+Primary emitter: `SCLiteArtifactEmitter` (`adapters/sclite_port/emitter.py`)
+
+Full bundle helpers: `adapters/sclite_port/full_bundle.py`
+
+Bundle profile aligned with `sclite/examples/govengine-integration/`:
 
 - Six lifecycle artifacts (`contract-lifecycle-v0.2` roles)
 - `execution_ticket.v0.3` scoped ticket with `ticket_use` binding
@@ -22,12 +27,13 @@ Full bundle profile aligned with `sclite/examples/govengine-integration/`:
 - `trust_profile_ref.json` and `carrier_profile_ref.json` sidecars
 - `kernel_guard_manifest.json` over `artifact_chain_manifest.json`
 - `verify_ticket_use` + `review_bundle` → verdict `pass` on emission
-- Explicit `target_host` resolution for scope-fidelity review (logical targets map to `{environment}.fixture`)
-- GovEngine admission metadata bridged into `policy_decision.reason_codes` / `risk.reason`
+- Explicit `target_host` resolution for scope-fidelity (`adapters/sclite_port/target_host.py`)
+- GovEngine admission metadata bridged into `policy_decision` (`govengine_policy_bridge.py`)
 
-Emitter: `SCLiteArtifactEmitter` in `adapters/sclite_port/emitter.py`  
-Full bundle helpers: `adapters/sclite_port/full_bundle.py`  
-Placeholder emitter: **deprecated**, offline/bootstrap tests only
+## Deprecated path
+
+`PlaceholderSCLiteEmitter` — offline/bootstrap tests only. Marked deprecated; do not treat
+placeholder JSON as long-term truth.
 
 ## Artifact slots
 
@@ -46,20 +52,25 @@ Placeholder emitter: **deprecated**, offline/bootstrap tests only
 ## Event → artifact mapping
 
 Internal evidence events declare future SCLite mapping via `EVENT_SCLITE_MAPPING` in
-`adapters/sclite_port/contracts.py`. Real emission occurs at lifecycle boundaries, not per
-internal debug event.
+`adapters/sclite_port/contracts.py`. Real emission occurs at lifecycle boundaries (plan,
+governance, completion), not per debug-level internal event.
 
 ## GovEngine linkage
 
 `policy_decision` and ticket approval status derive from `operation.govengine_decision_type`
-and `operation.metadata["govengine_admission"]` when mutating modes are evaluated. Dry-run
-operations default to `approved_for_dry_run` scoped ticket approval.
+and `operation.metadata["govengine_admission"]` on mutating paths. Read-only operations use
+scoped ticket defaults appropriate for dry-run review (`approved_for_dry_run`).
 
 ## Dependency
 
-`sclite-core>=1.0.1,<1.1` (aligned with GovEngine alpha pin strategy)
+```text
+sclite-core>=1.0.1,<1.1
+```
+
+Aligned with GovEngine pin strategy in `pyproject.toml`.
 
 ## Boundary
 
-SCLite records auditable truth. RExecOp maps operation lifecycle to SCLite artifact shapes
-without forking a parallel receipt schema.
+SCLite records auditable truth. RExecOp projects operation lifecycle outcomes into SCLite
+artifact shapes. RExecOp must not treat `.rexecop/receipts/` exports as authoritative when
+`.rexecop/sclite/` bundles exist for the same operation.
