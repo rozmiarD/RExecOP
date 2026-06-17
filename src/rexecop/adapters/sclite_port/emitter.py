@@ -15,6 +15,7 @@ from sclite.bundles import (
 from sclite.integrity import artifact_descriptor
 
 from rexecop.adapters.sclite_port.contracts import SCLITE_ARTIFACT_AUTHORITY, SCLITE_SCHEMA_REFS
+from rexecop.adapters.sclite_port.execution_receipt_metrics import planned_connector_command_count
 from rexecop.adapters.sclite_port.full_bundle import (
     FULL_BUNDLE_MANIFEST_PROFILE,
     KERNEL_GUARD_MANIFEST_FILE,
@@ -249,7 +250,7 @@ def build_execution_contract(
         },
         "execution_bounds": {
             "mode": capability_mode,
-            "max_commands": max(len(steps), 1),
+            "max_commands": planned_connector_command_count(plan),
             "network_execution_allowed": capability_mode != "dry_run",
             "timeout_seconds": 0,
         },
@@ -268,6 +269,8 @@ def build_execution_contract(
 def build_lifecycle_artifacts(
     operation: Operation,
     plan: OperationPlan,
+    *,
+    evidence_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     intent_contract = build_intent_contract(operation, plan, requested_by=operation.requested_by)
     policy_decision = build_policy_decision(operation, plan, intent_contract)
@@ -295,6 +298,7 @@ def build_lifecycle_artifacts(
         execution_plan_steps=_execution_plan_steps,
         link=_link,
         validate=_validate,
+        evidence_events=evidence_events,
     )
     evidence_contract = build_receipt_bounded_evidence_contract(
         operation,
@@ -360,8 +364,13 @@ class SCLiteArtifactEmitter:
         operation: Operation,
         plan: OperationPlan,
         bundle_dir: str,
+        evidence_events: list[dict[str, Any]] | None = None,
     ) -> SCLiteEmissionResult:
-        artifacts = build_lifecycle_artifacts(operation, plan)
+        artifacts = build_lifecycle_artifacts(
+            operation,
+            plan,
+            evidence_events=evidence_events,
+        )
         materialize_review_bundle(
             bundle_dir,
             artifacts,
