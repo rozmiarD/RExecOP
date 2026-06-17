@@ -4,43 +4,73 @@ RExecOp maintains two related but distinct evidence concepts.
 
 ## Internal evidence events
 
-Stored under `.rexecop/evidence/<operation_id>/`.
+**Location:** `.rexecop/evidence/<operation_id>/`
 
 - Append-only JSON events emitted by `EvidenceManager`
 - Used for operational history, debugging, and correlation
-- Redacted for secret-like fields (`password`, `token`, `api_key`, …)
+- Redacted for secret-like fields (`password`, `token`, `api_key`, `authorization`, …)
 - **Not** the long-term auditable truth layer
 
-Event types live in `rexecop.evidence.event.EvidenceEventType`.
+Event types are defined in `rexecop.evidence.event.EvidenceEventType`. Every event type
+declares its SCLite mapping target in `adapters/sclite_port/contracts.py` (`EVENT_SCLITE_MAPPING`).
+
+Representative events:
+
+| Event | Typical trigger |
+| --- | --- |
+| `operation_created` | `plan` |
+| `plan_generated` | plan materialized |
+| `state_transition` | any valid state change |
+| `govengine_decision_requested` / `govengine_decision_received` | mutating plan/start |
+| `step_started` / `step_completed` / `step_failed` | workflow execution |
+| `validation_started` / `validation_completed` | profile validation |
+| `receipt_generated` | SCLite export path |
+| `operation_completed` / `operation_failed` / `operation_escalated` | terminal paths |
 
 ## SCLite artifacts (authoritative)
 
-Defined and validated by **SCLite** (`sclite-core`).
+**Location:** `.rexecop/sclite/<operation_id>/`
+
+Defined and validated by **SCLite** (`sclite-core`). Emitted by `SCLiteArtifactEmitter` on the
+completion path with full GovEngine-integration bundle parity (see [sclite-integration.md](sclite-integration.md)).
 
 - Intent, policy, execution contracts/tickets, receipts, evidence contracts
-- Digest-linked artifact chain
-- Review and replay semantics owned by SCLite
+- Digest-linked artifact chain and kernel guard manifest
+- Review semantics owned by SCLite (`review_bundle`, `verify_ticket_use`)
 
-RExecOp will emit these artifacts in Phase 3B. Until then, placeholder exports reference
-future schemas only.
+`Operation.sclite_refs` holds descriptor links per artifact role after successful emission.
 
 ## Receipt export (non-authoritative)
 
-Written to `.rexecop/receipts/<operation_id>.json` by `PlaceholderSCLiteEmitter`.
+**Location:** `.rexecop/receipts/<operation_id>.json`
 
-- Summary/export format for operators and tests
-- Includes `sclite_schema_ref` per artifact slot
-- Marked `authority: non_authoritative_export`
-- Must not be treated as a parallel truth schema
+Written as an operator summary export after bundle emission.
 
-## Operation linkage
+- Points at SCLite descriptors under `.rexecop/sclite/`
+- Includes GovEngine decision summary and validation outcome
+- Must not be treated as a parallel truth schema when SCLite bundles exist
 
-`Operation.sclite_refs` holds nullable descriptor links per artifact role. In Phase 3A
-these are placeholder entries (`status: placeholder`). Phase 3B will populate real
-descriptor paths and digests after SCLite emission.
+The deprecated `PlaceholderSCLiteEmitter` path remains for offline tests only.
+
+## Connector and API payloads
+
+Connector responses (including `http_api` JSON) pass through `redact_payload()` before
+persistence in evidence or step results. Environment YAML must use `secret_ref` — inline
+secrets are rejected at load time (`environment/sanitize.py`).
 
 ## GovEngine boundary
 
-GovEngine decisions influence which artifacts are required, but GovEngine does not store
-SCLite artifacts. RExecOp bridges governance outcomes to SCLite emission at the appropriate
-lifecycle boundaries.
+GovEngine decisions influence which artifacts are required and how `policy_decision` is populated,
+but GovEngine does not store SCLite artifacts. RExecOp bridges governance outcomes to SCLite
+emission at lifecycle boundaries.
+
+## Operation linkage
+
+```text
+Operation
+  evidence_event_ids[]     -> internal events
+  sclite_refs{}            -> SCLite descriptor links
+  metadata.shared_state    -> workflow correlation (validation input)
+  metadata.validation      -> last declarative validation result
+  metadata.govengine_admission -> admission snapshot for SCLite bridge
+```
