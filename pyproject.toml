@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "0.10.0a0"
+version = "0.11.0a0"
 description = "Governance-bound deterministic operations control-plane for profile-defined workflows."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -52,4 +52,4 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]

@@ -8,6 +8,8 @@ from rexecop.adapters.govengine_port.contracts import (
     WAITING_DECISIONS,
     is_mutating_mode,
 )
+from rexecop.connectors.composite_runtime import build_connector_runtime
+from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.errors import RExecOpStateError, RExecOpValidationError
 from rexecop.escalation.package import build_escalation_package
 from rexecop.evidence.event import EvidenceEventType
@@ -94,9 +96,21 @@ class OperationOrchestrator:
         self.evidence = evidence
         self._transition = transition
         self._export_receipt = export_receipt
-        self.runner = WorkflowRunner(
-            StepExecutor(evidence_handler=lambda ctx: self._export_receipt(ctx.operation_id))
+
+    def _runner_for_operation(self, operation: Operation) -> WorkflowRunner:
+        connectors = operation.metadata.get("environment_connectors")
+        if not isinstance(connectors, dict):
+            connectors = {}
+        runtime = build_connector_runtime(
+            connectors=connectors,
+            profile_root=operation.metadata.get("profile_root"),
+            mutating_allowed=self._allows_mutating(operation),
         )
+        executor = StepExecutor(
+            connector_dispatcher=ConnectorDispatcher(runtime),
+            evidence_handler=lambda ctx: self._export_receipt(ctx.operation_id),
+        )
+        return WorkflowRunner(executor)
 
     def start(self, operation_id: str) -> Operation:
         operation = self.store.load_operation(operation_id)
@@ -333,7 +347,7 @@ class OperationOrchestrator:
 
             shared_state = dict(operation.metadata.get("shared_state") or {})
             sink = _WorkflowEvidenceSink(self, operation)
-            run_result = self.runner.run(
+            run_result = self._runner_for_operation(operation).run(
                 operation_id=operation.id,
                 target=operation.target,
                 mode=operation.mode,

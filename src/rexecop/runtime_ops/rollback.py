@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
-
-from rexecop.adapters.govengine_port.contracts import is_mutating_mode
+from rexecop.connectors.composite_runtime import build_connector_runtime
+from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.errors import RExecOpValidationError
 from rexecop.execution.executor import StepExecutor
 from rexecop.operation.model import Operation
@@ -13,9 +12,6 @@ from rexecop.workflow.runner import WorkflowRunner
 
 class RollbackExecutor:
     """Execute explicit workflow rollback steps when governance already allowed the op."""
-
-    def __init__(self) -> None:
-        self.runner = WorkflowRunner(StepExecutor())
 
     def can_execute(self, operation: Operation, plan: OperationPlan) -> bool:
         if operation.state != OperationState.FAILED.value:
@@ -34,7 +30,9 @@ class RollbackExecutor:
         operation: Operation,
         plan: OperationPlan,
         govengine_allows: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
+        from rexecop.adapters.govengine_port.contracts import is_mutating_mode
+
         if not govengine_allows:
             raise RExecOpValidationError("rollback blocked until GovEngine allows the operation")
         if not self.can_execute(operation, plan):
@@ -45,7 +43,18 @@ class RollbackExecutor:
         if is_mutating_mode(mode) and not govengine_allows:
             raise RExecOpValidationError("mutating rollback requires GovEngine allow")
         shared_state = dict(operation.metadata.get("shared_state") or {})
-        result = self.runner.run(
+        connectors = operation.metadata.get("environment_connectors")
+        if not isinstance(connectors, dict):
+            connectors = {}
+        runtime = build_connector_runtime(
+            connectors=connectors,
+            profile_root=operation.metadata.get("profile_root"),
+            mutating_allowed=govengine_allows,
+        )
+        runner = WorkflowRunner(
+            StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
+        )
+        result = runner.run(
             operation_id=operation.id,
             target=operation.target,
             mode=mode,

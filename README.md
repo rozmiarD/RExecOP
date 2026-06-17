@@ -2,7 +2,7 @@
 
 **Governance-bound deterministic operations control-plane for profile-defined workflows.**
 
-Status: **pre-alpha / Phase 8** (external Tecrax profile package integration).
+Status: **pre-alpha / Phase 9** (production connectors: http_api, secrets port).
 
 RExecOp is the GovEngine-bound **runner, orchestrator, and executor** for profile-defined workflows. It operationalizes domain profiles while preserving strict layer boundaries.
 

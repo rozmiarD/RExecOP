@@ -20,6 +20,7 @@ from rexecop.adapters.govengine_port.contracts import (
 )
 from rexecop.adapters.sclite_port.contracts import SCLITE_ARTIFACT_AUTHORITY
 from rexecop.environment.loader import load_environment
+from rexecop.environment.sanitize import sanitize_connectors_for_storage, validate_no_inline_secrets
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.evidence.manager import EvidenceManager
@@ -86,6 +87,7 @@ class OperationController:
         resolved_profile_path = resolve_profile_path(profile_path)
         profile = load_profile(resolved_profile_path)
         environment = load_environment(environment_path)
+        validate_no_inline_secrets(environment.connectors)
         if environment.profile and environment.profile != profile.name:
             raise RExecOpValidationError(
                 f"environment profile {environment.profile} does not match {profile.name}"
@@ -114,6 +116,9 @@ class OperationController:
         )
 
         operation.metadata["profile_root"] = str(profile.root)
+        operation.metadata["environment_connectors"] = sanitize_connectors_for_storage(
+            environment.connectors
+        )
         operation.metadata["runtime_policy"] = {
             "max_concurrent_operations": int(
                 environment.safety.get("max_concurrent_operations") or 1

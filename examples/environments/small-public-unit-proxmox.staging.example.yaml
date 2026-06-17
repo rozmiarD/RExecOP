@@ -1,0 +1,68 @@
+environment:
+  id: small-public-unit-proxmox-staging
+  description: >
+    Staging environment template for http_api connectors. Copy outside git and
+    set REXECOP_SECRETS_FILE / REXECOP_SECRET_* values operator-side.
+  profile: tecrax
+
+  targets:
+    all_critical_vms:
+      type: group
+      members:
+        - vm-zabbix-01
+        - vm-pbs-01
+    vm-zabbix-01:
+      type: vm
+      node: pve-01
+      vmid: "101"
+
+  connectors:
+    proxmox:
+      enabled: true
+      backend: http_api
+      base_url_secret_ref: proxmox_base_url
+      auth:
+        secret_ref: proxmox_api_token
+        header: Authorization
+        prefix: "PVEAPIToken="
+      timeout_seconds: 10
+      retry:
+        max_attempts: 2
+        on:
+          - timeout
+          - transient_connector_error
+      actions:
+        list_vms:
+          method: GET
+          path: /proxmox/vms
+          unwrap: vms
+        restart:
+          method: POST
+          path: /proxmox/restart
+          mutating: true
+          body:
+            target: "{target}"
+    pbs:
+      enabled: true
+      backend: http_api
+      base_url_secret_ref: pbs_base_url
+      auth:
+        secret_ref: pbs_api_token
+        header: Authorization
+      timeout_seconds: 20
+      actions:
+        list_snapshots:
+          method: GET
+          path: /pbs/snapshots
+          unwrap: snapshots
+
+  safety:
+    default_mode: dry_run
+    apply_requires_govengine: true
+    secrets_source: external
+    max_concurrent_operations: 1
+    target_lock_enabled: true
+    maintenance_windows:
+      - timezone: UTC
+        start: "00:00"
+        end: "23:59"
