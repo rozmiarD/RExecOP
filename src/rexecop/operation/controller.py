@@ -30,7 +30,8 @@ from rexecop.operation.state import OperationState, validate_transition
 from rexecop.orchestration.orchestrator import OperationOrchestrator
 from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
-from rexecop.storage.file_store import FileStore
+from rexecop.storage.factory import create_store
+from rexecop.storage.port import RuntimeStore
 from rexecop.workflow.loader import load_workflow
 
 DEFAULT_MODE = "dry_run"
@@ -48,10 +49,10 @@ def generate_operation_id() -> str:
 class OperationController:
     def __init__(
         self,
-        store: FileStore | None = None,
+        store: RuntimeStore | None = None,
         govengine_adapter: GovEngineAdapter | None = None,
     ) -> None:
-        self.store = store or FileStore()
+        self.store = store or create_store()
         self.evidence = EvidenceManager(self.store)
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
         from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
@@ -221,7 +222,7 @@ class OperationController:
         if operation.govengine_decision_type in {item.value for item in WAITING_DECISIONS}:
             if operation.state != OperationState.APPROVED.value:
                 return False
-            approval_path = self.store.approvals_dir / f"{operation_id}.json"
+            approval_path = self.store.root / "approvals" / f"{operation_id}.json"
             return approval_path.is_file()
         return False
 

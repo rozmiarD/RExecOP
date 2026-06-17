@@ -20,7 +20,7 @@ from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState
 from rexecop.profile.loader import LoadedProfile, load_profile
-from rexecop.storage.file_store import FileStore
+from rexecop.storage.port import RuntimeStore
 from rexecop.validation.validator import validate_operation_result
 from rexecop.workflow.runner import WorkflowRunner
 
@@ -87,7 +87,7 @@ class OperationOrchestrator:
     def __init__(
         self,
         *,
-        store: FileStore,
+        store: RuntimeStore,
         evidence: EvidenceManager,
         transition: Any,
         export_receipt: Any,
@@ -524,7 +524,7 @@ class OperationOrchestrator:
         if operation.govengine_decision_type == "allowed":
             return True
         if operation.govengine_decision_type in {item.value for item in WAITING_DECISIONS}:
-            approval_path = self.store.approvals_dir / f"{operation.id}.json"
+            approval_path = self.store.root / "approvals" / f"{operation.id}.json"
             return approval_path.is_file()
         return False
 

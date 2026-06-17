@@ -71,6 +71,7 @@ actions fail). Tecrax offline workflows set `fixture: tecrax_fixture` on mock co
 ```text
 OperationStoragePort (protocol)
   ├── FileStore (default)     local JSON under .rexecop/ — single-operator default
+  ├── SqliteStore (optional)  operations/plans/evidence in rexecop.db; aux dirs on disk
   └── InMemoryStore (tests)   operations/plans/evidence in RAM; SCLite dir still on disk
 ```
 
@@ -92,7 +93,7 @@ src/rexecop/
   environment/        environment loader, connector config sanitization
   secrets/            secret_ref resolver port
   evidence/           internal events, redaction
-  storage/            file store + storage port protocol
+  storage/            file store, sqlite store, factory, storage port protocol
   runtime_ops/        queue, target lock, maintenance, rollback, coordinator
   validation/         declarative rule evaluator
   escalation/         failure package assembly

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from rexecop.runtime_ops.worker import (
     run_worker,
     trigger_operation,
 )
+from rexecop.storage.factory import resolve_storage_backend
 
 app = typer.Typer(
     name="rexecop",
@@ -24,8 +26,20 @@ app = typer.Typer(
 
 
 @app.callback()
-def main() -> None:
+def main(
+    storage: str = typer.Option(
+        "file",
+        "--storage",
+        envvar="REXECOP_STORAGE",
+        help="Runtime storage backend: file (default) or sqlite.",
+    ),
+) -> None:
     """RExecOp operations control-plane."""
+    os.environ["REXECOP_STORAGE"] = resolve_storage_backend(storage)
+
+
+def _controller() -> OperationController:
+    return OperationController()
 
 
 @app.command("version")
@@ -46,7 +60,7 @@ def plan_cmd(
 ) -> None:
     """Create an operation plan without executing connectors."""
     try:
-        controller = OperationController()
+        controller = _controller()
         operation = controller.plan(
             profile_path=profile,
             environment_path=env,
@@ -67,7 +81,7 @@ def status_cmd(
 ) -> None:
     """Show current operation state."""
     try:
-        item = OperationController().get_operation(operation)
+        item = _controller().get_operation(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -97,7 +111,7 @@ def approve_cmd(
 ) -> None:
     """Approve an operation waiting for manual approval."""
     try:
-        item = OperationController().approve(operation, approved_by=approved_by)
+        item = _controller().approve(operation, approved_by=approved_by)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -111,7 +125,7 @@ def pause_cmd(
 ) -> None:
     """Pause a running operation at a pause_safe step."""
     try:
-        item = OperationController().pause(operation)
+        item = _controller().pause(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -125,7 +139,7 @@ def resume_cmd(
 ) -> None:
     """Resume a paused operation."""
     try:
-        item = OperationController().resume(operation)
+        item = _controller().resume(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -145,7 +159,7 @@ def cancel_cmd(
 ) -> None:
     """Cancel an operation before completion."""
     try:
-        item = OperationController().cancel(operation)
+        item = _controller().cancel(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -159,7 +173,7 @@ def retry_cmd(
 ) -> None:
     """Retry a failed operation when the profile retry policy allows it."""
     try:
-        item = OperationController().retry(operation)
+        item = _controller().retry(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -179,7 +193,7 @@ def rollback_cmd(
 ) -> None:
     """Execute explicit workflow rollback steps for a failed operation."""
     try:
-        result = OperationController().rollback(operation)
+        result = _controller().rollback(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -192,7 +206,7 @@ def queue_cmd(
     drain: bool = typer.Option(False, "--drain", help="Start all admitted queued operations once."),
 ) -> None:
     """Show pending run-now queue entries, or drain the queue once."""
-    controller = OperationController()
+    controller = _controller()
     if drain:
         try:
             started = drain_queue(controller)
@@ -221,7 +235,7 @@ def worker_run_cmd(
     ),
 ) -> None:
     """Poll the run-now queue and start admitted operations (systemd-friendly)."""
-    controller = OperationController()
+    controller = _controller()
     try:
         started = run_worker(
             controller,
@@ -271,7 +285,7 @@ def trigger_cmd(
             "source": "cli",
         }
 
-    controller = OperationController()
+    controller = _controller()
     try:
         operation = trigger_operation(
             controller,
@@ -302,7 +316,7 @@ def start_cmd(
 ) -> None:
     """Start an approved operation (read-only auto-approves; apply requires approval)."""
     try:
-        item = OperationController().start(operation)
+        item = _controller().start(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -322,7 +336,7 @@ def validate_cmd(
 ) -> None:
     """Re-run deterministic validation for an operation."""
     try:
-        result = OperationController().validate(operation)
+        result = _controller().validate(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -336,7 +350,7 @@ def escalate_cmd(
 ) -> None:
     """Build and persist an escalation package for a failed/blocked operation."""
     try:
-        package = OperationController().escalate(operation)
+        package = _controller().escalate(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -350,7 +364,7 @@ def history_cmd(
 ) -> None:
     """Show operation transition and evidence history."""
     try:
-        history = OperationController().get_history(operation)
+        history = _controller().get_history(operation)
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc

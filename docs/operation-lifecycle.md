@@ -69,8 +69,9 @@ coordinator admits them after a slot frees.
 
 ## Storage
 
-`FileStore` is the default backend under `.rexecop/`. `storage/port.py` defines
-`OperationStoragePort` for future SQLite or remote backends.
+`FileStore` is the default backend under `.rexecop/`. Set `REXECOP_STORAGE=sqlite` or pass
+`--storage sqlite` for SQLite-backed operations, plans, and evidence (`.rexecop/rexecop.db`).
+`storage/port.py` defines `OperationStoragePort` and `RuntimeStore` for optional backends.
 
 Operation metadata persists `profile_root` and sanitized `environment_connectors` for runtime
 connector routing (`CompositeConnectorRuntime`).

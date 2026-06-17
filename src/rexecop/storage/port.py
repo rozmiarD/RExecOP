@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Protocol
 
 from rexecop.operation.model import Operation
@@ -22,3 +23,21 @@ class OperationStoragePort(Protocol):
     def save_evidence_event(self, operation_id: str, event: dict[str, Any]) -> None: ...
 
     def list_evidence_events(self, operation_id: str) -> list[dict[str, Any]]: ...
+
+
+class RuntimeStore(OperationStoragePort, Protocol):
+    """Operator runtime store: port methods plus on-disk aux layout under `.rexecop/`."""
+
+    root: Path
+
+    def ensure_layout(self) -> None: ...
+
+    def operation_sclite_dir(self, operation_id: str) -> Path: ...
+
+    def save_receipt_export(self, operation_id: str, export: dict[str, Any]) -> Path: ...
+
+    def load_receipt_export(self, operation_id: str) -> dict[str, Any]: ...
+
+    def save_approval(self, operation_id: str, approval: dict[str, Any]) -> Path: ...
+
+    def load_approval(self, operation_id: str) -> dict[str, Any]: ...

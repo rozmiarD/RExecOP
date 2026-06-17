@@ -6,11 +6,11 @@ from typing import Any
 
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.evidence.redaction import redact_payload
-from rexecop.storage.file_store import FileStore
+from rexecop.storage.port import RuntimeStore
 
 
 class EvidenceManager:
-    def __init__(self, store: FileStore) -> None:
+    def __init__(self, store: RuntimeStore) -> None:
         self.store = store
 
     def emit(

@@ -3,13 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 from rexecop.operation.model import Operation
-from rexecop.storage.file_store import FileStore
+from rexecop.storage.port import RuntimeStore
 
 
 def build_escalation_package(
     *,
     operation: Operation,
-    store: FileStore,
+    store: RuntimeStore,
     failed_step_id: str = "",
     safe_next_options: list[str] | None = None,
 ) -> dict[str, Any]:

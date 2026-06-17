@@ -1,6 +1,6 @@
 # Known limitations (alpha)
 
-RExecOp `0.1.3a0` is an **alpha** release for operator evaluation. This document states
+RExecOp `0.1.4a0` is an **alpha** release for operator evaluation. This document states
 what the software does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth
@@ -16,7 +16,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 | Limitation | Detail |
 | --- | --- |
 | No scheduler daemon | Queue is FIFO file-based; no cron, no recurring jobs, no background worker |
-| File storage default | `FileStore` only; `OperationStoragePort` exists but SQLite/remote backends are not shipped |
+| File storage default | `FileStore` is default; optional `SqliteStore` via `REXECOP_STORAGE=sqlite` |
 | No web UI | CLI (`rexecop`) only |
 | No multi-tenant RBAC | Single-operator file store model |
 | Target lock is advisory | File-based lock per `(environment, target)` — not a distributed lock service |

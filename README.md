@@ -1,7 +1,7 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 0.1.3a0](https://img.shields.io/badge/package-rexecop%200.1.3a0-blueviolet.svg)](pyproject.toml)
+[![Package: rexecop 0.1.4a0](https://img.shields.io/badge/package-rexecop%200.1.4a0-blueviolet.svg)](pyproject.toml)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
 [![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
@@ -21,10 +21,10 @@ policy engine or a parallel truth layer.
 
 | Item | Value |
 | --- | --- |
-| Version | `0.1.3a0` |
+| Version | `0.1.4a0` |
 | Maturity | **alpha** — operator evaluation with documented limits |
 | Roadmap | Phases 0–12 delivered on `main` (see CHANGELOG) |
-| Tests | 116+ pytest tests (CI: ruff, mypy, public truth, boundary grep, secret scan, pytest) |
+| Tests | 133+ pytest tests (CI: ruff, mypy, public truth, boundary grep, secret scan, pytest) |
 | PyPI | not published — install from source |
 | Dependencies | `govengine>=0.12.2a0,<0.15`, `sclite-core>=1.0.1,<1.1` (see `pyproject.toml`) |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |

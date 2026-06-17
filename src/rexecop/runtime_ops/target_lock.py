@@ -7,7 +7,7 @@ from typing import Any
 
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.state import OperationState
-from rexecop.storage.file_store import FileStore
+from rexecop.storage.port import RuntimeStore
 
 ACTIVE_LOCK_STATES = frozenset(
     {
@@ -30,7 +30,7 @@ def lock_filename(environment: str, target: str) -> str:
 class TargetLockManager:
     """Advisory per-(environment, target) lock backed by the file store."""
 
-    def __init__(self, store: FileStore) -> None:
+    def __init__(self, store: RuntimeStore) -> None:
         self.store = store
         self.locks_dir = store.root / "locks"
 

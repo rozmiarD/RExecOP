@@ -4,13 +4,13 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from rexecop.storage.file_store import FileStore
+from rexecop.storage.port import RuntimeStore
 
 
 class RunNowQueue:
     """FIFO run-now queue for approved operations waiting on runtime capacity."""
 
-    def __init__(self, store: FileStore) -> None:
+    def __init__(self, store: RuntimeStore) -> None:
         self.store = store
         self.queue_dir = store.root / "queue"
         self.queue_file = self.queue_dir / "run_now.json"

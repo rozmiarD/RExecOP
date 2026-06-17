@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.1.4a0] - 2026-06-17
+
+### Phase 13.1 — SQLite storage backend
+
+- `SqliteStore` implementing `OperationStoragePort` for operations, plans, and evidence
+- Storage factory: `REXECOP_STORAGE=file|sqlite` or CLI `--storage`
+- SCLite bundles, receipts, approvals, queue, and locks remain on disk under `.rexecop/`
+- Parametrized tests: file vs sqlite backend parity
+
 ## [0.1.3a0] - 2026-06-17
 
 ### Phase 12 — runtime worker & triggery

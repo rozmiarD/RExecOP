@@ -9,7 +9,7 @@ from rexecop.operation.state import OperationState
 from rexecop.runtime_ops.maintenance import maintenance_window_allows
 from rexecop.runtime_ops.queue import RunNowQueue
 from rexecop.runtime_ops.target_lock import TargetLockManager
-from rexecop.storage.file_store import FileStore
+from rexecop.storage.port import RuntimeStore
 
 AdmissionStatus = Literal["admitted", "queued"]
 
@@ -25,7 +25,7 @@ ACTIVE_RUNTIME_STATES = frozenset(
 
 
 class RuntimeCoordinator:
-    def __init__(self, store: FileStore) -> None:
+    def __init__(self, store: RuntimeStore) -> None:
         self.store = store
         self.target_lock = TargetLockManager(store)
         self.queue = RunNowQueue(store)

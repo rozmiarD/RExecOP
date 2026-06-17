@@ -1,6 +1,6 @@
 # Operator lab runbook (Phase 11)
 
-RExecOp `0.1.3a0` — validate neutral core, plugin boundaries, and read-only paths before apply.
+RExecOp `0.1.4a0` — validate neutral core, plugin boundaries, and read-only paths before apply.
 
 ## Prerequisites
 
@@ -14,7 +14,8 @@ RExecOp `0.1.3a0` — validate neutral core, plugin boundaries, and read-only pa
 
 ```bash
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
-rexecop version    # 0.1.3a0
+rexecop version    # 0.1.4a0
+export REXECOP_STORAGE=sqlite   # optional Phase 13.1 backend
 ```
 
 ## Lab checklist
