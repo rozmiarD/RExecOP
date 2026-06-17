@@ -1,6 +1,6 @@
 # Operator runbook
 
-RExecOp **alpha** (`0.1.0a0`) — Regulated Execution Operations control-plane for
+RExecOp **alpha** (`0.1.1a0`) — Regulated Execution Operations control-plane for
 profile-defined workflows under GovEngine and SCLite.
 
 This runbook covers installation, daily operations, staging setup, and safety checks.
@@ -12,7 +12,7 @@ For architecture and boundaries see [docs/](docs/) and [known-limitations.md](do
 | --- | --- |
 | Python | 3.11+ |
 | RExecOp | Install from source (PyPI not published in alpha) |
-| Tecrax profile | [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile) for `--profile tecrax` |
+| Tecrax profile | [`tecrax`](https://github.com/rozmiarD/tecrax) for `--profile tecrax` |
 | GovEngine / SCLite | Pulled in via `pip install -e .` per `pyproject.toml` pins |
 | Operator host | Shell access; network to targets when using `http_api` |
 
@@ -25,10 +25,10 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Tecrax profile (recommended for operators)
-git clone https://github.com/rozmiarD/tecrax-profile.git ../tecrax-profile
-pip install -e ../tecrax-profile
+git clone https://github.com/rozmiarD/tecrax.git ../tecrax
+pip install -e ../tecrax
 
-rexecop version   # expect 0.1.0a0
+rexecop version   # expect 0.1.1a0
 ```
 
 ## Secrets (never in git or `.rexecop/`)
@@ -87,7 +87,7 @@ rexecop history --operation <operation-id>
 - `.rexecop/sclite/<operation-id>/` contains artifact bundle
 - Evidence and exports contain no plaintext tokens
 
-Offline without `tecrax-profile`:
+Offline without `tecrax`:
 
 ```bash
 rexecop plan \
@@ -166,7 +166,7 @@ Directory is gitignored — back up operator-side if retention is required.
 
 | Symptom | Check |
 | --- | --- |
-| `profile not found: tecrax` | Install `tecrax-profile` or use fixture path |
+| `profile not found: tecrax` | Install `tecrax` or use fixture path |
 | `secret not found` | `REXECOP_SECRETS_FILE` or `REXECOP_SECRET_*` env |
 | `mutating execution blocked` | GovEngine decision, approval state, maintenance window |
 | `capability_undeclared` | Action missing from profile `connectors/*.yaml` |

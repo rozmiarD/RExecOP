@@ -1,6 +1,6 @@
 # Known limitations (alpha)
 
-RExecOp `0.1.0a0` is an **alpha** release for operator evaluation. This document states
+RExecOp `0.1.1a0` is an **alpha** release for operator evaluation. This document states
 what the software does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth
@@ -35,7 +35,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 
 | Limitation | Detail |
 | --- | --- |
-| Tecrax via external package | Domain semantics in [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile), not in core |
+| Tecrax via external package | Domain semantics in [`tecrax`](https://github.com/rozmiarD/tecrax), not in core |
 | Ravenclaw out of scope | Legacy; no RExecOp profile path planned |
 | Validation is declarative YAML | Complex domain logic beyond `require_*` steps belongs in profile tooling, not core |
 

@@ -6,7 +6,7 @@ GovEngine admission with auditable outcomes projected into SCLite.
 ## Layer boundaries
 
 ```text
-Profiles (tecrax-profile, examples/tecrax-fixture)
+Profiles (tecrax, examples/tecrax-fixture)
   intents, workflows, connector contracts, validation_rules/
 
 RExecOp (this package)

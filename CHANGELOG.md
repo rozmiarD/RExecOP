@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.1.1a0] - 2026-06-17
+
+### Profile consolidation
+
+- Tecrax RExecOp profile now ships in [`tecrax`](https://github.com/rozmiarD/tecrax) (`tecrax:profile_root`)
+- Optional dependency `tecrax>=0.3.0a0` replaces `tecrax-profile`
+- CI checks out `rozmiarD/tecrax` instead of `tecrax-profile`
+- Docs and runbook updated; `tecrax-profile` repo retired
+
 ## [0.1.0a0] - 2026-06-17
 
 ### Alpha gate (Phase 10)

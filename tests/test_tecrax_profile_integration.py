@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
 FIXTURE_PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
 
-tecrax_profile = pytest.importorskip("tecrax_profile")
+tecrax = pytest.importorskip("tecrax")
 
 
 def test_tecrax_profile_entry_point_registered() -> None:
@@ -23,7 +23,7 @@ def test_tecrax_profile_entry_point_registered() -> None:
     resolved = resolve_profile_path("tecrax")
     profile = load_profile(resolved)
     assert profile.name == "tecrax"
-    assert profile.version == "0.1.0"
+    assert profile.version == "0.3.0"
 
 
 def test_core_has_no_tecrax_profile_imports() -> None:

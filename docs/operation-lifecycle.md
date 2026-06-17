@@ -82,4 +82,4 @@ connector routing (`CompositeConnectorRuntime`).
 | `check_backup_status` | `dry_run` / read-only | resolve → proxmox → pbs → correlate → receipt |
 | `restart_zabbix_agent` | `apply` | capture → restart → verify → receipt (+ optional rollback) |
 
-Fixtures: `examples/profiles/tecrax-fixture/` and external `tecrax-profile`.
+Fixtures: `examples/profiles/tecrax-fixture/` and external `tecrax`.

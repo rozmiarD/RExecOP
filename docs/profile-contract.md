@@ -20,20 +20,20 @@ Resolver: `rexecop.profile.resolver.resolve_profile_path()`.
 
 ## External Tecrax package
 
-Production Tecrax semantics ship in [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile):
+Production Tecrax semantics ship in [`tecrax`](https://github.com/rozmiarD/tecrax):
 
 ```bash
-pip install -e /path/to/rexecop -e /path/to/tecrax-profile
+pip install -e /path/to/rexecop -e /path/to/tecrax
 ```
 
 Entry point:
 
 ```toml
 [project.entry-points."rexecop.profiles"]
-tecrax = "tecrax_profile:profile_root"
+tecrax = "tecrax:profile_root"
 ```
 
-RExecOp core must **never** import `tecrax_profile`. CI enforces this with a grep guard on
+RExecOp core must **never** import `tecrax` or `tecrax_profile`. CI enforces this with a grep guard on
 `src/rexecop`.
 
 ## Profile layout
@@ -73,7 +73,7 @@ Domain meaning stays in the profile package — not in `src/rexecop/validation/v
 | Location | Purpose |
 | --- | --- |
 | `examples/profiles/tecrax-fixture/` | Bootstrap/offline tests in rexecop repo |
-| `tecrax-profile` package | Operator-facing Tecrax profile |
+| `tecrax` package | Operator-facing Tecrax profile |
 
 ## Out of scope
 

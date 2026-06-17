@@ -1,11 +1,11 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 0.1.0a0](https://img.shields.io/badge/package-rexecop%200.1.0a0-blueviolet.svg)](pyproject.toml)
+[![Package: rexecop 0.1.1a0](https://img.shields.io/badge/package-rexecop%200.1.1a0-blueviolet.svg)](pyproject.toml)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
 [![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
-[![Profile: tecrax-profile](https://img.shields.io/badge/profile-tecrax--profile-informational.svg)](https://github.com/rozmiarD/tecrax-profile)
+[![Profile: tecrax](https://img.shields.io/badge/profile-tecrax-informational.svg)](https://github.com/rozmiarD/tecrax)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-green.svg)](#status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
@@ -21,7 +21,7 @@ policy engine or a parallel truth layer.
 
 | Item | Value |
 | --- | --- |
-| Version | `0.1.0a0` |
+| Version | `0.1.1a0` |
 | Maturity | **alpha** — operator evaluation with documented limits |
 | Roadmap | Phases 0–10 complete on `main` |
 | Tests | 103 pytest tests (102 passed; CI: ruff, mypy, boundary grep, secret scan, pytest) |
@@ -35,7 +35,7 @@ policy engine or a parallel truth layer.
 ## Stack position
 
 ```text
-Profiles (tecrax-profile, fixtures)
+Profiles (tecrax, fixtures)
   -> RExecOp (plan, lifecycle, execution, validation)
   -> GovEngine (admission, governance meaning)
   -> RExecOp (maps lifecycle to artifacts)
@@ -49,7 +49,7 @@ Profiles (tecrax-profile, fixtures)
 | **GovEngine** | Policy interpretation, admission, runner request/receipt contracts — does not execute |
 | **SCLite** | Auditable artifacts, scoped tickets, receipt-bounded evidence, review bundles |
 
-Tecrax ships as the external [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile) package.
+Tecrax ships as the [`tecrax`](https://github.com/rozmiarD/tecrax) package (`rexecop.profiles:tecrax`).
 Ravenclaw is legacy and out of scope for RExecOp.
 
 ## What RExecOp includes now
@@ -88,11 +88,11 @@ pip install -e ".[dev]"
 With the Tecrax profile package:
 
 ```bash
-pip install -e ".[dev]" -e /path/to/tecrax-profile
-# or: pip install -e ".[dev,tecrax]"  # when tecrax-profile is installable from index
+pip install -e ".[dev]" -e /path/to/tecrax
+# or: pip install -e ".[dev,tecrax]"  # when tecrax is installable from index
 ```
 
-CI also checks out [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile) for integration tests.
+CI also checks out [`tecrax`](https://github.com/rozmiarD/tecrax) for integration tests.
 
 ## Quick start
 
@@ -111,7 +111,7 @@ rexecop status --operation <operation-id>
 rexecop validate --operation <operation-id>
 ```
 
-- With `tecrax-profile` installed, `--profile tecrax` resolves via entry point.
+- With `tecrax` installed, `--profile tecrax` resolves via entry point.
 - For offline tests without the external package, use `examples/profiles/tecrax-fixture/profile.yaml`.
 - Staging `http_api` template: `examples/environments/small-public-unit-proxmox.staging.example.yaml`
 
@@ -137,13 +137,13 @@ Runtime artifacts live under `.rexecop/` (gitignored): operations, evidence, SCL
 ## Development
 
 ```bash
-pip install -e /path/to/tecrax-profile -e ".[dev]"
+pip install -e /path/to/tecrax -e ".[dev]"
 ruff check .
 mypy src/rexecop
 pytest
 ```
 
-GitHub Actions runs on every push and pull request: install `tecrax-profile`, ruff, mypy, core boundary grep (`tecrax_profile` imports forbidden), pytest.
+GitHub Actions runs on every push and pull request: install `tecrax`, ruff, mypy, core boundary grep (`tecrax_profile` / `import tecrax` forbidden in core), pytest.
 
 ## Documentation
 
@@ -167,7 +167,7 @@ GitHub Actions runs on every push and pull request: install `tecrax-profile`, ru
 | --- | --- |
 | [GovEngine](https://github.com/rozmiarD/GovEngine) | Governance kernel and admission contracts |
 | [SCLite](https://github.com/rozmiarD/SCLite) | Auditable contract lifecycle and review bundles |
-| [tecrax-profile](https://github.com/rozmiarD/tecrax-profile) | Tecrax domain profile (external to core) |
+| [tecrax](https://github.com/rozmiarD/tecrax) | Tecrax domain profile and local-fixture package |
 
 ## License
 
