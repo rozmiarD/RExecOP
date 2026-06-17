@@ -29,8 +29,8 @@ def version_cmd() -> None:
 
 @app.command("plan")
 def plan_cmd(
-    profile: Path = typer.Option(
-        ..., "--profile", help="Path to profile.yaml or profile directory."
+    profile: str = typer.Option(
+        ..., "--profile", help="Registered profile name (e.g. tecrax) or path to profile.yaml."
     ),
     env: Path = typer.Option(..., "--env", help="Path to environment YAML file."),
     intent: str = typer.Option(..., "--intent", help="Profile intent id."),

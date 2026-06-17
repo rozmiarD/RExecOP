@@ -2,7 +2,7 @@
 
 **Governance-bound deterministic operations control-plane for profile-defined workflows.**
 
-Status: **pre-alpha / Phase 4** (read-only vertical slice with mock connectors).
+Status: **pre-alpha / Phase 8** (external Tecrax profile package integration).
 
 RExecOp is the GovEngine-bound **runner, orchestrator, and executor** for profile-defined workflows. It operationalizes domain profiles while preserving strict layer boundaries.
 
@@ -13,7 +13,9 @@ RExecOp is the GovEngine-bound **runner, orchestrator, and executor** for profil
 | **SCLite** | Auditable truth: contracts, artifacts, receipts, evidence |
 | **GovEngine** | Governance meaning: policy, validation, gates, decisions; runner request/receipt contracts (does not execute operations) |
 | **RExecOp** | Operational lifecycle and execution mechanics |
-| **Profiles** (Tecrax, Ravenclaw, …) | Domain semantics: intents, workflows, connectors, validation rules |
+| **Profiles** (Tecrax, …) | Domain semantics: intents, workflows, connectors, validation rules |
+
+Tecrax ships as the external [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile) package. Ravenclaw is legacy and out of scope.
 
 ## What RExecOp is
 
@@ -47,17 +49,23 @@ mypy src/rexecop
 pytest
 ```
 
-## CLI (Phase 1)
+## CLI
 
 ```bash
 rexecop --help
 rexecop version
 rexecop plan \
-  --profile examples/profiles/tecrax-fixture/profile.yaml \
+  --profile tecrax \
   --env examples/environments/small-public-unit-proxmox.example.yaml \
   --intent check_backup_status \
   --target all_critical_vms \
   --mode dry_run
+```
+
+With `tecrax-profile` installed, `--profile tecrax` resolves via entry point.
+For offline tests use `examples/profiles/tecrax-fixture/profile.yaml`.
+
+```bash
 rexecop status --operation <operation-id>
 rexecop history --operation <operation-id>
 python -m rexecop --help

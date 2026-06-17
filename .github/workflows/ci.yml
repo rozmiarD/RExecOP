@@ -11,18 +11,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/checkout@v4
+        with:
+          repository: rozmiarD/tecrax-profile
+          path: tecrax-profile
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install
-        run: python -m pip install -e ".[dev]"
+        run: |
+          python -m pip install -e ./tecrax-profile
+          python -m pip install -e ".[dev]"
 
       - name: Ruff
         run: ruff check .
 
       - name: Mypy
         run: mypy src/rexecop
+
+      - name: Core boundary check
+        run: |
+          if rg -l 'tecrax_profile|import tecrax' src/rexecop; then
+            echo "domain import detected in rexecop core"
+            exit 1
+          fi
 
       - name: Pytest
         run: pytest
