@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
+from rexecop.execution.internal_registry import InternalHandler, load_internal_handlers
 
-InternalHandler = Callable[[StepExecutionContext], dict[str, Any]]
 EvidenceHandler = Callable[[StepExecutionContext], dict[str, Any]]
+
+__all__ = ["StepExecutor"]
 
 
 class StepExecutor:
@@ -17,16 +19,11 @@ class StepExecutor:
         connector_dispatcher: ConnectorDispatcher | None = None,
         *,
         evidence_handler: EvidenceHandler | None = None,
+        internal_handlers: Mapping[str, InternalHandler] | None = None,
     ) -> None:
         self.connector_dispatcher = connector_dispatcher or ConnectorDispatcher()
         self.evidence_handler = evidence_handler
-        self._internal_handlers: dict[str, InternalHandler] = {
-            "environment.resolve_targets": self._resolve_targets,
-            "correlate_vm_backup_coverage": self._correlate_coverage,
-            "capture_agent_state": self._capture_agent_state,
-            "verify_agent_state": self._verify_agent_state,
-            "record_rollback_marker": self._record_rollback_marker,
-        }
+        self._internal_handlers = load_internal_handlers(extra=internal_handlers)
 
     def execute(self, context: StepExecutionContext) -> StepExecutionResult:
         step_id = str(context.step.get("id") or "")
@@ -95,7 +92,7 @@ class StepExecutor:
                 step_id=step_id,
                 success=False,
                 output={},
-                error=f"unsupported internal action: {action}",
+                error=f"internal_action_not_registered:{action}",
             )
         output = handler(context)
         context.shared_state.setdefault("internal_results", {})[step_id] = output
@@ -115,67 +112,3 @@ class StepExecutor:
             success=True,
             output={"action": action, "status": "recorded"},
         )
-
-    def _resolve_targets(self, context: StepExecutionContext) -> dict[str, Any]:
-        return {
-            "target": context.target,
-            "resolved_targets": ["vm-101", "vm-102"],
-        }
-
-    def _correlate_coverage(self, context: StepExecutionContext) -> dict[str, Any]:
-        connector_results = context.shared_state.get("connector_results", {})
-        vms = []
-        snapshots = []
-        for payload in connector_results.values():
-            vms.extend(payload.get("vms", []))
-            snapshots.extend(payload.get("snapshots", []))
-        covered = {item.get("vm_id") for item in snapshots}
-        rows = []
-        for vm in vms:
-            vm_id = vm.get("id")
-            rows.append(
-                {
-                    "vm_id": vm_id,
-                    "name": vm.get("name"),
-                    "backup_status": "ok" if vm_id in covered else "missing",
-                }
-            )
-        result = {
-            "rows": rows,
-            "all_critical_covered": all(row["backup_status"] == "ok" for row in rows),
-        }
-        context.shared_state["correlation"] = result
-        return result
-
-    def _capture_agent_state(self, context: StepExecutionContext) -> dict[str, Any]:
-        state = {
-            "target": context.target,
-            "agent_status": "running",
-            "vm_id": "vm-101",
-        }
-        context.shared_state["agent_before_state"] = dict(state)
-        return {"before_state": state}
-
-    def _verify_agent_state(self, context: StepExecutionContext) -> dict[str, Any]:
-        mutation = context.shared_state.get("mutation_states", {}).get("restart_agent", {})
-        after_state = mutation.get("after_state")
-        if not isinstance(after_state, dict):
-            return {
-                "verified": False,
-                "reason": "missing restart mutation after_state",
-            }
-        context.shared_state["agent_after_state"] = dict(after_state)
-        return {
-            "verified": after_state.get("agent_status") == "restarted",
-            "after_state": after_state,
-            "before_state": context.shared_state.get("agent_before_state"),
-        }
-
-    def _record_rollback_marker(self, context: StepExecutionContext) -> dict[str, Any]:
-        marker = {
-            "operation_id": context.operation_id,
-            "target": context.target,
-            "status": "rollback_recorded",
-        }
-        context.shared_state["rollback_marker"] = marker
-        return marker

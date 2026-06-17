@@ -14,9 +14,11 @@ environment:
     proxmox:
       enabled: true
       mode: mock
+      fixture: tecrax_fixture
     pbs:
       enabled: true
       mode: mock
+      fixture: tecrax_fixture
 
   safety:
     default_mode: dry_run

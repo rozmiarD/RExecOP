@@ -48,9 +48,33 @@ profile-defined intent
 2. **GovEngine** decides governance meaning (allowed, blocked, approval required).
 3. **SCLite** records auditable truth.
 4. **Profiles** own domain semantics — zero domain imports in `src/rexecop`.
+5. **Domain plugins** register via `rexecop.internal_actions` and `rexecop.connector_backends` entry points (e.g. `tecrax`).
 
 RExecOp must not become a second policy engine. Receipt exports under `.rexecop/receipts/` are
 operator summaries; authoritative bundles live under `.rexecop/sclite/<operation_id>/`.
+
+## Plugin boundaries (Phase 11)
+
+```text
+src/rexecop/                         tecrax (or other domain packages)
+  internal_registry.py                 rexecop.internal_actions entry point
+  fixture_loader.py                    rexecop.connector_backends entry point
+  MockConnectorRuntime (generic)       TecraxFixtureConnectorRuntime (offline mock)
+  record_rollback_marker (builtin)     correlate_vm_backup_coverage, ...
+```
+
+Mock connectors without `fixture:` in environment YAML use the **generic** mock (unsupported
+actions fail). Tecrax offline workflows set `fixture: tecrax_fixture` on mock connectors.
+
+## Storage boundary
+
+```text
+OperationStoragePort (protocol)
+  ├── FileStore (default)     local JSON under .rexecop/ — single-operator default
+  └── InMemoryStore (tests)   operations/plans/evidence in RAM; SCLite dir still on disk
+```
+
+`.rexecop/` is RExecOp runtime operator storage, not parallel SCLite truth authority.
 
 ## Package map (current)
 
@@ -59,8 +83,8 @@ src/rexecop/
   operation/          model, plan, state machine, controller
   orchestration/      workflow execution coordinator
   workflow/           YAML loader, step runner
-  execution/          step executor, internal action handlers
-  connectors/         mock, http_api, local_shell, composite runtime
+  execution/          step executor, internal action plugin registry
+  connectors/         generic mock, http_api, local_shell, composite runtime, fixture loader
   adapters/
     govengine_port/   admission client + static test adapter
     sclite_port/      artifact emitter, full bundle, placeholder (deprecated)

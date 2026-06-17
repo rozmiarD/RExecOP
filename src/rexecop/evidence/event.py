@@ -5,6 +5,7 @@ from enum import StrEnum
 
 class EvidenceEventType(StrEnum):
     OPERATION_CREATED = "operation_created"
+    OPERATION_TRIGGERED = "operation_triggered"
     PLAN_GENERATED = "plan_generated"
     GOVENGINE_DECISION_REQUESTED = "govengine_decision_requested"
     GOVENGINE_DECISION_RECEIVED = "govengine_decision_received"

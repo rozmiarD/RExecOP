@@ -1,0 +1,14 @@
+validation_rule:
+  intent: http_health_check
+  steps:
+    - type: require_mapping
+      key: connector_results
+      fail:
+        rule: http_health_check.connector_results_required
+        details:
+          reason: missing connector results
+    - type: require_equals
+      path: connector_results.probe.status
+      value: ok
+      pass_rule: http_health_check.probe_ok
+      fail_rule: http_health_check.probe_failed

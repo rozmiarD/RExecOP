@@ -5,6 +5,7 @@ from typing import Any
 
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest, ConnectorResponse, ConnectorRuntime
+from rexecop.connectors.fixture_loader import load_connector_backend
 from rexecop.connectors.http_api import HttpApiConnectorRuntime
 from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
@@ -73,7 +74,9 @@ class CompositeConnectorRuntime:
         elif backend_name == "local_shell_readonly":
             runtime = LocalShellReadonlyRuntime(connector_name=name, config=config)
         else:
-            runtime = self._mock
+            fixture_name = str(config.get("fixture") or "").strip()
+            fixture_runtime = load_connector_backend(fixture_name) if fixture_name else None
+            runtime = fixture_runtime if fixture_runtime is not None else self._mock
         self._backends[name] = runtime
         return runtime
 

@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.1.3a0] - 2026-06-17
+
+### Phase 12 — runtime worker & triggery
+
+- `rexecop worker run` with `--once`, `--poll-interval`, `--max-iterations`, `--watch-inbox`
+- `rexecop queue --drain` one-shot queue processing
+- `rexecop trigger` from JSON stdin or CLI flags; evidence `operation_triggered`
+- `docs/operator-scheduler-pattern.md` (systemd/cron pattern — host-owned scheduling)
+
+## [0.1.2a0] - 2026-06-17
+
+### Phase 11 — neutral core
+
+- Internal action plugin registry (`rexecop.internal_actions` entry points)
+- Connector fixture loader (`rexecop.connector_backends` entry points)
+- Generic `MockConnectorRuntime` in core; domain mock moved to `tecrax` (`tecrax_fixture`)
+- `http-health-fixture` profile + `http_health_check` golden-path E2E (http_api-only)
+- `InMemoryStore` for tests; storage boundary documented
+- `OPERATOR_LAB_RUNBOOK.md` for lab validation
+- Requires `tecrax>=0.3.1a0` for domain handlers and offline fixture mock
+
 ## [0.1.1a0] - 2026-06-17
 
 ### Profile consolidation

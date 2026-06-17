@@ -13,7 +13,7 @@ from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest, ConnectorResponse
 from rexecop.connectors.capability import connector_action_allowed
 from rexecop.connectors.errors import READ_ONLY_MODES
-from rexecop.connectors.mock_runtime import MUTATING_ACTIONS
+from rexecop.connectors.mutating import MUTATING_ACTIONS
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import redact_payload
 from rexecop.secrets.port import SecretResolver

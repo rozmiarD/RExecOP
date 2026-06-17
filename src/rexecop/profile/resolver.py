@@ -46,10 +46,15 @@ def list_registered_profiles() -> list[str]:
 
 
 def _profile_entry_path(name: str) -> Path | None:
+    last_error: Exception | None = None
     for ep in _iter_profile_entry_points():
         if ep.name != name:
             continue
-        loaded = ep.load()()
+        try:
+            loaded = ep.load()()
+        except Exception as exc:  # noqa: BLE001 - try next duplicate entry point
+            last_error = exc
+            continue
         root = Path(str(loaded)).expanduser().resolve()
         if not root.is_dir():
             raise RExecOpValidationError(f"profile entry {name!r} is not a directory: {root}")
@@ -57,4 +62,8 @@ def _profile_entry_path(name: str) -> Path | None:
         if profile_file.is_file():
             return profile_file
         return root
+    if last_error is not None:
+        raise RExecOpValidationError(
+            f"profile entry {name!r} failed to load: {last_error}"
+        ) from last_error
     return None

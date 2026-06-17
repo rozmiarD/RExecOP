@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from rexecop.connectors.base import ConnectorRequest
-from rexecop.connectors.mock_runtime import MockConnectorRuntime
+from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.escalation.package import build_escalation_package
+from rexecop.execution.executor import StepExecutor
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.runtime_ops.monitor import OperationMonitor, parse_timeout_seconds
@@ -17,8 +18,11 @@ PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
 ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
 
 
+tecrax_fixture = __import__("pytest").importorskip("tecrax.fixture.mock_runtime")
+
+
 def test_mock_connector_refuses_mutating_action_in_dry_run() -> None:
-    runtime = MockConnectorRuntime()
+    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
     response = runtime.invoke(
         ConnectorRequest(connector="proxmox", action="restart", target="vm-1", mode="dry_run")
     )
@@ -27,11 +31,13 @@ def test_mock_connector_refuses_mutating_action_in_dry_run() -> None:
 
 
 def test_workflow_runner_executes_declared_steps_only() -> None:
+    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    executor = StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
     steps = [
         {"id": "resolve_inventory", "type": "internal", "action": "environment.resolve_targets"},
         {"id": "query_pbs", "type": "connector", "connector": "pbs", "action": "list_snapshots"},
     ]
-    result = WorkflowRunner().run(
+    result = WorkflowRunner(executor).run(
         operation_id="op-1",
         target="all_critical_vms",
         mode="dry_run",

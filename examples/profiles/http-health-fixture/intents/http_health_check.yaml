@@ -1,0 +1,6 @@
+intent:
+  id: http_health_check
+  workflow: workflows/http_health_check.yaml
+  mode: read_only
+  risk: low
+  description: Probe a generic HTTP health endpoint via http_api connector only.

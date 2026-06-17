@@ -1,0 +1,19 @@
+workflow:
+  id: http.health_check
+  intent: http_health_check
+  mode: read_only
+  risk: low
+  description: Single http_api connector probe with profile validation.
+
+  steps:
+    - id: probe
+      type: connector
+      connector: health
+      action: ping
+      timeout: 5s
+      pause_safe: true
+
+    - id: produce_receipt
+      type: evidence
+      action: produce_receipt
+      pause_safe: true

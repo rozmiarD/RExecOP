@@ -1,0 +1,5 @@
+connector:
+  name: health
+  backend: http_api
+  capabilities:
+    - ping

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import typer
@@ -8,6 +9,12 @@ import typer
 from rexecop import __version__
 from rexecop.errors import RExecOpError
 from rexecop.operation.controller import OperationController
+from rexecop.runtime_ops.worker import (
+    drain_queue,
+    parse_trigger_payload,
+    run_worker,
+    trigger_operation,
+)
 
 app = typer.Typer(
     name="rexecop",
@@ -181,11 +188,112 @@ def rollback_cmd(
 
 
 @app.command("queue")
-def queue_cmd() -> None:
-    """Show pending run-now queue entries."""
+def queue_cmd(
+    drain: bool = typer.Option(False, "--drain", help="Start all admitted queued operations once."),
+) -> None:
+    """Show pending run-now queue entries, or drain the queue once."""
     controller = OperationController()
+    if drain:
+        try:
+            started = drain_queue(controller)
+        except RExecOpError as exc:
+            typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(json.dumps({"started": started}, indent=2, sort_keys=True))
+        return
     pending = controller.runtime.queue.list_pending()
     typer.echo(json.dumps({"pending": pending}, indent=2, sort_keys=True))
+
+
+worker_app = typer.Typer(help="Background worker commands.")
+app.add_typer(worker_app, name="worker")
+
+
+@worker_app.command("run")
+def worker_run_cmd(
+    once: bool = typer.Option(False, "--once", help="Process queue once and exit."),
+    poll_interval: float = typer.Option(5.0, "--poll-interval", help="Seconds between polls."),
+    max_iterations: int | None = typer.Option(
+        None, "--max-iterations", help="Stop after N poll iterations."
+    ),
+    watch_inbox: bool = typer.Option(
+        False, "--watch-inbox", help="Also process .rexecop/inbox/*.json trigger files."
+    ),
+) -> None:
+    """Poll the run-now queue and start admitted operations (systemd-friendly)."""
+    controller = OperationController()
+    try:
+        started = run_worker(
+            controller,
+            once=once,
+            poll_interval=poll_interval,
+            max_iterations=max_iterations,
+            watch_inbox=watch_inbox,
+        )
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps({"started": started}, indent=2, sort_keys=True))
+
+
+@app.command("trigger")
+def trigger_cmd(
+    env: Path | None = typer.Option(None, "--env", help="Environment YAML (overrides stdin)."),
+    profile: str | None = typer.Option(None, "--profile"),
+    intent: str | None = typer.Option(None, "--intent"),
+    target: str | None = typer.Option(None, "--target"),
+    mode: str = typer.Option("dry_run", "--mode"),
+    auto_start: bool = typer.Option(False, "--auto-start"),
+) -> None:
+    """Create an operation from JSON stdin or CLI flags (webhook-friendly)."""
+    if sys.stdin.isatty() and not all([profile, env, intent, target]):
+        typer.secho(
+            "error: provide JSON on stdin or --profile --env --intent --target",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if not sys.stdin.isatty():
+        payload = json.load(sys.stdin)
+        if not isinstance(payload, dict):
+            typer.secho("error: trigger stdin must be a JSON object", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+        parsed = parse_trigger_payload(payload)
+    else:
+        parsed = {
+            "profile": profile or "",
+            "environment_path": env,
+            "intent": intent or "",
+            "target": target or "",
+            "mode": mode,
+            "auto_start": auto_start,
+            "source": "cli",
+        }
+
+    controller = OperationController()
+    try:
+        operation = trigger_operation(
+            controller,
+            profile=str(parsed["profile"]),
+            environment_path=Path(parsed["environment_path"]),
+            intent=str(parsed["intent"]),
+            target=str(parsed["target"]),
+            mode=str(parsed.get("mode") or "dry_run"),
+            source=str(parsed.get("source") or "cli"),
+            auto_start=bool(parsed.get("auto_start", auto_start)),
+        )
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        json.dumps(
+            {"operation_id": operation.id, "state": operation.state},
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 @app.command("start")

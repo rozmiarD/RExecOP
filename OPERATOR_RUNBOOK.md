@@ -1,6 +1,6 @@
 # Operator runbook
 
-RExecOp **alpha** (`0.1.1a0`) — Regulated Execution Operations control-plane for
+RExecOp **alpha** (`0.1.2a0`) — Regulated Execution Operations control-plane for
 profile-defined workflows under GovEngine and SCLite.
 
 This runbook covers installation, daily operations, staging setup, and safety checks.
@@ -28,7 +28,7 @@ pip install -e ".[dev]"
 git clone https://github.com/rozmiarD/tecrax.git ../tecrax
 pip install -e ../tecrax
 
-rexecop version   # expect 0.1.1a0
+rexecop version   # expect 0.1.2a0
 ```
 
 ## Secrets (never in git or `.rexecop/`)
@@ -57,7 +57,7 @@ Copy a template out of git:
 
 | Template | Use |
 | --- | --- |
-| `examples/environments/small-public-unit-proxmox.example.yaml` | Offline mock connectors |
+| `examples/environments/small-public-unit-proxmox.example.yaml` | Offline mock connectors (`fixture: tecrax_fixture`) |
 | `examples/environments/small-public-unit-proxmox.staging.example.yaml` | Staging `http_api` |
 
 Example operator path: `~/.rexecop/environments/small-public-unit-proxmox.yaml`
@@ -87,9 +87,11 @@ rexecop history --operation <operation-id>
 - `.rexecop/sclite/<operation-id>/` contains artifact bundle
 - Evidence and exports contain no plaintext tokens
 
-Offline without `tecrax`:
+Offline bootstrap (`tecrax-fixture` profile — **tests/bootstrap only**, not product profile):
 
 ```bash
+pip install -e ../tecrax   # required for tecrax_fixture mock + internal actions
+
 rexecop plan \
   --profile examples/profiles/tecrax-fixture/profile.yaml \
   --env examples/environments/small-public-unit-proxmox.example.yaml \
@@ -97,6 +99,19 @@ rexecop plan \
   --target all_critical_vms \
   --mode dry_run
 ```
+
+Generic http_api-only path (no domain internals in core):
+
+```bash
+rexecop plan \
+  --profile examples/profiles/http-health-fixture/profile.yaml \
+  --env <your-http-health-env.yaml> \
+  --intent http_health_check \
+  --target api_primary \
+  --mode dry_run
+```
+
+See [OPERATOR_LAB_RUNBOOK.md](OPERATOR_LAB_RUNBOOK.md) for the full lab checklist.
 
 ## Apply workflow (non-critical targets only)
 
@@ -152,6 +167,11 @@ Environment `safety` controls `max_concurrent_operations`, `target_lock_enabled`
 
 ## Runtime layout (`.rexecop/`)
 
+**Storage default:** `FileStore` — local JSON files under `.rexecop/` on the operator host.
+This is the single-operator alpha default; it is **not** multi-tenant or HA storage. SCLite
+bundles under `.rexecop/sclite/` are authoritative for review; internal evidence is runtime
+telemetry only (see [architecture.md](docs/architecture.md)).
+
 | Path | Content |
 | --- | --- |
 | `operations/` | Operation envelope + plan |
@@ -167,6 +187,8 @@ Directory is gitignored — back up operator-side if retention is required.
 | Symptom | Check |
 | --- | --- |
 | `profile not found: tecrax` | Install `tecrax` or use fixture path |
+| `internal_action_not_registered:*` | Install domain package (e.g. `tecrax`) for internal workflow steps |
+| `unsupported mock connector action` | Set `fixture: tecrax_fixture` on mock connectors or use `http_api` |
 | `secret not found` | `REXECOP_SECRETS_FILE` or `REXECOP_SECRET_*` env |
 | `mutating execution blocked` | GovEngine decision, approval state, maintenance window |
 | `capability_undeclared` | Action missing from profile `connectors/*.yaml` |
@@ -185,6 +207,7 @@ Directory is gitignored — back up operator-side if retention is required.
 
 ## Related documents
 
+- [OPERATOR_LAB_RUNBOOK.md](OPERATOR_LAB_RUNBOOK.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/safety-model.md](docs/safety-model.md)
 - [docs/govengine-integration.md](docs/govengine-integration.md)
