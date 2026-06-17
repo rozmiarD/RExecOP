@@ -1,62 +1,100 @@
 # Architecture
 
-RExecOp sits between domain profiles and the governance/truth stack.
+RExecOp implements **Regulated Execution Operations**: profile-defined workflows executed under
+GovEngine admission with auditable outcomes projected into SCLite.
+
+## Layer boundaries
 
 ```text
-Profiles (Tecrax, Ravenclaw, …)
-  intents, workflows, connectors, validation rules
+Profiles (tecrax-profile, examples/tecrax-fixture)
+  intents, workflows, connector contracts, validation_rules/
 
-RExecOp
-  operation lifecycle, planning, execution mechanics,
-  pause/resume/retry, connector dispatch, escalation packaging
+RExecOp (this package)
+  operation lifecycle, OperationPlan, orchestration,
+  connector dispatch, validation engine, escalation packaging
 
 GovEngine
-  governance decisions, admission, runner request/receipt contracts
+  admission, governance meaning, runner request/receipt contracts
 
 SCLite
-  auditable artifacts, receipts, evidence bundles
+  auditable artifacts, scoped tickets, receipts, review bundles
 ```
 
-## Normal execution path (target)
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| **Profiles** | Domain semantics, success criteria YAML | Execution mechanics, policy meaning |
+| **RExecOp** | State machine, step order, retry/pause, locks/queue | Policy decisions, artifact schemas |
+| **GovEngine** | Allowed/blocked/approval_required | Connector calls, workflow invention |
+| **SCLite** | Truth records and review semantics | Operation scheduling, infra APIs |
+
+## Normal execution path
 
 ```text
 profile-defined intent
-  -> profile workflow
-  -> RExecOp OperationPlan (runtime artifact)
-  -> GovEngine governance request / decision
+  -> profile workflow (declared steps only)
+  -> RExecOp OperationPlan (runtime artifact, not SCLite truth)
+  -> GovEngine admission / decision (mutating modes)
   -> RExecOp controlled execution
-  -> connector/runtime action
-  -> evidence collection
-  -> deterministic validation
-  -> SCLite-compatible receipt
-  -> completion / failure / escalation
+  -> connector runtime action (mock | http_api | local_shell_readonly)
+  -> internal evidence events + shared workflow state
+  -> declarative profile validation
+  -> SCLite artifact bundle emission
+  -> completion | failure | escalation
 ```
 
-## Invariants
+## Core invariants
 
-1. **RExecOp** decides operational mechanics (state, next step, retry, pause).
+1. **RExecOp** decides operational mechanics (state, next step, retry, pause, queue).
 2. **GovEngine** decides governance meaning (allowed, blocked, approval required).
 3. **SCLite** records auditable truth.
-4. **Profiles** own domain semantics.
+4. **Profiles** own domain semantics — zero domain imports in `src/rexecop`.
 
-RExecOp must not become a second policy engine. RExecOp must not duplicate SCLite as a long-term source of truth.
+RExecOp must not become a second policy engine. Receipt exports under `.rexecop/receipts/` are
+operator summaries; authoritative bundles live under `.rexecop/sclite/<operation_id>/`.
 
-## Phase 0 scope
+## Package map (current)
 
-Phase 0 provides package skeleton, CLI (`version`, `--help`), docs, CI, and smoke tests only.
-
-Future modules (not implemented in Phase 0):
-
-- `operation/` — state machine, OperationPlan, controller
-- `adapters/govengine_port/` — governance port (2A static, 2B real)
-- `adapters/sclite_port/` — evidence emission (3A placeholder, 3B real)
-- `workflow/`, `execution/`, `connectors/`, `profile/`, `environment/`
-- `evidence/`, `storage/`, `validation/`, `escalation/`
+```text
+src/rexecop/
+  operation/          model, plan, state machine, controller
+  orchestration/      workflow execution coordinator
+  workflow/           YAML loader, step runner
+  execution/          step executor, internal action handlers
+  connectors/         mock, http_api, local_shell, composite runtime
+  adapters/
+    govengine_port/   admission client + static test adapter
+    sclite_port/      artifact emitter, full bundle, placeholder (deprecated)
+  profile/            contract loader, resolver, validation_rules
+  environment/        environment loader, connector config sanitization
+  secrets/            secret_ref resolver port
+  evidence/           internal events, redaction
+  storage/            file store + storage port protocol
+  runtime_ops/        queue, target lock, maintenance, rollback, coordinator
+  validation/         declarative rule evaluator
+  escalation/         failure package assembly
+  cli.py              operator commands
+```
 
 ## GovEngine relationship
 
-GovEngine defines and validates runner request/receipt contracts and admission decisions. RExecOp remains the component that runs workflows and invokes connectors after governance allows execution.
+GovEngine composes and validates `RuntimeAdmissionResult` and runner request/receipt shapes.
+RExecOp calls the GovEngine adapter before mutating execution and maps admission metadata into
+SCLite `policy_decision` fields. GovEngine does **not** execute operations or invoke connectors.
 
 ## SCLite relationship
 
-Internal evidence events may exist for runtime debugging, but authoritative receipts and artifacts are emitted in SCLite-compatible form in later phases. Receipt exports under `.rexecop/` are summaries, not a parallel truth layer.
+RExecOp emits a full GovEngine-integration lifecycle bundle on the completion path (scoped
+ticket v0.3, trust/carrier sidecars, kernel guard manifest, `review_bundle` pass). Internal
+evidence events under `.rexecop/evidence/` are runtime telemetry, not long-term truth.
+
+## Storage layout
+
+| Path | Role |
+| --- | --- |
+| `.rexecop/operations/` | Operation envelope + OperationPlan JSON |
+| `.rexecop/evidence/` | Redacted internal lifecycle events |
+| `.rexecop/sclite/<op>/` | Authoritative SCLite artifact bundle |
+| `.rexecop/receipts/` | Non-authoritative export summary |
+| `.rexecop/approvals/` | Manual approval stub files |
+
+All paths are gitignored.

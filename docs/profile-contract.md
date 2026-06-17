@@ -1,9 +1,8 @@
 # Profile contract
 
-RExecOp loads **domain profiles** from the filesystem or from registered Python
-packages. Profiles define intents, workflows, connector requirements, and
-validation rules. RExecOp core must not embed Tecrax, Ravenclaw, or other domain
-semantics.
+RExecOp loads **domain profiles** from the filesystem or from registered Python packages.
+Profiles define intents, workflows, connector capability contracts, and declarative validation
+rules. RExecOp core must not embed Tecrax or other domain semantics.
 
 ## Resolution
 
@@ -17,9 +16,11 @@ rexecop plan --profile tecrax --env ... --intent check_backup_status ...
 rexecop plan --profile examples/profiles/tecrax-fixture/profile.yaml ...
 ```
 
-## External packages
+Resolver: `rexecop.profile.resolver.resolve_profile_path()`.
 
-Production Tecrax semantics ship in the separate **`tecrax-profile`** package:
+## External Tecrax package
+
+Production Tecrax semantics ship in [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile):
 
 ```bash
 pip install -e /path/to/rexecop -e /path/to/tecrax-profile
@@ -32,30 +33,48 @@ Entry point:
 tecrax = "tecrax_profile:profile_root"
 ```
 
-RExecOp core must **never** import `tecrax_profile`. CI enforces this boundary.
+RExecOp core must **never** import `tecrax_profile`. CI enforces this with a grep guard on
+`src/rexecop`.
 
 ## Profile layout
 
-```
+```text
 profile/
-  profile.yaml              # profile_contract sections
+  profile.yaml                 # profile_contract metadata
   intents/<intent>.yaml
   workflows/<workflow>.yaml
-  connectors/<name>.yaml
+  connectors/<name>.yaml       # capability contract (used by http_api gating)
   validation_rules/<intent>.yaml
 ```
 
+## profile_contract sections
+
+Validated by `rexecop.profile.contract.validate_profile_contract()`:
+
+`intents`, `workflows`, `connector_requirements`, `risk_classes`, `evidence_requirements`,
+`governance_expectations`, `validation_rules`, `escalation_rules` (required);
+`rollback_rules` (optional).
+
 ## Validation rules
 
-Success criteria are **declarative YAML** under `validation_rules/`. RExecOp
-evaluates generic step types (`require_mapping`, `require_truthy_path`,
-`require_equals`) — domain meaning stays in the profile package.
+Success criteria are **declarative YAML** under `validation_rules/`. RExecOp evaluates generic
+step types:
+
+| Step type | Behavior |
+| --- | --- |
+| `require_mapping` | Shared-state key must be a mapping |
+| `require_truthy_path` | Dot-path must be truthy |
+| `require_equals` | Dot-path must equal expected value |
+
+Domain meaning stays in the profile package — not in `src/rexecop/validation/validator.py`.
 
 ## Fixture vs product profile
 
 | Location | Purpose |
 | --- | --- |
 | `examples/profiles/tecrax-fixture/` | Bootstrap/offline tests in rexecop repo |
-| `tecrax-profile` package | Real Tecrax profile for operators |
+| `tecrax-profile` package | Operator-facing Tecrax profile |
 
-Ravenclaw is **legacy / out of scope** for RExecOp.
+## Out of scope
+
+Ravenclaw is **legacy** and not a RExecOp target. No Ravenclaw profile path is planned in core.

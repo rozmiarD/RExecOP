@@ -1,85 +1,171 @@
 # RExecOp
 
-**Governance-bound deterministic operations control-plane for profile-defined workflows.**
+[![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
+[![Package: rexecop 0.11.0a0](https://img.shields.io/badge/package-rexecop%200.11.0a0-blueviolet.svg)](pyproject.toml)
+[![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
+[![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
+[![Profile: tecrax-profile](https://img.shields.io/badge/profile-tecrax--profile-informational.svg)](https://github.com/rozmiarD/tecrax-profile)
+[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-Status: **pre-alpha / Phase 9** (production connectors: http_api, secrets port).
+**Regulated Execution Operations** control-plane for profile-defined workflows, bound to
+**GovEngine** governance and **SCLite** auditable truth.
 
-RExecOp is the GovEngine-bound **runner, orchestrator, and executor** for profile-defined workflows. It operationalizes domain profiles while preserving strict layer boundaries.
+RExecOp (package name: `rexecop`) is the deterministic **runner, orchestrator, and executor**
+for domain profiles. It plans and runs declared workflow steps, enforces operational lifecycle
+mechanics, and projects completed work into SCLite-compatible artifacts — without becoming a
+policy engine or a parallel truth layer.
 
-## Layer boundaries
+## Status
+
+| Item | Value |
+| --- | --- |
+| Version | `0.11.0a0` |
+| Maturity | **pre-alpha** — operator evaluation, not production |
+| Roadmap | Phases 0–9 delivered on `main`; Phase 10 (alpha gate) next |
+| Tests | 97 pytest tests (CI: ruff, mypy, boundary grep, pytest) |
+| PyPI | not published — install from source |
+| Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
+
+## Project sentence
+
+> RExecOp runs profile-defined operations under GovEngine admission and records auditable outcomes through SCLite — profiles own meaning, GovEngine owns governance, SCLite owns proof, RExecOp owns execution mechanics.
+
+## Stack position
+
+```text
+Profiles (tecrax-profile, fixtures)
+  -> RExecOp (plan, lifecycle, execution, validation)
+  -> GovEngine (admission, governance meaning)
+  -> RExecOp (maps lifecycle to artifacts)
+  -> SCLite (contracts, tickets, receipts, review bundles)
+```
 
 | Layer | Responsibility |
 | --- | --- |
-| **SCLite** | Auditable truth: contracts, artifacts, receipts, evidence |
-| **GovEngine** | Governance meaning: policy, validation, gates, decisions; runner request/receipt contracts (does not execute operations) |
-| **RExecOp** | Operational lifecycle and execution mechanics |
-| **Profiles** (Tecrax, …) | Domain semantics: intents, workflows, connectors, validation rules |
+| **Profiles** | Intents, workflows, connector contracts, declarative validation rules |
+| **RExecOp** | Operation lifecycle, planning, step dispatch, pause/resume/retry, queue/lock, escalation |
+| **GovEngine** | Policy interpretation, admission, runner request/receipt contracts — does not execute |
+| **SCLite** | Auditable artifacts, scoped tickets, receipt-bounded evidence, review bundles |
 
-Tecrax ships as the external [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile) package. Ravenclaw is legacy and out of scope.
+Tecrax ships as the external [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile) package.
+Ravenclaw is legacy and out of scope for RExecOp.
 
-## What RExecOp is
+## What RExecOp includes now
 
-- A deterministic operations control-plane
-- A profile-defined workflow runner and orchestrator
-- A producer of SCLite-compatible evidence (future phases)
-- A GovEngine-bound execution layer (real adapter in Phase 2B+)
+- Deterministic operation state machine and `OperationPlan` runtime artifact
+- GovEngine port: real `GovEngineClient` + bootstrap-only `StaticGovEngineAdapter`
+- SCLite port: full GovEngine-integration bundle emission (scoped ticket v0.3, kernel guard, review pass)
+- Profile resolution by path or `rexecop.profiles` entry point (`tecrax`)
+- Declarative profile validation rules (YAML, not hardcoded domain logic in core)
+- Vertical slices: read-only `check_backup_status`, apply `restart_zabbix_agent` (mock + staging `http_api`)
+- Operational controls: approve, pause, resume, cancel, retry, rollback, queue, target lock, maintenance windows
+- Connectors: `mock`, config-driven `http_api`, `local_shell_readonly`
+- Secrets port: `REXECOP_SECRET_*` and `REXECOP_SECRETS_FILE` (no plaintext secrets in git or `.rexecop/`)
+- Operator CLI (`rexecop`) and file-based storage under `.rexecop/`
 
-## What RExecOp is not
+## What RExecOp does not include
 
-- A policy engine (GovEngine owns governance)
-- A source of truth (SCLite owns auditable artifacts)
-- A domain profile (Tecrax/Ravenclaw live outside core)
-- Infrastructure automation replacing Ansible, Proxmox, PBS, etc.
-- Production-ready software at this stage
+- A policy engine (GovEngine is the governance authority)
+- SCLite schema authority or long-term truth storage
+- Domain profiles in core (no Tecrax/Ravenclaw operational logic in `src/rexecop`)
+- Production scheduler daemon, web UI, multi-tenant RBAC, or LLM execution loops
+- Unattended apply on critical infrastructure without operator and governance gates
+- PyPI release (reserved for alpha gate / explicit operator approval)
 
-## Install (placeholder)
+## Installation
 
-PyPI publishing is reserved for a future release.
+From source (recommended):
 
 ```bash
-pip install rexecop
-```
-
-## Development
-
-```bash
+git clone https://github.com/rozmiarD/RExecOP.git
+cd RExecOP
+python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-ruff check .
-mypy src/rexecop
-pytest
 ```
 
-## CLI
+With the Tecrax profile package:
 
 ```bash
-rexecop --help
+pip install -e ".[dev]" -e /path/to/tecrax-profile
+# or: pip install -e ".[dev,tecrax]"  # when tecrax-profile is installable from index
+```
+
+CI also checks out [`tecrax-profile`](https://github.com/rozmiarD/tecrax-profile) for integration tests.
+
+## Quick start
+
+```bash
 rexecop version
+
 rexecop plan \
   --profile tecrax \
   --env examples/environments/small-public-unit-proxmox.example.yaml \
   --intent check_backup_status \
   --target all_critical_vms \
   --mode dry_run
+
+rexecop start --operation <operation-id>
+rexecop status --operation <operation-id>
+rexecop validate --operation <operation-id>
 ```
 
-With `tecrax-profile` installed, `--profile tecrax` resolves via entry point.
-For offline tests use `examples/profiles/tecrax-fixture/profile.yaml`.
+- With `tecrax-profile` installed, `--profile tecrax` resolves via entry point.
+- For offline tests without the external package, use `examples/profiles/tecrax-fixture/profile.yaml`.
+- Staging `http_api` template: `examples/environments/small-public-unit-proxmox.staging.example.yaml`
+
+Runtime artifacts live under `.rexecop/` (gitignored): operations, evidence, SCLite bundles, receipt exports.
+
+## CLI commands
+
+| Command | Purpose |
+| --- | --- |
+| `plan` | Create operation + plan; GovEngine gate for mutating modes |
+| `approve` | Manual approval after `approval_required` |
+| `start` | Execute workflow (queues when lock/capacity busy) |
+| `pause` / `resume` | Pause only at `pause_safe` workflow steps |
+| `cancel` | Abort before completion |
+| `retry` | Operator retry when profile policy allows |
+| `rollback` | Run explicit workflow rollback steps after failure |
+| `validate` | Re-run declarative profile validation |
+| `escalate` | Build operator escalation package |
+| `queue` | Inspect FIFO run-now backlog |
+| `status` / `history` | Operation state and evidence history |
+| `version` | Package version |
+
+## Development
 
 ```bash
-rexecop status --operation <operation-id>
-rexecop history --operation <operation-id>
-python -m rexecop --help
+pip install -e /path/to/tecrax-profile -e ".[dev]"
+ruff check .
+mypy src/rexecop
+pytest
 ```
 
-Runtime artifacts are stored under `.rexecop/` (gitignored).
+GitHub Actions runs on every push and pull request: install `tecrax-profile`, ruff, mypy, core boundary grep (`tecrax_profile` imports forbidden), pytest.
 
-## Safety
+## Documentation
 
-- No real infrastructure connectors in Phase 0
-- Real GovEngine integration in Phase 2B (`govengine` dependency); static adapter remains for offline tests
-- Static governance adapters are bootstrap/test only, not production policy
-- Default future operation modes will favor `dry_run` / `observe` over accidental `apply`
+| Document | Topic |
+| --- | --- |
+| [docs/architecture.md](docs/architecture.md) | Layer boundaries and execution path |
+| [docs/operation-lifecycle.md](docs/operation-lifecycle.md) | States, CLI orchestration, queue/lock |
+| [docs/govengine-integration.md](docs/govengine-integration.md) | Governance port and apply gating |
+| [docs/sclite-integration.md](docs/sclite-integration.md) | Artifact emission and authority model |
+| [docs/evidence-model.md](docs/evidence-model.md) | Internal events vs SCLite truth |
+| [docs/profile-contract.md](docs/profile-contract.md) | Profile layout and entry points |
+| [docs/connector-contract.md](docs/connector-contract.md) | `http_api`, secrets, error taxonomy |
+| [docs/safety-model.md](docs/safety-model.md) | Hard safety rules and operator posture |
 
-## Roadmap
+## Related repositories
 
-See the approved roadmap in the operator audit docs. Phase 0 delivers repository bootstrap only. Phase 1+ adds operation core, adapters, and vertical slices.
+| Repository | Role |
+| --- | --- |
+| [GovEngine](https://github.com/rozmiarD/GovEngine) | Governance kernel and admission contracts |
+| [SCLite](https://github.com/rozmiarD/SCLite) | Auditable contract lifecycle and review bundles |
+| [tecrax-profile](https://github.com/rozmiarD/tecrax-profile) | Tecrax domain profile (external to core) |
+
+## License
+
+MIT — see [LICENSE](LICENSE).

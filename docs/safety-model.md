@@ -1,31 +1,65 @@
 # Safety model
 
-RExecOp is designed for controlled, auditable operations—not unconstrained automation.
+RExecOp implements **Regulated Execution Operations** — controlled, auditable workflow execution,
+not unconstrained automation.
 
-## Hard rules (project-wide)
+## Hard rules
 
-1. **No apply without governance** — mutating execution requires a positive GovEngine decision (Phase 2+).
-2. **No ad hoc workflows** — only profile-declared steps may run.
-3. **Evidence is mandatory** — important lifecycle transitions must leave a trace.
-4. **Secrets never in store** — passwords, tokens, and API keys are redacted from evidence; environment YAML must use `secret_ref`.
-5. **LLM is not an executor** — models may analyze escalation packages later; they do not bypass RExecOp or GovEngine.
-6. **Profiles stay out of core** — no Tecrax/Ravenclaw domain logic in `src/rexecop`.
+1. **No apply without governance** — mutating execution requires a positive GovEngine admission
+   decision and satisfied approval state.
+2. **No ad hoc workflows** — only profile-declared steps may run; the workflow runner never
+   invents steps.
+3. **Evidence is mandatory** — state transitions and step boundaries emit internal evidence events.
+4. **Secrets never in store** — passwords, tokens, and API keys are redacted from evidence;
+   environment YAML must use `secret_ref` (inline secrets rejected at plan time).
+5. **LLM is not an executor** — models may analyze escalation packages later; they do not bypass
+   RExecOp or GovEngine.
+6. **Profiles stay out of core** — no Tecrax/Ravenclaw domain logic in `src/rexecop` (CI grep).
 
-## Phase 9 connector posture
+## Connector posture
 
-- `http_api` is generic — Proxmox/PBS are **environment config instances**, not hardcoded core logic.
+- `http_api` is generic — infrastructure APIs are environment config instances, not core code.
 - `http_api` may invoke **only** capabilities declared in the profile connector contract.
-- Mutating `http_api` calls require GovEngine `allowed` for the operation.
-- `local_shell_readonly` refuses apply/recovery modes; commands must be allowlisted.
+- Mutating `http_api` calls require GovEngine `allowed` for the operation and apply mode.
+- `local_shell_readonly` refuses `apply` / `recovery` modes; commands must be allowlisted.
 - Connector responses pass through evidence redaction (including API-shaped payloads).
 
-## Static GovEngine adapter (Phase 2A)
+## GovEngine adapter posture
 
-The static governance adapter is for bootstrap and tests only. It is **not** production governance and must be documented as such.
+| Adapter | Production? |
+| --- | --- |
+| `GovEngineClient` | Yes — default adapter |
+| `StaticGovEngineAdapter` | **No** — bootstrap and tests only |
+
+The static adapter is documented as non-production in code, tests, and
+[govengine-integration.md](govengine-integration.md).
 
 ## Operator defaults
 
-- Default operation mode: `dry_run` or `observe`
-- `apply` requires explicit mode selection and governance clearance
-- Escalation packages list **descriptive** safe next options only—they are not auto-executed commands
-- Real environment files live **outside git**; use `small-public-unit-proxmox.staging.example.yaml` as a template
+- Default operation mode: `dry_run` (CLI default on `plan`)
+- `apply` requires explicit mode selection, GovEngine clearance, and approval when required
+- Escalation packages list **descriptive** safe next options — they are not auto-executed commands
+- Real environment and secrets files live **outside git**; use `*.example.yaml` templates in-repo
+- Target lock and queue limit concurrent mutating work per environment policy
+- Maintenance windows block apply when configured
+
+## Runtime storage
+
+`.rexecop/` is gitignored. Operators must verify exports and evidence do not contain resolved
+secrets before sharing artifacts outside the host.
+
+## Pre-alpha limits
+
+RExecOp is **not** production-ready software:
+
+- No HA scheduler, daemon, or multi-tenant isolation
+- File-based storage only (SQLite port defined, not default)
+- Mock and staging `http_api` paths are proven; live production infra is operator responsibility
+- GovEngine and SCLite remain authoritative for governance and truth — RExecOp does not replace them
+
+## Related documents
+
+- [architecture.md](architecture.md) — layer boundaries
+- [connector-contract.md](connector-contract.md) — `http_api` and secrets
+- [govengine-integration.md](govengine-integration.md) — apply gating
+- [sclite-integration.md](sclite-integration.md) — truth authority
