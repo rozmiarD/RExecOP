@@ -5,9 +5,8 @@ from typing import Any
 
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest, ConnectorResponse
-from rexecop.evidence.redaction import redact_payload
-
 from rexecop.connectors.errors import READ_ONLY_MODES
+from rexecop.evidence.redaction import redact_payload
 
 
 class LocalShellReadonlyRuntime:

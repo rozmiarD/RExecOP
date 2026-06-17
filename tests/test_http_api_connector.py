@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from helpers.staging_http_server import StagingHttpServer
-
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.http_api import HttpApiConnectorRuntime

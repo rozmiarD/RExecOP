@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from helpers.staging_http_server import StagingHttpServer
 
+from helpers.staging_http_server import StagingHttpServer
 from rexecop.adapters.govengine_port.contracts import GovEngineDecisionType
 from rexecop.adapters.govengine_port.static_adapter import StaticGovEngineAdapter
 from rexecop.operation.controller import OperationController
