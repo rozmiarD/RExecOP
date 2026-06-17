@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.1.4a1] - 2026-06-17
+
+### Phase 13.2 — execution receipt honesty
+
+- `executed_command_count` and `network_execution_performed` derived from connector
+  `step_completed` evidence and `shared_state.connector_results`
+- Ticket `max_runs` aligned with planned connector step count; relaxed strict profile for multi-connector plans
+- Dry-run receipts keep `receipt_does_not_claim_live_target_execution` non-claim
+- E2E assertions on staging `http_api` receipts
+
 ## [0.1.4a0] - 2026-06-17
 
 ### Phase 13.1 — SQLite storage backend

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
@@ -85,6 +86,13 @@ def test_readonly_check_backup_status_against_staging_http(tmp_path: Path) -> No
         serialized = yaml.safe_dump(payloads)
         assert "secret-token" not in serialized
         assert "api_key" not in serialized.lower() or "[REDACTED]" in serialized
+
+        bundle_dir = store.operation_sclite_dir(operation.id)
+        receipt = json.loads(
+            (bundle_dir / "05_execution_receipt.json").read_text(encoding="utf-8")
+        )
+        assert receipt["execution"]["executed_command_count"] >= 2
+        assert receipt["execution"]["network_execution_performed"] is False
     finally:
         server.stop()
 

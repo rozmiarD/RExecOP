@@ -10,6 +10,11 @@ from sclite.kernel_guard import build_kernel_guard_manifest
 from sclite.tickets import normalized_args_digest, verify_ticket_use
 
 from rexecop.adapters.sclite_port.contracts import SCLITE_SCHEMA_REFS
+from rexecop.adapters.sclite_port.execution_receipt_metrics import (
+    derive_execution_receipt_metrics,
+    planned_connector_command_count,
+    receipt_non_claims,
+)
 from rexecop.adapters.sclite_port.target_host import sclite_target_ref
 
 FULL_BUNDLE_MANIFEST_PROFILE = "sclite-v0.5-rexecop-integrity"
@@ -55,6 +60,7 @@ def build_scoped_execution_ticket(
     normalized_args = list(execution_contract["execution_shape"]["normalized_args"])
     primary_tool = str(execution_contract["execution_shape"]["tool"])
     capability_mode = rexecop_mode(plan.mode)
+    connector_budget = planned_connector_command_count(plan)
     target_host = str(execution_contract["target_binding"]["target_host"])
     start = parse_timestamp(operation.created_at)
     end = start + __import__("datetime").timedelta(hours=24)
@@ -83,7 +89,7 @@ def build_scoped_execution_ticket(
         },
         "execution_limits": {
             "mode": capability_mode,
-            "max_runs": 1,
+            "max_runs": connector_budget,
             "one_shot": True,
         },
         "spend_limits": {
@@ -141,12 +147,19 @@ def build_scoped_execution_receipt(
     execution_plan_steps: Any,
     link: Any,
     validate: Any,
+    evidence_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     ended_at = completed_at or operation.updated_at
     capability_mode = rexecop_mode(plan.mode)
     steps = execution_plan_steps(plan)
     ticket_id = str(execution_ticket["ticket_id"])
     receipt_id = f"scoped-ticket-receipt-{operation.id}"
+    executed_command_count, network_execution_performed = derive_execution_receipt_metrics(
+        operation,
+        plan,
+        evidence_events=evidence_events,
+        rexecop_mode=rexecop_mode,
+    )
     artifact = {
         "artifact_type": "execution_receipt",
         "schema_version": "v0.2",
@@ -167,8 +180,8 @@ def build_scoped_execution_receipt(
             "started_at": operation.created_at,
             "ended_at": ended_at,
             "planned_command_count": len(steps),
-            "executed_command_count": 0,
-            "network_execution_performed": False,
+            "executed_command_count": executed_command_count,
+            "network_execution_performed": network_execution_performed,
         },
         "outcome": {
             "status": "dry_run" if capability_mode == "dry_run" else operation.state,
@@ -186,11 +199,10 @@ def build_scoped_execution_receipt(
         "evidence_refs": [
             {"kind": "evidence_contract", "path": "06_evidence_contract.json"},
         ],
-        "non_claims": [
-            "receipt_does_not_include_raw_logs",
-            "receipt_does_not_claim_live_target_execution",
-            "receipt_does_not_prove_runtime_enforcement",
-        ],
+        "non_claims": receipt_non_claims(
+            capability_mode,
+            network_execution_performed=network_execution_performed,
+        ),
     }
     return validate("execution_receipt", artifact)
 
@@ -369,16 +381,32 @@ def write_kernel_guard_manifest(bundle_dir: str | Path) -> dict[str, Any]:
     return guard
 
 
+def _connector_budget_from_contract(execution_contract: dict[str, Any]) -> int:
+    shape = execution_contract.get("execution_shape")
+    if not isinstance(shape, dict):
+        return 1
+    plan_steps = shape.get("plan")
+    if not isinstance(plan_steps, list):
+        return 1
+    connector_steps = [
+        step
+        for step in plan_steps
+        if isinstance(step, dict) and str(step.get("tool") or "") not in {"internal", "evidence"}
+    ]
+    return max(len(connector_steps), 1)
+
+
 def verify_full_bundle(
     bundle_dir: str | Path,
     artifacts: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    connector_budget = _connector_budget_from_contract(artifacts["execution_contract"])
     verify_ticket_use(
         artifacts["execution_ticket"],
         artifacts["execution_contract"],
         artifacts["execution_receipt"],
         artifacts["evidence_contract"],
-        strict_ticket_profile=True,
+        strict_ticket_profile=connector_budget <= 1,
     )
     review_record = review_bundle(bundle_dir)
     if review_record.get("verdict") != "pass":

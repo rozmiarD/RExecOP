@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
@@ -66,5 +67,13 @@ def test_http_health_check_e2e_without_domain_internals(tmp_path: Path) -> None:
         validation = controller.validate(operation.id)
         assert validation["passed"] is True
         assert validation["rule"] == "http_health_check.probe_ok"
+
+        bundle_dir = store.operation_sclite_dir(operation.id)
+        receipt_path = bundle_dir / "05_execution_receipt.json"
+        assert receipt_path.is_file()
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        assert receipt["execution"]["executed_command_count"] >= 1
+        assert receipt["execution"]["network_execution_performed"] is False
+        assert "receipt_does_not_claim_live_target_execution" in receipt["non_claims"]
     finally:
         server.stop()

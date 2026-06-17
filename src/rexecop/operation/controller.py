@@ -272,10 +272,12 @@ class OperationController:
         operation = self.get_operation(operation_id)
         plan = self.store.load_plan(operation_id)
         bundle_dir = self.store.operation_sclite_dir(operation_id)
+        evidence_events = self.store.list_evidence_events(operation_id)
         emission = self.sclite_emitter.emit_operation_bundle(
             operation=operation,
             plan=plan,
             bundle_dir=str(bundle_dir),
+            evidence_events=evidence_events,
         )
         operation.sclite_refs = emission.sclite_refs
         export_summary = emission.as_dict()
