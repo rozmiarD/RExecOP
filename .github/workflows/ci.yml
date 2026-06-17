@@ -39,5 +39,13 @@ jobs:
             exit 1
           fi
 
+      - name: Secret scan (basic)
+        run: bash scripts/secret_scan.sh
+
+      - name: Package install smoke
+        run: |
+          rexecop version
+          rexecop --help
+
       - name: Pytest
         run: pytest

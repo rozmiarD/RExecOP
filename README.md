@@ -1,12 +1,12 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 0.11.0a0](https://img.shields.io/badge/package-rexecop%200.11.0a0-blueviolet.svg)](pyproject.toml)
+[![Package: rexecop 0.1.0a0](https://img.shields.io/badge/package-rexecop%200.1.0a0-blueviolet.svg)](pyproject.toml)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
 [![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
 [![Profile: tecrax-profile](https://img.shields.io/badge/profile-tecrax--profile-informational.svg)](https://github.com/rozmiarD/tecrax-profile)
-[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-green.svg)](#status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 **Regulated Execution Operations** control-plane for profile-defined workflows, bound to
@@ -21,10 +21,10 @@ policy engine or a parallel truth layer.
 
 | Item | Value |
 | --- | --- |
-| Version | `0.11.0a0` |
-| Maturity | **pre-alpha** — operator evaluation, not production |
-| Roadmap | Phases 0–9 delivered on `main`; Phase 10 (alpha gate) next |
-| Tests | 97 pytest tests (CI: ruff, mypy, boundary grep, pytest) |
+| Version | `0.1.0a0` |
+| Maturity | **alpha** — operator evaluation with documented limits |
+| Roadmap | Phases 0–10 complete on `main` |
+| Tests | 103 pytest tests (102 passed; CI: ruff, mypy, boundary grep, secret scan, pytest) |
 | PyPI | not published — install from source |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
 
@@ -157,6 +157,9 @@ GitHub Actions runs on every push and pull request: install `tecrax-profile`, ru
 | [docs/profile-contract.md](docs/profile-contract.md) | Profile layout and entry points |
 | [docs/connector-contract.md](docs/connector-contract.md) | `http_api`, secrets, error taxonomy |
 | [docs/safety-model.md](docs/safety-model.md) | Hard safety rules and operator posture |
+| [docs/known-limitations.md](docs/known-limitations.md) | Alpha scope and explicit non-claims |
+| [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md) | Installation, secrets, workflows, troubleshooting |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## Related repositories
 
