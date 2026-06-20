@@ -17,6 +17,7 @@ tracked incremental roadmap delivery.
 - Docs: [environment-contract.md](docs/environment-contract.md), [storage-backends.md](docs/storage-backends.md)
 - Tests: [tests/test_stage_a_contracts.py](tests/test_stage_a_contracts.py)
 - CHANGELOG date order corrected for `0.2.1a0` / `0.2.2a0`
+- Published to PyPI as `rexecop==0.2.3a0`
 
 ## [0.2.2a0] - 2026-06-20
 

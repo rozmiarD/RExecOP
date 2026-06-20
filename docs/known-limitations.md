@@ -53,7 +53,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 
 | Limitation | Detail |
 | --- | --- |
-| Public PyPI | latest published `rexecop==0.2.2a0`; dev line `0.2.3a0` — not a production-ready claim |
+| Public PyPI | `rexecop==0.2.3a0` published for alpha evaluation — not a production-ready claim |
 | Alpha semver line | `0.2.3a0` is the current alpha line; see [CHANGELOG.md](../CHANGELOG.md) for history |
 
 ## What alpha **does** provide (allowed claims)
