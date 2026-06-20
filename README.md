@@ -1,7 +1,7 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 0.2.1a0](https://img.shields.io/badge/package-rexecop%200.2.1a0-blueviolet.svg)](pyproject.toml)
+[![Package: rexecop 0.2.2a0](https://img.shields.io/badge/package-rexecop%200.2.2a0-blueviolet.svg)](https://pypi.org/project/rexecop/0.2.2a0/)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
 [![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
@@ -21,11 +21,11 @@ policy engine or a parallel truth layer.
 
 | Item | Value |
 | --- | --- |
-| Version | `0.2.1a0` |
+| Version | `0.2.2a0` |
 | Maturity | **alpha** — operator evaluation with documented limits |
 | Delivery | Alpha scope complete on `main` (see [CHANGELOG](CHANGELOG.md)) |
-| Tests | 151 collected / 150 passed, 1 skipped (CI: ruff, mypy, public truth, boundary grep, secret scan, build, pytest) |
-| PyPI | not published — wheels validated in CI; see [docs/distribution.md](docs/distribution.md) |
+| Tests | 187 passed, 1 skipped (CI: ruff, mypy, public truth, boundary grep, secret scan, build, pytest) |
+| PyPI | [`rexecop==0.2.2a0`](https://pypi.org/project/rexecop/0.2.2a0/) — alpha; see [docs/distribution.md](docs/distribution.md) |
 | Dependencies | `govengine>=0.12.2a0,<0.15`, `sclite-core>=1.0.1,<1.1` (see `pyproject.toml`) |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
 
@@ -35,20 +35,30 @@ policy engine or a parallel truth layer.
 
 ## Stack position
 
+One operation crosses all layers. GovEngine gates **mutating** work; SCLite validates the **proof bundle** RExecOp emits after execution.
+
 ```text
 Profiles (tecrax, fixtures)
-  -> RExecOp (plan, lifecycle, execution, validation)
-  -> GovEngine (admission, governance meaning)
-  -> RExecOp (maps lifecycle to artifacts)
-  -> SCLite (contracts, tickets, receipts, review bundles)
+  intents, workflows, connector contracts, validation rules
+        |
+        v
+RExecOp  plan -> lifecycle FSM -> step execution -> profile validation
+        |                    \
+        |                     `--> GovEngine admission (mutating modes only)
+        |                               allowed | blocked | approval_required
+        v
+RExecOp  project runtime facts + GovEngine admission into SCLite artifact shapes
+        |
+        v
+SCLite   validate schemas, ticket binding, review_bundle (truth authority)
 ```
 
 | Layer | Responsibility |
 | --- | --- |
 | **Profiles** | Intents, workflows, connector contracts, declarative validation rules |
-| **RExecOp** | Operation lifecycle, planning, step dispatch, pause/resume/retry, queue/lock, escalation |
-| **GovEngine** | Policy interpretation, admission, runner request/receipt contracts — does not execute |
-| **SCLite** | Auditable artifacts, scoped tickets, receipt-bounded evidence, review bundles |
+| **RExecOp** | Runner: lifecycle, planning, step dispatch, pause/resume/retry, queue/lock; **projects** completed operations into SCLite bundles (does not decide policy) |
+| **GovEngine** | Governance: admission and runner request/receipt **contracts** — does not execute steps or emit SCLite files |
+| **SCLite** | Proof: auditable artifacts, scoped tickets, receipt-bounded evidence, review bundles |
 
 Tecrax ships as the [`tecrax`](https://github.com/rozmiarD/tecrax) package (`rexecop.profiles:tecrax`).
 Ravenclaw is legacy and out of scope for RExecOp.
@@ -76,13 +86,19 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - Production cron/recurrence scheduler (host-owned worker + systemd/cron pattern only)
 - Web UI or multi-tenant RBAC
 - Unattended apply on critical infrastructure without operator and governance gates
-- PyPI release (reserved for explicit operator sign-off — see [docs/distribution.md](docs/distribution.md))
 
 ## Installation
 
-See [docs/distribution.md](docs/distribution.md) for wheels, Git URL, and private index notes.
+Published alpha package:
 
-From source (recommended):
+```bash
+python -m pip install "rexecop==0.2.2a0"
+rexecop version
+```
+
+See [docs/distribution.md](docs/distribution.md) for Tecrax extra, wheels, Git URL, and private index notes.
+
+From source (development):
 
 ```bash
 git clone https://github.com/rozmiarD/RExecOP.git

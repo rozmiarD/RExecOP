@@ -15,6 +15,7 @@ import rexecop  # noqa: E402
 EXPECTED_GOVENGINE = "govengine>=0.12.2a0,<0.15"
 EXPECTED_SCLITE = "sclite-core>=1.0.1,<1.1"
 EXPECTED_TECRAX_EXTRA = "tecrax>=0.3.2a0,<0.4"
+PUBLISHED_PYPI_VERSION = "0.2.2a0"
 
 VERSION_DOCS = (
     "README.md",
@@ -33,6 +34,7 @@ STALE_OPERATOR_VERSIONS = (
     "0.1.4a2",
     "0.1.5a0",
     "0.2.0a0",
+    "0.2.1a0",
 )
 
 CLAIM_DOCS = (
@@ -43,8 +45,12 @@ CLAIM_DOCS = (
 
 FORBIDDEN_CLAIMS = (
     "production-ready",
-    "pypi published",
-    "published on pypi",
+)
+
+PYPI_DOC_MARKERS = (
+    "img.shields.io/badge/package-rexecop%20",
+    "https://pypi.org/project/rexecop/",
+    'python -m pip install "rexecop==',
 )
 
 
@@ -95,6 +101,20 @@ def _reject_stale_operator_versions(errors: list[str], path: str, text: str, cur
                 errors.append(f"{path}:stale_operator_version:{stale}:{marker}")
 
 
+def _assert_pypi_docs(errors: list[str], version: str) -> None:
+    if version != PUBLISHED_PYPI_VERSION:
+        return
+    readme = _read("README.md")
+    distribution = _read("docs/distribution.md")
+    for marker in PYPI_DOC_MARKERS:
+        if marker not in readme:
+            errors.append(f"README.md:missing_pypi_marker:{marker}")
+    _require(errors, "README.md", f"https://pypi.org/project/rexecop/{version}/")
+    _require(errors, "README.md", f'python -m pip install "rexecop=={version}"')
+    _require(errors, "docs/distribution.md", f"https://pypi.org/project/rexecop/")
+    _require(errors, "docs/distribution.md", f'rexecop=={version}')
+
+
 def current_version() -> str:
     return str(_pyproject()["version"])
 
@@ -139,20 +159,20 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/ci.yml", "rozmiarD/tecrax")
     _require(errors, ".github/workflows/ci.yml", "python -m build")
     _require(errors, ".github/workflows/ci.yml", "twine check")
+    _require(errors, ".github/workflows/publish.yml", "workflow_dispatch")
+    _require(errors, ".github/workflows/publish.yml", "twine upload")
 
     init_text = _read("src/rexecop/__init__.py")
     if f'__version__ = "{version}"' not in init_text:
         errors.append("src/rexecop/__init__.py:missing_version_literal")
+
+    _assert_pypi_docs(errors, version)
 
     for path in CLAIM_DOCS:
         lowered = _read(path).lower()
         for claim in FORBIDDEN_CLAIMS:
             claim_text = claim.lower()
             if claim_text in lowered and f"not {claim_text}" not in lowered:
-                if claim == "pypi published" and "not published" in lowered:
-                    continue
-                if claim == "published on pypi" and "not published" in lowered:
-                    continue
                 errors.append(f"{path}:forbidden_claim:{claim}")
 
     return errors

@@ -33,14 +33,18 @@ SCLite
 profile-defined intent
   -> profile workflow (declared steps only)
   -> RExecOp OperationPlan (runtime artifact, not SCLite truth)
-  -> GovEngine admission / decision (mutating modes)
-  -> RExecOp controlled execution
-  -> connector runtime action (mock | http_api | local_shell_readonly | ssh_readonly)
+  -> [mutating modes] GovEngine admission / decision
+  -> RExecOp controlled execution (connectors, internal actions)
   -> internal evidence events + shared workflow state
   -> declarative profile validation
-  -> SCLite artifact bundle emission
+  -> RExecOp emits SCLite artifact bundle (lifecycle + admission -> artifact shapes)
+  -> SCLite validates bundle / review semantics
   -> completion | failure | escalation
 ```
+
+GovEngine participates **before mutating execution**, not as a separate post-runner stage.
+RExecOp remains the sole executor; it **projects** execution outcomes and bridged admission
+metadata into SCLite fields (`policy_decision`, tickets, receipts).
 
 ## Core invariants
 

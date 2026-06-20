@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.2.2a0] - 2026-06-16
+
+### Public PyPI (`15.1c`) and documentation clarity
+
+- Clarify stack diagram: GovEngine gates mutating admission; RExecOp projects lifecycle into SCLite artifacts
+- Publish `rexecop` to PyPI; update [docs/distribution.md](docs/distribution.md) and public-truth validators
+- Canonical delivery test scope (`pytest -m delivery`) and composite runtime routing tests (from `0.2.1a0` batch)
+
 ## [0.2.1a0] - 2026-06-20
 
 ### Domain connector backend plugin (`tecrax_proxmox`)

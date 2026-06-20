@@ -1,6 +1,6 @@
 # Operator runbook
 
-RExecOp **alpha** (`0.2.1a0`) — Regulated Execution Operations control-plane for
+RExecOp **alpha** (`0.2.2a0`) — Regulated Execution Operations control-plane for
 profile-defined workflows under GovEngine and SCLite.
 
 This runbook covers installation, daily operations, staging setup, and safety checks.
@@ -28,7 +28,7 @@ pip install -e ".[dev]"
 git clone https://github.com/rozmiarD/tecrax.git ../tecrax
 pip install -e ../tecrax
 
-rexecop version   # expect 0.2.1a0
+rexecop version   # expect 0.2.2a0
 python scripts/validate_public_truth.py   # docs + version alignment
 
 # Optional: SQLite backend for operations/plans/evidence (SCLite bundles still on disk)

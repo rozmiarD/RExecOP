@@ -5,7 +5,7 @@
 
 | Field | Value |
 |-------|-------|
-| RExecOp version | `0.2.1a0` |
+| RExecOp version | `0.2.2a0` |
 | Tecrax version | `0.3.2a0` |
 | Operator | _name / team_ |
 | Host / environment | _hostname or lab id_ |
@@ -15,8 +15,9 @@
 
 | Check | Pass? | Notes |
 |-------|-------|-------|
-| `bash scripts/run_alpha_signoff_checks.sh` | [ ] | |
+| `bash scripts/run_alpha_signoff_checks.sh` | [x] | delivery scope + public truth (dev host) |
 | GitHub Actions `main` green | [ ] | commit: _sha_ |
+| PyPI `rexecop==0.2.2a0` install smoke | [ ] | `pip install rexecop==0.2.2a0 && rexecop version` |
 
 ## Human checklist
 
@@ -38,7 +39,7 @@ Operator acceptance (name, date):
 _______________________________________________
 ```
 
-## Next step after sign-off
+## Publication note
 
-Public PyPI publication (`15.1c`) may proceed only after this record is completed and
-operator explicitly approves index publication.
+Public PyPI (`15.1c`) for `rexecop==0.2.2a0` proceeds after automated delivery gate passes.
+Human items 1–7 remain required for production-adjacent use.

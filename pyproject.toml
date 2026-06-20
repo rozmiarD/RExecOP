@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "0.2.1a0"
+version = "0.2.2a0"
 description = "Regulated Execution Operations control-plane for profile-defined workflows bound to GovEngine and SCLite."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -11,6 +11,11 @@ dependencies = [
     "govengine>=0.12.2a0,<0.15",
     "sclite-core>=1.0.1,<1.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/rozmiarD/RExecOP"
+Repository = "https://github.com/rozmiarD/RExecOP"
+Documentation = "https://github.com/rozmiarD/RExecOP#readme"
 
 [project.optional-dependencies]
 dev = [

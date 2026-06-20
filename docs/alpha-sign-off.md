@@ -1,6 +1,6 @@
 # Alpha sign-off
 
-RExecOp `0.2.1a0` — formal operator acceptance before production-adjacent use or public PyPI.
+RExecOp `0.2.2a0` — formal operator acceptance before production-adjacent use.
 
 This document separates **automated checks** (CI / script) from **human acceptance** (operator).
 
@@ -20,7 +20,8 @@ The script runs:
 4. `pytest -m delivery` — canonical delivery-scope suite from `tests/delivery_scope.py`
 5. Optional `python -m build` + `twine check` when `REXECOP_SIGNOFF_BUILD=1` and `build` is installed
 
-CI on `main` runs the full pytest suite plus the `package-dry-run` job for wheel build smoke; it does not shell out to this script on every push.
+CI on `main` runs the full pytest suite plus the `package-dry-run` job. PyPI publication
+uses `.github/workflows/publish.yml` (manual) or operator `twine upload` after sign-off.
 
 ## Human acceptance checklist
 
@@ -40,7 +41,7 @@ Record completion in [alpha-sign-off-record.md](alpha-sign-off-record.md).
 
 - Not a security audit or compliance certification
 - Not approval for unmanned apply on critical infrastructure
-- Not a promise of public PyPI availability (see [distribution.md](distribution.md))
+- Not a promise of production-ready governance (alpha limits remain)
 
 ## Related
 

@@ -1,18 +1,17 @@
 # Distribution and installation
 
-RExecOp `0.2.1a0` is **alpha** software. Wheels are validated in CI but **not** published to
-public PyPI until explicit operator sign-off.
+RExecOp `0.2.2a0` is **alpha** software. The package is published on
+[PyPI](https://pypi.org/project/rexecop/) for evaluation installs; maturity limits in
+[known-limitations.md](known-limitations.md) still apply.
 
 ## Supported install paths
 
 | Path | When to use |
 | --- | --- |
-| Editable source (`pip install -e`) | Development and operator lab (recommended) |
-| Wheel from `dist/` after `python -m build` | Offline install, internal mirrors, release candidates |
-| Git URL install | Pin a commit or tag without cloning manually |
-
-Public PyPI is intentionally **out of scope** for alpha. Do not document or claim a PyPI release
-until the operator checklist in [OPERATOR_LAB_RUNBOOK.md](../OPERATOR_LAB_RUNBOOK.md) is signed off.
+| **PyPI** (`pip install rexecop==0.2.2a0`) | Quick evaluation when GovEngine/SCLite pins are acceptable |
+| Editable source (`pip install -e`) | Development and operator lab (recommended for contributors) |
+| Wheel from `dist/` after `python -m build` | Offline install, internal mirrors |
+| Git URL install | Pin a commit or tag without PyPI |
 
 ## Prerequisites
 
@@ -20,9 +19,31 @@ until the operator checklist in [OPERATOR_LAB_RUNBOOK.md](../OPERATOR_LAB_RUNBOO
 - Network access to install pinned dependencies:
   - `govengine>=0.12.2a0,<0.15`
   - `sclite-core>=1.0.1,<1.1`
-- Optional domain profile: [`tecrax`](https://github.com/rozmiarD/tecrax)
+- Optional domain profile: [`tecrax`](https://pypi.org/project/tecrax/) or Git
 
-## Editable install (recommended)
+## Install from PyPI
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install "rexecop==0.2.2a0"
+rexecop version
+```
+
+With Tecrax profile (after `tecrax` is on PyPI at a compatible version):
+
+```bash
+python -m pip install "rexecop[tecrax]==0.2.2a0"
+```
+
+If the `tecrax` extra cannot resolve from PyPI yet, install Tecrax from Git:
+
+```bash
+python -m pip install "rexecop==0.2.2a0"
+python -m pip install "tecrax @ git+https://github.com/rozmiarD/tecrax.git@main"
+```
+
+## Editable install (recommended for development)
 
 ```bash
 git clone https://github.com/rozmiarD/RExecOP.git
@@ -31,7 +52,6 @@ python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 
-# Optional Tecrax profile package
 git clone https://github.com/rozmiarD/tecrax.git ../tecrax
 python -m pip install -e ../tecrax
 
@@ -51,60 +71,16 @@ python -m build
 python -m twine check dist/*
 ```
 
-Install the wheel in a clean venv:
-
-```bash
-python -m venv /tmp/rexecop-install
-source /tmp/rexecop-install/bin/activate
-pip install "govengine>=0.12.2a0,<0.15" "sclite-core>=1.0.1,<1.1"
-pip install dist/rexecop-*.whl
-rexecop version
-```
-
 ## Install from Git (no local clone)
-
-Pin a branch, tag, or commit:
 
 ```bash
 python -m pip install "rexecop @ git+https://github.com/rozmiarD/RExecOP.git@main"
 ```
 
-With Tecrax profile:
-
-```bash
-python -m pip install \
-  "rexecop[tecrax] @ git+https://github.com/rozmiarD/RExecOP.git@main"
-```
-
-When `tecrax` is not yet on a public index, install it separately from Git:
-
-```bash
-python -m pip install "tecrax @ git+https://github.com/rozmiarD/tecrax.git@main"
-```
-
 ## Private index / GitHub Packages (operator-owned)
 
-RExecOp does not publish packages for you. Operators may mirror wheels built by CI or local
-`python -m build` into:
-
-- an internal PyPI-compatible index (Artifactory, devpi, etc.)
-- [GitHub Packages](https://docs.github.com/en/packages) Python registry
-
-Typical internal publish flow (example — adjust registry URL and credentials):
-
-```bash
-python -m build
-python -m twine upload --repository-url https://upload.example.internal/legacy/ dist/*
-```
-
-Consumer install:
-
-```bash
-pip install --index-url https://pypi.example.internal/simple rexecop==0.2.1a0
-```
-
-Keep GovEngine and SCLite pins aligned with `pyproject.toml` when mirroring — RExecOp does not
-vendor those dependencies.
+Operators may mirror wheels into an internal PyPI-compatible index or GitHub Packages.
+See prior internal-mirror examples in git history if needed.
 
 ## Version and doc alignment
 
