@@ -1,0 +1,19 @@
+policy_id: rexecop-connectors
+version: "2026-06-20"
+rules:
+  - rule_id: allow-read-connectors
+    effect: allow
+    conditions:
+      action.mode: read
+    reason_code: read_connector_allowed
+  - rule_id: deny-ssh-critical
+    effect: deny
+    conditions:
+      action.backend: ssh_readonly
+      resource.criticality: critical
+    reason_code: ssh_denied_on_critical_target
+  - rule_id: deny-mutating-connectors
+    effect: deny
+    conditions:
+      action.mode: mutating
+    reason_code: mutating_connector_denied

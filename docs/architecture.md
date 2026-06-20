@@ -89,13 +89,14 @@ src/rexecop/
   operation/          model, plan, state machine, controller
   orchestration/      workflow execution coordinator
   workflow/           YAML loader, step runner
-  execution/          step executor, internal action plugin registry
+  execution/          step executor, ExecutionRequest/Receipt model, bounded output helpers
   connectors/         mock, http_api, local_shell, ssh_readonly, composite runtime, fixture loader
   adapters/
     govengine_port/   admission client + static test adapter
     sclite_port/      artifact emitter, full bundle, fixture bundle (lab), placeholder (deprecated)
   profile/            contract loader, resolver, validation_rules
-  environment/        environment loader, connector config sanitization
+  environment/        environment loader, targets, policy criticality
+  policy/             GovEngine PolicyEngine pack compile + connector/operation gates
   secrets/            secret_ref resolver port
   evidence/           internal events, redaction
   storage/            file store, sqlite store, factory, storage port protocol
@@ -109,7 +110,11 @@ src/rexecop/
 
 GovEngine composes and validates `RuntimeAdmissionResult` and runner request/receipt shapes.
 RExecOp calls the GovEngine adapter before mutating execution and maps admission metadata into
-SCLite `policy_decision` fields. GovEngine does **not** execute operations or invoke connectors.
+SCLite `policy_decision` fields. GovEngine `0.14.0+` PolicyEngine evaluates `environment.policy_pack` at plan and on every
+connector invoke. GovEngine does **not** execute operations or invoke connectors directly.
+
+Workflow execution additionally records `ExecutionRequest` / `ExecutionReceipt` in operation
+`shared_state` — see [execution-contract.md](execution-contract.md).
 
 ## SCLite relationship
 

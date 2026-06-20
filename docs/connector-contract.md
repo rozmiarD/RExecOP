@@ -108,6 +108,9 @@ connectors:
 Refuses mutating operation modes. Only allowlisted `action` / `command` pairs may run.
 Allowlist entries are validated with `govengine.execution.command_shape.normalize_argv`.
 
+Optional `max_output_bytes` (default `65536`) bounds stored stdout/stderr. Responses include
+`output_digests` (SHA-256 of full capture), `output_truncated`, and `output_sizes`.
+
 ## ssh_readonly (temporary)
 
 ```yaml
@@ -126,9 +129,7 @@ connectors:
         command: uptime
 ```
 
-**Temporary operator tool:** until GovEngine policy engine owns remote command policy,
-this backend provides read-only allowlisted SSH only. It refuses `apply` / `recovery` modes.
-Do not treat it as a production authorization boundary on its own.
+**Policy layers:** when `environment.policy_pack` is set, GovEngine `PolicyEngine` runs at plan (operation) and at each connector invoke before backends execute. Allowlists and read-only mode checks remain as a second layer for shell/SSH backends.
 
 ### Risk notes
 
@@ -138,7 +139,7 @@ Do not treat it as a production authorization boundary on its own.
 | Remote command quoting | Allowlisted argv is joined with `shlex.quote` before passing as the remote SSH command. |
 | Remote shell | OpenSSH still invokes the remote user shell to run the command string — keep allowlists minimal. |
 | Secrets | `identity_file_secret_ref` resolves via `REXECOP_SECRETS_FILE`; never commit key material. |
-| Policy ownership | Full remote-command policy belongs in GovEngine + SCLite review, not in this connector alone. |
+| Policy ownership | `environment.policy_pack` → `PolicyEngine` at invoke; allowlist + mode checks remain for shell backends |
 
 ## Boundary
 

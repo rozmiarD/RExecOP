@@ -53,6 +53,31 @@ in `environment.connectors`. Disabled or missing connectors fail at `plan` with
 `safety` carries runtime policy copied into `operation.metadata.runtime_policy`
 (`max_concurrent_operations`, `target_lock_enabled`, `maintenance_windows`, …).
 
+## Policy pack (`policy_pack`)
+
+Optional declarative GovEngine policy for connector and operation admission:
+
+```yaml
+environment:
+  policy_pack:
+    policy_id: rexecop-connectors
+    version: "2026-06-20"
+    rules:
+      - rule_id: allow-read-connectors
+        effect: allow
+        conditions:
+          action.mode: read
+```
+
+- Compiled at `plan` via `PolicyCompiler`; invalid packs fail plan with `RExecOpValidationError`.
+- Persisted on the operation as `metadata.policy_pack` and `metadata.target_criticality`.
+- Operation-level verdict → `plan.govengine_request_preview.policy_decision` for GovEngine admission compose.
+- Connector-level evaluation runs in `CompositeConnectorRuntime.invoke()` before any backend (shell, SSH, `http_api`, plugins).
+
+Example pack: [examples/policy/rexecop-connectors-default.yaml](../examples/policy/rexecop-connectors-default.yaml).
+
+See [execution-contract.md](execution-contract.md) and [govengine-integration.md](govengine-integration.md).
+
 ## Related
 
 - [profile-contract.md](profile-contract.md)

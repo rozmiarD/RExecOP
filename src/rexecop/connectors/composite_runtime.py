@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from govengine.policy.compiler import CompiledPolicyPack
+
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest, ConnectorResponse, ConnectorRuntime
 from rexecop.connectors.fixture_loader import (
@@ -14,6 +16,7 @@ from rexecop.connectors.http_api import HttpApiConnectorRuntime
 from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
 from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
+from rexecop.policy.connector import connector_policy_gate
 from rexecop.secrets.port import SecretResolver
 from rexecop.secrets.resolver import default_secret_resolver
 
@@ -28,11 +31,17 @@ class CompositeConnectorRuntime:
         profile_root: str | None,
         mutating_allowed: bool,
         secret_resolver: SecretResolver | None = None,
+        policy_pack: CompiledPolicyPack | None = None,
+        operation_id: str = "",
+        target_criticality: str = "low",
     ) -> None:
         self.connectors = connectors
         self.profile_root = profile_root
         self.mutating_allowed = mutating_allowed
         self.secret_resolver = secret_resolver or default_secret_resolver()
+        self.policy_pack = policy_pack
+        self.operation_id = operation_id
+        self.target_criticality = target_criticality
         self._mock = MockConnectorRuntime()
         self._backends: dict[str, ConnectorRuntime] = {}
         self._build_backends()
@@ -55,6 +64,16 @@ class CompositeConnectorRuntime:
                 error=f"connector disabled: {request.connector}",
                 data={"error_class": connector_errors.CONNECTOR_DISABLED},
             )
+        backend_name = str(config.get("backend") or config.get("mode") or "mock")
+        blocked = connector_policy_gate(
+            request,
+            self.policy_pack,
+            operation_id=self.operation_id,
+            backend=backend_name,
+            target_criticality=self.target_criticality,
+        )
+        if blocked is not None:
+            return blocked
         backend = self._backend_for(request.connector, config)
         return backend.invoke(request)
 
@@ -108,6 +127,9 @@ def build_connector_runtime(
     profile_root: str | Path | None,
     mutating_allowed: bool,
     secret_resolver: SecretResolver | None = None,
+    policy_pack: CompiledPolicyPack | None = None,
+    operation_id: str = "",
+    target_criticality: str = "low",
 ) -> CompositeConnectorRuntime:
     root = str(profile_root) if profile_root is not None else None
     return CompositeConnectorRuntime(
@@ -115,4 +137,7 @@ def build_connector_runtime(
         profile_root=root,
         mutating_allowed=mutating_allowed,
         secret_resolver=secret_resolver,
+        policy_pack=policy_pack,
+        operation_id=operation_id,
+        target_criticality=target_criticality,
     )

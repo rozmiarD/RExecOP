@@ -5,6 +5,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from sclite.integrity import artifact_descriptor
 
@@ -29,6 +30,9 @@ from rexecop.operation.model import Operation, StateTransitionRecord, utc_now_is
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState, validate_transition
 from rexecop.orchestration.orchestrator import OperationOrchestrator
+from rexecop.policy.criticality import target_criticality
+from rexecop.policy.operation import evaluate_operation_policy
+from rexecop.policy.pack import compile_environment_policy_pack, policy_decision_from_verdict
 from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
 from rexecop.storage.factory import create_store
@@ -98,6 +102,8 @@ class OperationController:
         workflow = load_workflow(workflow_path)
         validate_operation_target(environment, target)
         validate_workflow_contract(workflow, environment)
+        compiled_policy = compile_environment_policy_pack(environment.policy_pack)
+        target_crit = target_criticality(environment, target)
 
         operation_id = generate_operation_id()
         correlation_id = str(uuid.uuid4())
@@ -132,6 +138,32 @@ class OperationController:
                 environment.safety.get("maintenance_windows") or []
             ),
         }
+        if environment.policy_pack:
+            operation.metadata["policy_pack"] = dict(environment.policy_pack)
+        operation.metadata["target_criticality"] = target_crit
+
+        govengine_preview: dict[str, Any] = {
+            "profile": profile.name,
+            "environment": environment.id,
+            "intent": intent,
+            "target": target,
+            "mode": mode,
+            "risk": str(intent_meta.get("risk") or workflow.risk),
+            "note": "preview only; not a governance decision",
+        }
+        if compiled_policy is not None:
+            verdict = evaluate_operation_policy(
+                policy_pack=compiled_policy,
+                operation_id=operation.id,
+                profile=profile.name,
+                environment=environment,
+                intent=intent,
+                target=target,
+                mode=mode,
+                risk=str(intent_meta.get("risk") or workflow.risk),
+            )
+            govengine_preview["policy_decision"] = policy_decision_from_verdict(verdict)
+            operation.metadata["policy_verdict"] = verdict.as_dict()
 
         created_event = self.evidence.emit(
             operation_id=operation.id,
@@ -159,15 +191,7 @@ class OperationController:
             planned_steps=[step.as_dict() for step in workflow.steps],
             required_connectors=workflow.required_connectors(),
             risk=str(intent_meta.get("risk") or workflow.risk),
-            govengine_request_preview={
-                "profile": profile.name,
-                "environment": environment.id,
-                "intent": intent,
-                "target": target,
-                "mode": mode,
-                "risk": str(intent_meta.get("risk") or workflow.risk),
-                "note": "preview only; not a governance decision",
-            },
+            govengine_request_preview=govengine_preview,
             expected_evidence=[
                 "plan_generated",
                 "state_transition",

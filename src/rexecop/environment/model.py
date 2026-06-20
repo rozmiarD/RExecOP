@@ -12,6 +12,7 @@ class Environment:
     targets: dict[str, Any]
     connectors: dict[str, Any]
     safety: dict[str, Any] = field(default_factory=dict)
+    policy_pack: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -21,6 +22,7 @@ class Environment:
             "targets": dict(self.targets),
             "connectors": dict(self.connectors),
             "safety": dict(self.safety),
+            "policy_pack": dict(self.policy_pack) if isinstance(self.policy_pack, dict) else None,
         }
 
     @classmethod
@@ -31,6 +33,9 @@ class Environment:
         env_id = str(raw.get("id") or "").strip()
         if not env_id:
             raise ValueError("environment.id is required")
+        policy_pack = raw.get("policy_pack")
+        if policy_pack is not None and not isinstance(policy_pack, dict):
+            raise ValueError("environment.policy_pack must be a mapping")
         return cls(
             id=env_id,
             profile=str(raw.get("profile") or ""),
@@ -38,4 +43,5 @@ class Environment:
             targets=dict(raw.get("targets") or {}),
             connectors=dict(raw.get("connectors") or {}),
             safety=dict(raw.get("safety") or {}),
+            policy_pack=dict(policy_pack) if isinstance(policy_pack, dict) else None,
         )

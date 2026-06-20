@@ -20,8 +20,9 @@ ALLOWED_KNOWN_HOSTS_POLICIES = frozenset({"accept-new", "strict", "no"})
 class SshReadonlyRuntime:
     """Temporary read-only SSH connector — allowlisted remote commands only.
 
-    Full policy integration belongs in GovEngine policy engine + SCLite review.
-    Until that path exists, this backend is a documented temporary operator tool.
+    Full remote-command policy is enforced by GovEngine PolicyEngine when
+    `environment.policy_pack` is configured; allowlisted argv remains a
+    second-layer safety check in this connector.
     """
 
     def __init__(

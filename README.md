@@ -24,7 +24,7 @@ policy engine or a parallel truth layer.
 | Version | `0.2.3a0` |
 | Maturity | **alpha** — operator evaluation with documented limits |
 | Delivery | Alpha scope complete on `main` (see [CHANGELOG](CHANGELOG.md)) |
-| Tests | 199 passed, 1 skipped (CI: ruff, mypy, public truth, boundary grep, secret scan, build, pytest) |
+| Tests | 209 passed, 1 skipped (CI: ruff, mypy, public truth, boundary grep, secret scan, build, pytest) |
 | PyPI | [`rexecop==0.2.3a0`](https://pypi.org/project/rexecop/0.2.3a0/) |
 | Dependencies | `govengine>=0.12.2a0,<0.15`, `sclite-core>=1.0.1,<1.1` (see `pyproject.toml`) |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
@@ -73,7 +73,9 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - Vertical slices: read-only `check_backup_status`, apply `restart_zabbix_agent` (mock + staging `http_api`)
 - Operational controls: approve, pause, resume, cancel, retry, rollback, queue, target lock, maintenance windows
 - Runtime worker: `rexecop worker run`, `rexecop queue --drain`, `rexecop trigger` (host-owned scheduling)
-- Connectors: `mock`, config-driven `http_api` (retry, pagination, error mapping), `local_shell_readonly`, `ssh_readonly` (temporary)
+- Connectors: `mock`, config-driven `http_api` (retry, pagination, error mapping), `local_shell_readonly`, `ssh_readonly` (temporary; bounded output + digests)
+- Execution contracts: `ExecutionRequest` / `ExecutionReceipt` in workflow `shared_state` (schema `v0.1`)
+- GovEngine `PolicyEngine` when `environment.policy_pack` is set (plan + per-connector invoke gate)
 - Storage: `FileStore` (default) or optional `SqliteStore` (`REXECOP_STORAGE` / `--storage`)
 - Secrets port: `REXECOP_SECRET_*` and `REXECOP_SECRETS_FILE` (no plaintext secrets in git or `.rexecop/`)
 - Operator CLI (`rexecop`); runtime data under `.rexecop/` in the current working directory
@@ -187,6 +189,7 @@ ruff, mypy, core boundary grep, secret scan, pytest, and a `package-dry-run` job
 | [docs/evidence-model.md](docs/evidence-model.md) | Internal events vs SCLite truth |
 | [docs/profile-contract.md](docs/profile-contract.md) | Profile layout and entry points |
 | [docs/connector-contract.md](docs/connector-contract.md) | `http_api`, secrets, error taxonomy |
+| [docs/execution-contract.md](docs/execution-contract.md) | ExecutionRequest/Receipt, bounded output |
 | [docs/environment-contract.md](docs/environment-contract.md) | Target, group, and connector semantics |
 | [docs/storage-backends.md](docs/storage-backends.md) | File vs SQLite boundaries |
 | [docs/safety-model.md](docs/safety-model.md) | Hard safety rules and operator posture |

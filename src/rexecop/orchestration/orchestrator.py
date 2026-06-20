@@ -19,6 +19,7 @@ from rexecop.execution.executor import StepExecutor
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState
+from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.storage.port import RuntimeStore
 from rexecop.validation.validator import validate_operation_result
@@ -101,10 +102,20 @@ class OperationOrchestrator:
         connectors = operation.metadata.get("environment_connectors")
         if not isinstance(connectors, dict):
             connectors = {}
+        policy_raw = operation.metadata.get("policy_pack")
+        policy_pack = (
+            compile_environment_policy_pack(policy_raw)
+            if isinstance(policy_raw, dict)
+            else None
+        )
+        target_criticality = str(operation.metadata.get("target_criticality") or "low")
         runtime = build_connector_runtime(
             connectors=connectors,
             profile_root=operation.metadata.get("profile_root"),
             mutating_allowed=self._allows_mutating(operation),
+            policy_pack=policy_pack,
+            operation_id=operation.id,
+            target_criticality=target_criticality,
         )
         executor = StepExecutor(
             connector_dispatcher=ConnectorDispatcher(runtime),

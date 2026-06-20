@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## Unreleased
+
+### Execution request / receipt boundary
+
+- `rexecop.execution.model`: `ExecutionRequest`, `ExecutionReceipt`, `ExecutionStepReceipt`, `ResourceLimits` (schema `v0.1`)
+- `execution_request_from_workflow()` builds a domain-neutral request from planned workflow steps at run start
+- `execution_receipt_from_results()` builds step receipts with `output_digest_refs` / `output_truncated` — no raw stdout/stderr in the receipt envelope
+- `WorkflowRunner` stores `execution_request` and `execution_receipt` in `shared_state` on success and failure paths
+- `rexecop.execution.output.bounded_text()`: UTF-8 byte cap (default 65536), full-output `sha256:` digest, truncation flags
+- `local_shell_readonly` and `ssh_readonly`: bounded stdout/stderr plus `output_digests`, `output_truncated`, `output_sizes` (configurable `max_output_bytes`)
+- Tests: `tests/test_execution_contracts.py`; connector output bounds in `test_http_api_connector.py`, `test_phase14_connectors.py`, `test_workflow_runner.py`
+- Docs: [docs/execution-contract.md](docs/execution-contract.md)
+
+### GovEngine PolicyEngine end-to-end
+
+- `environment.policy_pack` optional declarative pack; compiled at `plan`, stored on operation metadata
+- Operation policy → `govengine_request_preview.policy_decision` for admission compose
+- Connector policy gate in `CompositeConnectorRuntime.invoke()` before all backends
+- `rexecop.policy` module; example [examples/policy/rexecop-connectors-default.yaml](examples/policy/rexecop-connectors-default.yaml)
+- Tests: [tests/test_connector_policy_engine.py](tests/test_connector_policy_engine.py)
+
 ## [0.2.3a0] - 2026-06-20
 
 ### Etap A — pre-policy contract hardening

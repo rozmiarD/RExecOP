@@ -55,7 +55,9 @@ The deprecated `PlaceholderSCLiteEmitter` path remains for offline tests only.
 ## Connector and API payloads
 
 Connector responses (including `http_api` JSON) pass through `redact_payload()` before
-persistence in evidence or step results. Environment YAML must use `secret_ref` — inline
+persistence in evidence or step results. Shell backends (`local_shell_readonly`, `ssh_readonly`)
+also cap stored stdout/stderr via `bounded_text()` and attach full-output SHA-256 digests —
+see [execution-contract.md](execution-contract.md). Environment YAML must use `secret_ref` — inline
 secrets are rejected at load time (`environment/sanitize.py`).
 
 ## GovEngine boundary
@@ -70,7 +72,8 @@ emission at lifecycle boundaries.
 Operation
   evidence_event_ids[]     -> internal events
   sclite_refs{}            -> SCLite descriptor links
-  metadata.shared_state    -> workflow correlation (validation input)
+  metadata.shared_state    -> workflow correlation (validation input);
+                              execution_request / execution_receipt (runtime contracts)
   metadata.validation      -> last declarative validation result
   metadata.govengine_admission -> admission snapshot for SCLite bridge
 ```

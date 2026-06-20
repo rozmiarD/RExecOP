@@ -62,6 +62,17 @@ Configured per environment under `safety`:
 Queued operations stay in `approved` with `metadata.queue.status = pending` until the runtime
 coordinator admits them after a slot frees.
 
+## Workflow execution records
+
+During `start`, `WorkflowRunner` writes:
+
+- `shared_state.execution_request` — planned steps, target, mode, resource limits (`v0.1`)
+- `shared_state.execution_receipt` — per-step digest refs and success/failure summary
+
+These are runtime contracts for operator review and downstream binding — distinct from the
+SCLite `execution_receipt` artifact emitted on the completion export path.
+See [execution-contract.md](execution-contract.md).
+
 ## Authority boundaries
 
 - **GovEngine** decides whether mutating work is allowed.

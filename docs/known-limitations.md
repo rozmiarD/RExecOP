@@ -29,7 +29,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 | `http_api` is generic REST | No built-in Proxmox/PBS/Zabbix SDKs — operators configure actions in environment YAML |
 | Staging proven, production is operator-owned | CI uses HTTP stub; live infra requires operator runbook and secrets hygiene |
 | `local_shell_readonly` only | No general shell apply backend in core |
-| `ssh_readonly` is temporary | Read-only SSH allowlist exists; full remote-command policy belongs in GovEngine |
+| `ssh_readonly` is temporary | PolicyEngine gate when `policy_pack` set; allowlisted argv + read-only modes remain in connector |
 | Mock remains default offline | `examples/...proxmox.example.yaml` uses `mock` backend for offline use |
 
 ## Profiles and domain
@@ -61,7 +61,9 @@ what the software does **not** provide so expectations stay aligned with impleme
 - GovEngine-bound operations control-plane with default `GovEngineClient` adapter
 - Profile-defined workflow execution and declarative validation
 - SCLite artifact emission on the completion path with honest execution receipt metrics
-- Connectors: `mock`, `http_api`, `local_shell_readonly`, temporary `ssh_readonly`
+- Connectors: `mock`, `http_api`, `local_shell_readonly`, temporary `ssh_readonly` (bounded output + digests)
+- Workflow execution contracts: `ExecutionRequest` / `ExecutionReceipt` in `shared_state` (schema `v0.1`)
+- GovEngine `PolicyEngine` when `environment.policy_pack` is configured (plan + connector invoke)
 - Host-owned worker, queue drain, and JSON `trigger` ingress
 - Optional SQLite storage backend for operations, plans, and evidence
 - Wheel build + `twine check` validated in CI

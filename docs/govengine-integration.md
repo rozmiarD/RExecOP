@@ -33,6 +33,16 @@ govengine>=0.12.2a0,<0.15
 
 Pinned compatible with the SCLite alpha line used by RExecOp (`sclite-core>=1.0.1,<1.1`).
 
+## PolicyEngine integration
+
+When the environment declares `policy_pack`, RExecOp:
+
+1. Compiles the pack at `plan` and stores it on the operation.
+2. Evaluates operation policy → `govengine_request_preview.policy_decision` (via `policy_verdict_to_gov_policy_decision()`).
+3. Re-evaluates per connector at invoke time in `CompositeConnectorRuntime` before backends run.
+
+Without `policy_pack`, `GovEngineClient` behavior is unchanged (compose inputs from preview overrides or fail-closed defaults).
+
 ## Decision mapping
 
 `RuntimeAdmissionResult` from GovEngine maps to RExecOp `GovEngineDecisionType`:
