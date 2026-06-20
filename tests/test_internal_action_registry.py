@@ -18,3 +18,4 @@ def test_tecrax_internal_actions_registered() -> None:
 def test_tecrax_fixture_backend_registered() -> None:
     backends = list_registered_connector_backends()
     assert "tecrax_fixture" in backends
+    assert "tecrax_proxmox" in backends

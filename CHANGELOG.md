@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.2.1a0] - 2026-06-20
+
+### Domain connector backend plugin (`tecrax_proxmox`)
+
+- `CompositeConnectorRuntime` routes `backend: <registered EP>` via `load_connector_backend_for_connector`
+- Tecrax: `tecrax_proxmox` entry point builds Proxmox `http_api` config from templates
+- Alpha sign-off: `docs/alpha-sign-off.md`, record template, `scripts/run_alpha_signoff_checks.sh`
+- Delivery coverage: canonical scope in `tests/delivery_scope.py`, `pytest -m delivery`, `test_composite_runtime_routing.py`
+
 ## [0.2.0a0] - 2026-06-18
 
 ### Phase 15 — distribution & E2E runbook

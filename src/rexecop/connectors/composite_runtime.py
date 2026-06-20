@@ -5,7 +5,11 @@ from typing import Any
 
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest, ConnectorResponse, ConnectorRuntime
-from rexecop.connectors.fixture_loader import load_connector_backend
+from rexecop.connectors.fixture_loader import (
+    list_registered_connector_backends,
+    load_connector_backend,
+    load_connector_backend_for_connector,
+)
 from rexecop.connectors.http_api import HttpApiConnectorRuntime
 from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
@@ -15,7 +19,7 @@ from rexecop.secrets.resolver import default_secret_resolver
 
 
 class CompositeConnectorRuntime:
-    """Route connector calls to mock, http_api, or local_shell_readonly backends."""
+    """Route connector calls to built-in or plugin-registered backends."""
 
     def __init__(
         self,
@@ -80,6 +84,16 @@ class CompositeConnectorRuntime:
                 config=config,
                 secret_resolver=self.secret_resolver,
             )
+        elif backend_name in list_registered_connector_backends():
+            plugin_runtime = load_connector_backend_for_connector(
+                backend_name,
+                connector_name=name,
+                config=config,
+                profile_root=self.profile_root,
+                mutating_allowed=self.mutating_allowed,
+                secret_resolver=self.secret_resolver,
+            )
+            runtime = plugin_runtime if plugin_runtime is not None else self._mock
         else:
             fixture_name = str(config.get("fixture") or "").strip()
             fixture_runtime = load_connector_backend(fixture_name) if fixture_name else None

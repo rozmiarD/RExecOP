@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "0.2.0a0"
+version = "0.2.1a0"
 description = "Regulated Execution Operations control-plane for profile-defined workflows bound to GovEngine and SCLite."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,7 +22,7 @@ sclite = [
     "sclite-core>=1.0.1,<1.1",
 ]
 tecrax = [
-    "tecrax>=0.3.1a0,<0.4",
+    "tecrax>=0.3.2a0,<0.4",
 ]
 
 [project.scripts]
@@ -53,3 +53,8 @@ no_implicit_optional = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
+markers = [
+    "delivery: alpha delivery-scope behavioral tests (sign-off subset)",
+    "signoff_script: invokes run_alpha_signoff_checks.sh (excluded from nested sign-off)",
+    "package_smoke: wheel build and twine metadata check",
+]

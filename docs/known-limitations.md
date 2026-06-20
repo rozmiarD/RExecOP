@@ -1,6 +1,6 @@
 # Known limitations (alpha)
 
-RExecOp `0.2.0a0` is an **alpha** release for operator evaluation. This document states
+RExecOp `0.2.1a0` is an **alpha** release for operator evaluation. This document states
 what the software does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth
@@ -54,7 +54,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 | Limitation | Detail |
 | --- | --- |
 | Public PyPI not published | Wheels are built and checked in CI; install from source, Git URL, or operator mirror |
-| Alpha semver line | `0.2.0a0` is the current alpha line; see [CHANGELOG.md](../CHANGELOG.md) for history |
+| Alpha semver line | `0.2.1a0` is the current alpha line; see [CHANGELOG.md](../CHANGELOG.md) for history |
 
 ## What alpha **does** provide (allowed claims)
 

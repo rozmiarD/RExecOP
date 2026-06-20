@@ -1,7 +1,7 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 0.2.0a0](https://img.shields.io/badge/package-rexecop%200.2.0a0-blueviolet.svg)](pyproject.toml)
+[![Package: rexecop 0.2.1a0](https://img.shields.io/badge/package-rexecop%200.2.1a0-blueviolet.svg)](pyproject.toml)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
 [![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
@@ -21,7 +21,7 @@ policy engine or a parallel truth layer.
 
 | Item | Value |
 | --- | --- |
-| Version | `0.2.0a0` |
+| Version | `0.2.1a0` |
 | Maturity | **alpha** — operator evaluation with documented limits |
 | Delivery | Alpha scope complete on `main` (see [CHANGELOG](CHANGELOG.md)) |
 | Tests | 151 collected / 150 passed, 1 skipped (CI: ruff, mypy, public truth, boundary grep, secret scan, build, pytest) |

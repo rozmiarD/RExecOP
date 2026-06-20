@@ -14,6 +14,7 @@ in profiles and environment configuration — not in rexecop core.
 | `http_api` | Config-driven JSON REST (Proxmox, PBS, etc. as config instances) |
 | `local_shell_readonly` | Allowlisted non-mutating host commands |
 | `ssh_readonly` | Temporary read-only remote SSH allowlist (documented non-production policy path) |
+| _plugin EP_ | Registered `rexecop.connector_backends` name (e.g. `tecrax_proxmox`, `tecrax_fixture`) |
 
 Factory: `rexecop.connectors.composite_runtime.build_connector_runtime()`.
 

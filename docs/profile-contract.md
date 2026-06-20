@@ -41,10 +41,26 @@ tecrax = "tecrax.internal_actions:register_handlers"
 
 [project.entry-points."rexecop.connector_backends"]
 tecrax_fixture = "tecrax.fixture.mock_runtime:build_runtime"
+tecrax_proxmox = "tecrax.connectors.proxmox_runtime:build_connector_runtime"
 ```
 
-RExecOp core must **never** import `tecrax` or `tecrax_profile`. CI enforces this with a grep guard on
-`src/rexecop`.
+Environment YAML may reference a registered backend name directly:
+
+```yaml
+connectors:
+  proxmox:
+    enabled: true
+    backend: tecrax_proxmox
+    staging_paths: true
+    base_url_secret_ref: proxmox_base_url
+```
+
+`tecrax_proxmox` builds a generic `http_api` runtime from Tecrax Proxmox templates while
+allowing operator overrides (URLs, secrets, retry). Legacy mock fixtures still use `mode: mock`
+with `fixture: tecrax_fixture`.
+
+RExecOp core must **never** import `tecrax` or `tecrax_profile`. CI enforces this with a grep
+guard on `src/rexecop`.
 
 ## Internal actions
 

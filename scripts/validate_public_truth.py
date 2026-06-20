@@ -14,7 +14,7 @@ import rexecop  # noqa: E402
 
 EXPECTED_GOVENGINE = "govengine>=0.12.2a0,<0.15"
 EXPECTED_SCLITE = "sclite-core>=1.0.1,<1.1"
-EXPECTED_TECRAX_EXTRA = "tecrax>=0.3.1a0,<0.4"
+EXPECTED_TECRAX_EXTRA = "tecrax>=0.3.2a0,<0.4"
 
 VERSION_DOCS = (
     "README.md",
@@ -32,6 +32,7 @@ STALE_OPERATOR_VERSIONS = (
     "0.1.4a1",
     "0.1.4a2",
     "0.1.5a0",
+    "0.2.0a0",
 )
 
 CLAIM_DOCS = (

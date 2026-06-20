@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import rexecop
+from delivery_scope import DELIVERY_TEST_MODULES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,27 +23,15 @@ def test_alpha_version_declared() -> None:
     assert rexecop.__version__ == _package_version()
 
 
-def test_readonly_fixture_e2e_exists() -> None:
-    """Alpha exit: read_only E2E on fixture profile."""
-    path = REPO_ROOT / "tests/test_readonly_vertical_slice_e2e.py"
-    assert path.is_file()
-    text = path.read_text()
-    assert "check_backup_status" in text
-    assert "COMPLETED" in text
-
-
-def test_staging_http_readonly_e2e_exists() -> None:
-    """Alpha exit: read_only path via http_api staging connector."""
-    path = REPO_ROOT / "tests/test_staging_connectors_e2e.py"
-    assert path.is_file()
-    text = path.read_text()
-    assert "test_readonly_check_backup_status_against_staging_http" in text
-
-
-def test_http_health_golden_path_exists() -> None:
-    path = REPO_ROOT / "tests/test_http_health_check_e2e.py"
-    assert path.is_file()
-    assert "http_health_check" in path.read_text()
+def test_delivery_e2e_modules_registered() -> None:
+    required = {
+        "test_readonly_vertical_slice_e2e",
+        "test_staging_connectors_e2e",
+        "test_http_health_check_e2e",
+        "test_apply_vertical_slice_e2e",
+    }
+    missing = required - set(DELIVERY_TEST_MODULES)
+    assert not missing, f"delivery scope missing E2E modules: {sorted(missing)}"
 
 
 def test_operator_lab_runbook_present() -> None:

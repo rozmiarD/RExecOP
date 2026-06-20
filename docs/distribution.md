@@ -1,6 +1,6 @@
 # Distribution and installation
 
-RExecOp `0.2.0a0` is **alpha** software. Wheels are validated in CI but **not** published to
+RExecOp `0.2.1a0` is **alpha** software. Wheels are validated in CI but **not** published to
 public PyPI until explicit operator sign-off.
 
 ## Supported install paths
@@ -100,7 +100,7 @@ python -m twine upload --repository-url https://upload.example.internal/legacy/ 
 Consumer install:
 
 ```bash
-pip install --index-url https://pypi.example.internal/simple rexecop==0.2.0a0
+pip install --index-url https://pypi.example.internal/simple rexecop==0.2.1a0
 ```
 
 Keep GovEngine and SCLite pins aligned with `pyproject.toml` when mirroring — RExecOp does not
