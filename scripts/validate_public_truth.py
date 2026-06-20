@@ -105,14 +105,13 @@ def _assert_pypi_docs(errors: list[str], version: str) -> None:
     if version != PUBLISHED_PYPI_VERSION:
         return
     readme = _read("README.md")
-    distribution = _read("docs/distribution.md")
     for marker in PYPI_DOC_MARKERS:
         if marker not in readme:
             errors.append(f"README.md:missing_pypi_marker:{marker}")
     _require(errors, "README.md", f"https://pypi.org/project/rexecop/{version}/")
     _require(errors, "README.md", f'python -m pip install "rexecop=={version}"')
-    _require(errors, "docs/distribution.md", f"https://pypi.org/project/rexecop/")
-    _require(errors, "docs/distribution.md", f'rexecop=={version}')
+    _require(errors, "docs/distribution.md", "https://pypi.org/project/rexecop/")
+    _require(errors, "docs/distribution.md", f"rexecop=={version}")
 
 
 def current_version() -> str:
