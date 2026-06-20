@@ -88,7 +88,7 @@ src/rexecop/
   connectors/         generic mock, http_api, local_shell, composite runtime, fixture loader
   adapters/
     govengine_port/   admission client + static test adapter
-    sclite_port/      artifact emitter, full bundle, placeholder (deprecated)
+    sclite_port/      artifact emitter, full bundle, fixture bundle (lab), placeholder (deprecated)
   profile/            contract loader, resolver, validation_rules
   environment/        environment loader, connector config sanitization
   secrets/            secret_ref resolver port

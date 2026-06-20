@@ -4,6 +4,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 
 class StagingHttpServer:
@@ -13,6 +14,7 @@ class StagingHttpServer:
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self.restart_calls = 0
+        self.transient_failures_remaining = 0
 
     @property
     def base_url(self) -> str:
@@ -29,7 +31,11 @@ class StagingHttpServer:
                 return
 
             def do_GET(self) -> None:  # noqa: N802
-                if self.path == "/proxmox/vms":
+                parsed = urlparse(self.path)
+                path = parsed.path
+                query = parse_qs(parsed.query)
+
+                if path == "/proxmox/vms":
                     parent._json(
                         self,
                         {
@@ -40,7 +46,30 @@ class StagingHttpServer:
                         },
                     )
                     return
-                if self.path == "/pbs/snapshots":
+                if path == "/proxmox/vms/paged":
+                    page = int((query.get("page") or ["1"])[0])
+                    if page == 1:
+                        parent._json(
+                            self,
+                            {
+                                "data": {
+                                    "vms": [{"id": "vm-101", "name": "zabbix-proxy"}],
+                                    "next": "/proxmox/vms/paged?page=2",
+                                }
+                            },
+                        )
+                        return
+                    if page == 2:
+                        parent._json(
+                            self,
+                            {
+                                "data": {
+                                    "vms": [{"id": "vm-102", "name": "backup-gateway"}],
+                                }
+                            },
+                        )
+                        return
+                if path == "/pbs/snapshots":
                     parent._json(
                         self,
                         {
@@ -50,6 +79,23 @@ class StagingHttpServer:
                             ]
                         },
                     )
+                    return
+                if path == "/proxmox/transient":
+                    if parent.transient_failures_remaining > 0:
+                        parent.transient_failures_remaining -= 1
+                        self.send_error(503, "temporary unavailable")
+                        return
+                    parent._json(self, {"status": "ok"})
+                    return
+                if path == "/proxmox/auth-error":
+                    self.send_response(401)
+                    body = json.dumps(
+                        {"message": "invalid token", "api_key": "secret-token"}
+                    ).encode("utf-8")
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
                     return
                 self.send_error(404)
 

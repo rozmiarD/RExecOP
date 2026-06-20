@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `0.1.0a0` declares the **alpha gate** (roadmap Phase 10). Prior `0.x.0a0` lines
 tracked incremental roadmap delivery.
 
+## [0.1.5a0] - 2026-06-18
+
+### Phase 14 — connectors
+
+- `http_api`: configurable retry backoff (`base_delay`, `max_delay`), action-level retry override
+- `http_api`: optional pagination (`items_path`, `next_path`, `max_pages`)
+- `http_api`: HTTP `error_class` mapping with redacted `body_snippet` on failures
+- `local_shell_readonly`: allowlist validation via `govengine.execution.command_shape`
+- `ssh_readonly` connector (temporary read-only allowlist; documented non-production policy path)
+- Staging HTTP stub: paginated and transient/auth-error endpoints for lab tests
+- Tecrax: `tecrax.connectors.proxmox.build_http_api_connector_config()` templates
+
 ## [0.1.4a2] - 2026-06-17
 
 ### Phase 13.3 — fixture path isolation

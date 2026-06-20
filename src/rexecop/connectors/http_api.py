@@ -13,6 +13,15 @@ from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest, ConnectorResponse
 from rexecop.connectors.capability import connector_action_allowed
 from rexecop.connectors.errors import READ_ONLY_MODES
+from rexecop.connectors.http_support import (
+    get_json_path,
+    http_error_class,
+    merge_paginated_items,
+    read_http_error_body,
+    resolve_next_url,
+    resolve_retry_config,
+    retry_delay_seconds,
+)
 from rexecop.connectors.mutating import MUTATING_ACTIONS
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import redact_payload
@@ -88,7 +97,10 @@ class HttpApiConnectorRuntime:
         request: ConnectorRequest,
         action_spec: dict[str, Any],
     ) -> ConnectorResponse:
-        retry_cfg = self.config.get("retry") or {}
+        retry_cfg = resolve_retry_config(
+            self.config.get("retry"),
+            action_spec.get("retry"),
+        )
         max_attempts = int(retry_cfg.get("max_attempts") or 1)
         allowed_on = {
             str(item) for item in (retry_cfg.get("on") or connector_errors.TRANSIENT_CLASSES)
@@ -102,7 +114,7 @@ class HttpApiConnectorRuntime:
             last_response = response
             if error_class not in allowed_on or attempt + 1 >= max_attempts:
                 return response
-            time.sleep(min(0.05 * (attempt + 1), 0.2))
+            time.sleep(retry_delay_seconds(retry_cfg, attempt))
         assert last_response is not None
         return last_response
 
@@ -111,74 +123,151 @@ class HttpApiConnectorRuntime:
         request: ConnectorRequest,
         action_spec: dict[str, Any],
     ) -> ConnectorResponse:
-        try:
-            base_url = self._resolve_base_url()
-            method = str(action_spec.get("method") or "GET").upper()
-            path = self._render_template(str(action_spec.get("path") or "/"), request)
-            url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
-            query = action_spec.get("query")
-            if isinstance(query, dict) and query:
-                url = f"{url}?{urlencode({str(k): str(v) for k, v in query.items()})}"
+        pagination = action_spec.get("pagination")
+        if isinstance(pagination, dict) and pagination.get("items_path"):
+            return self._invoke_paginated(request, action_spec, pagination)
+        return self._invoke_single(request, action_spec)
 
+    def _invoke_paginated(
+        self,
+        request: ConnectorRequest,
+        action_spec: dict[str, Any],
+        pagination: dict[str, Any],
+    ) -> ConnectorResponse:
+        items_path = str(pagination.get("items_path") or "").strip()
+        next_path = str(pagination.get("next_path") or "").strip()
+        if not items_path:
+            return ConnectorResponse(
+                connector=request.connector,
+                action=request.action,
+                success=False,
+                error="pagination.items_path is required",
+                data={"error_class": connector_errors.VALIDATION_FAILED},
+            )
+        max_pages = int(pagination.get("max_pages") or 10)
+        collected: list[Any] = []
+        next_url: str | None = None
+        pages = 0
+        while pages < max_pages:
+            response, parsed, request_url = self._fetch_json(request, action_spec, next_url)
+            if not response.success:
+                return response
+            items = get_json_path(parsed, items_path)
+            if isinstance(items, list):
+                collected.extend(items)
+            pages += 1
+            if not next_path:
+                break
+            next_value = get_json_path(parsed, next_path)
+            next_url = resolve_next_url(self._resolve_base_url(), request_url, next_value)
+            if not next_url:
+                break
+        payload = redact_payload(merge_paginated_items(items_path, collected))
+        return ConnectorResponse(
+            connector=request.connector,
+            action=request.action,
+            success=True,
+            data=payload,
+        )
+
+    def _invoke_single(
+        self,
+        request: ConnectorRequest,
+        action_spec: dict[str, Any],
+    ) -> ConnectorResponse:
+        response, parsed, _request_url = self._fetch_json(request, action_spec, None)
+        if not response.success:
+            return response
+        unwrap = action_spec.get("unwrap")
+        if isinstance(unwrap, str) and unwrap:
+            extracted = parsed.get(unwrap)
+            if isinstance(extracted, dict):
+                payload = dict(extracted)
+            elif isinstance(extracted, list):
+                payload = {unwrap: extracted}
+            else:
+                payload = {unwrap: extracted}
+        else:
+            payload = dict(parsed) if isinstance(parsed, dict) else {"value": parsed}
+        return ConnectorResponse(
+            connector=request.connector,
+            action=request.action,
+            success=True,
+            data=redact_payload(payload),
+        )
+
+    def _fetch_json(
+        self,
+        request: ConnectorRequest,
+        action_spec: dict[str, Any],
+        override_url: str | None,
+    ) -> tuple[ConnectorResponse, dict[str, Any], str]:
+        try:
+            request_url = override_url or self._build_request_url(request, action_spec)
+            method = str(action_spec.get("method") or "GET").upper()
             headers = {"Accept": "application/json"}
             headers.update(self._auth_headers())
             body = action_spec.get("body")
             data = None
-            if body is not None:
+            if body is not None and override_url is None:
                 headers["Content-Type"] = "application/json"
                 data = json.dumps(body).encode("utf-8")
-
             timeout = float(
                 action_spec.get("timeout_seconds")
                 or self.config.get("timeout_seconds")
                 or 10
             )
-            req = urllib.request.Request(url=url, method=method, headers=headers, data=data)
+            req = urllib.request.Request(
+                url=request_url,
+                method=method,
+                headers=headers,
+                data=data,
+            )
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read().decode("utf-8")
             parsed = json.loads(raw) if raw else {}
             if not isinstance(parsed, dict):
                 parsed = {"value": parsed}
-            unwrap = action_spec.get("unwrap")
-            if isinstance(unwrap, str) and unwrap:
-                extracted = parsed.get(unwrap)
-                if isinstance(extracted, dict):
-                    payload = dict(extracted)
-                elif isinstance(extracted, list):
-                    payload = {unwrap: extracted}
-                else:
-                    payload = {unwrap: extracted}
-            else:
-                payload = dict(parsed)
-            payload = redact_payload(payload)
-            return ConnectorResponse(
-                connector=request.connector,
-                action=request.action,
-                success=True,
-                data=payload,
+            return (
+                ConnectorResponse(
+                    connector=request.connector,
+                    action=request.action,
+                    success=True,
+                    data={},
+                ),
+                parsed,
+                request_url,
             )
         except urllib.error.HTTPError as exc:
-            return ConnectorResponse(
-                connector=request.connector,
-                action=request.action,
-                success=False,
-                error=f"http error {exc.code}",
-                data={
-                    "error_class": connector_errors.AUTH_FAILED
-                    if exc.code in {401, 403}
-                    else connector_errors.TRANSIENT
-                    if exc.code >= 500
-                    else connector_errors.VALIDATION_FAILED,
-                    "status_code": exc.code,
-                },
+            body_snippet = read_http_error_body(exc)
+            data: dict[str, Any] = {
+                "error_class": http_error_class(exc.code),
+                "status_code": exc.code,
+            }
+            if body_snippet:
+                data["body_snippet"] = body_snippet
+            return (
+                ConnectorResponse(
+                    connector=request.connector,
+                    action=request.action,
+                    success=False,
+                    error=f"http error {exc.code}",
+                    data=data,
+                ),
+                {},
+                override_url or "",
             )
         except TimeoutError:
-            return ConnectorResponse(
-                connector=request.connector,
-                action=request.action,
-                success=False,
-                error="connector timeout",
-                data={"error_class": connector_errors.TIMEOUT},
+            return (
+                ConnectorResponse(
+                    connector=request.connector,
+                    action=request.action,
+                    success=False,
+                    error="connector timeout",
+                    data={"error_class": connector_errors.TIMEOUT},
+                ),
+                {},
+                override_url or "",
             )
         except urllib.error.URLError as exc:
             reason = str(exc.reason)
@@ -187,29 +276,50 @@ class HttpApiConnectorRuntime:
                 if "timed out" in reason.lower()
                 else connector_errors.TRANSIENT
             )
-            return ConnectorResponse(
-                connector=request.connector,
-                action=request.action,
-                success=False,
-                error=reason,
-                data={"error_class": error_class},
+            return (
+                ConnectorResponse(
+                    connector=request.connector,
+                    action=request.action,
+                    success=False,
+                    error=reason,
+                    data={"error_class": error_class},
+                ),
+                {},
+                override_url or "",
             )
         except json.JSONDecodeError as exc:
-            return ConnectorResponse(
-                connector=request.connector,
-                action=request.action,
-                success=False,
-                error=f"invalid json response: {exc}",
-                data={"error_class": connector_errors.VALIDATION_FAILED},
+            return (
+                ConnectorResponse(
+                    connector=request.connector,
+                    action=request.action,
+                    success=False,
+                    error=f"invalid json response: {exc}",
+                    data={"error_class": connector_errors.VALIDATION_FAILED},
+                ),
+                {},
+                override_url or "",
             )
         except RExecOpValidationError as exc:
-            return ConnectorResponse(
-                connector=request.connector,
-                action=request.action,
-                success=False,
-                error=str(exc),
-                data={"error_class": connector_errors.VALIDATION_FAILED},
+            return (
+                ConnectorResponse(
+                    connector=request.connector,
+                    action=request.action,
+                    success=False,
+                    error=str(exc),
+                    data={"error_class": connector_errors.VALIDATION_FAILED},
+                ),
+                {},
+                override_url or "",
             )
+
+    def _build_request_url(self, request: ConnectorRequest, action_spec: dict[str, Any]) -> str:
+        base_url = self._resolve_base_url()
+        path = self._render_template(str(action_spec.get("path") or "/"), request)
+        url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+        query = action_spec.get("query")
+        if isinstance(query, dict) and query:
+            url = f"{url}?{urlencode({str(k): str(v) for k, v in query.items()})}"
+        return url
 
     def _action_spec(self, action: str) -> dict[str, Any]:
         actions = self.config.get("actions")

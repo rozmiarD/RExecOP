@@ -1,6 +1,6 @@
 # Known limitations (alpha)
 
-RExecOp `0.1.4a2` is an **alpha** release for operator evaluation. This document states
+RExecOp `0.1.5a0` is an **alpha** release for operator evaluation. This document states
 what the software does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth
@@ -15,7 +15,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 
 | Limitation | Detail |
 | --- | --- |
-| No scheduler daemon | Queue is FIFO file-based; no cron, no recurring jobs, no background worker |
+| Host-owned worker only | `rexecop worker run` polls the file queue; no built-in cron/recurrence DSL |
 | File storage default | `FileStore` is default; optional `SqliteStore` via `REXECOP_STORAGE=sqlite` |
 | No web UI | CLI (`rexecop`) only |
 | No multi-tenant RBAC | Single-operator file store model |
@@ -28,7 +28,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 | `http_api` is generic REST | No built-in Proxmox/PBS/Zabbix SDKs — operators configure actions in environment YAML |
 | Staging proven, production is operator-owned | CI uses HTTP stub; live infra requires operator runbook and secrets hygiene |
 | `local_shell_readonly` only | No general shell apply backend in core |
-| No SSH apply connector | Read-only SSH not implemented in alpha |
+| `ssh_readonly` is temporary | Read-only SSH allowlist exists; full policy belongs in GovEngine policy engine |
 | Mock remains default | `examples/...proxmox.example.yaml` uses `mock` backend for offline use |
 
 ## Profiles and domain

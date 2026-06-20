@@ -9,6 +9,7 @@ from rexecop.connectors.fixture_loader import load_connector_backend
 from rexecop.connectors.http_api import HttpApiConnectorRuntime
 from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
+from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
 from rexecop.secrets.port import SecretResolver
 from rexecop.secrets.resolver import default_secret_resolver
 
@@ -73,6 +74,12 @@ class CompositeConnectorRuntime:
             )
         elif backend_name == "local_shell_readonly":
             runtime = LocalShellReadonlyRuntime(connector_name=name, config=config)
+        elif backend_name == "ssh_readonly":
+            runtime = SshReadonlyRuntime(
+                connector_name=name,
+                config=config,
+                secret_resolver=self.secret_resolver,
+            )
         else:
             fixture_name = str(config.get("fixture") or "").strip()
             fixture_runtime = load_connector_backend(fixture_name) if fixture_name else None
