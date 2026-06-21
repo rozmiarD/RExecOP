@@ -19,7 +19,9 @@ if str(ROOT / "tests") not in sys.path:
 from helpers.staging_http_server import StagingHttpServer  # noqa: E402
 
 PROFILE = ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-LOCAL_ENV_TEMPLATE = ROOT / "examples/environments/small-public-unit-proxmox.staging.lab.example.yaml"
+LOCAL_ENV_TEMPLATE = (
+    ROOT / "examples/environments/small-public-unit-proxmox.staging.lab.example.yaml"
+)
 
 
 def _local_environment(server_base_url: str) -> dict:
