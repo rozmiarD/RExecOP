@@ -23,6 +23,12 @@ def validate_workflow_contract(
             raise RExecOpValidationError(
                 f"unsupported workflow step type: {step_type} ({step.id})"
             )
+        if step.metadata.get("continue_on_error") is True and (
+            workflow.mode != "read_only" or step_type != "connector"
+        ):
+            raise RExecOpValidationError(
+                f"continue_on_error requires read_only connector step: {step.id}"
+            )
         if step_type != "connector":
             continue
         connector_name = str(step.connector or "").strip()

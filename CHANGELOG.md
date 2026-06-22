@@ -21,6 +21,8 @@ PyPI alpha line is **`0.2.4a0`**. Entries under [Releases](#releases) are newest
   `allow_with_obligations` regression behavior
 - Successful `http_api` responses are bounded by `max_response_bytes` before JSON parsing;
   oversized payloads fail without persistence
+- Read-only connector steps may explicitly declare `metadata.continue_on_error`; failures
+  remain in evidence and step receipts while diagnostic aggregation continues
 
 ### R0-lite and read-only profile enforcement
 

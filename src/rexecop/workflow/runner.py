@@ -129,6 +129,21 @@ class WorkflowRunner:
                     correlation_id=correlation_id,
                 )
             error_class = str(result.output.get("error_class") or "")
+            metadata = step.get("metadata")
+            continue_on_error = (
+                isinstance(metadata, dict)
+                and metadata.get("continue_on_error") is True
+                and mode in {"dry_run", "observe", "emergency_readonly"}
+            )
+            if continue_on_error:
+                state.setdefault("continued_failures", {})[step_id] = {
+                    "error": (result.error or f"step failed: {step_id}")[:512],
+                    "error_class": error_class[:64],
+                }
+                state["step_results"] = results
+                index += 1
+                steps_run += 1
+                continue
             state["executed_steps"] = executed
             state["step_results"] = results
             receipt = execution_receipt_from_results(

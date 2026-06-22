@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
@@ -204,6 +205,68 @@ def test_tecrax_zabbix_application_health_http_e2e(tmp_path: Path) -> None:
     validation = controller.validate(operation.id)
     assert validation["passed"] is True
     assert validation["details"]["container_runtime_state"] == "not_observed"
+
+
+def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets_path = tmp_path / "secrets.yaml"
+    secrets_path.write_text(
+        "secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n"
+    )
+    secrets_path.chmod(0o600)
+    monkeypatch.setenv("REXECOP_SECRETS_FILE", str(secrets_path))
+    outputs = {
+        "cat /etc/os-release": 'PRETTY_NAME="Ubuntu 24.04 LTS"\nID=ubuntu\nVERSION_ID="24.04"\n',
+        "uname -srm": "Linux 6.8.0 x86_64\n",
+        "hostname": "monitoring-host\n",
+        "uptime": "up 2 days\n",
+        "df -P /": (
+            "Filesystem 1024-blocks Used Available Capacity Mounted on\n"
+            "/dev/root 100000 9000 91000 9% /\n"
+        ),
+        "free -m": "Mem: 32000 8000 4000 100 2000 24000\n",
+        "timedatectl show --property=NTPSynchronized --property=NTP": (
+            "NTP=no\nNTPSynchronized=yes\n"
+        ),
+        "systemctl is-active ntp": "active\n",
+    }
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        command = argv[-1]
+        return subprocess.CompletedProcess(argv, 0, outputs[command], "")
+
+    controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
+    with (
+        patch("rexecop.connectors.ssh_readonly.subprocess.run", side_effect=run),
+        patch(
+            "rexecop.connectors.http_api.urllib.request.urlopen",
+            side_effect=urllib.error.URLError("unavailable"),
+        ),
+    ):
+        operation = controller.plan(
+            profile_path="tecrax",
+            environment_path=HOST_INVENTORY_ENVIRONMENT,
+            intent="diagnose_monitoring_host",
+            target="monitoring-host-01",
+            mode="dry_run",
+        )
+        completed = controller.start(operation.id)
+
+    assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
+    validation = controller.validate(operation.id)
+    assert validation["passed"] is True
+    details = validation["details"]
+    assert details["diagnostic_complete"] is True
+    assert details["observed_health"] == "degraded"
+    assert details["components"]["zabbix"]["status"] == "unhealthy"
+    assert details["continued_failures"] == [
+        {
+            "step_id": "read_zabbix_api_version",
+            "error_class": "transient_connector_error",
+        }
+    ]
 
 
 def test_validator_requires_profile_root_for_unknown_intent() -> None:

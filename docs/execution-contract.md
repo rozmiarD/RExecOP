@@ -55,8 +55,25 @@ Connectors that emit bounded output today:
 | --- | --- | --- |
 | `local_shell_readonly` | `max_output_bytes` (default 65536) | `stdout`, `stderr`, `output_digests`, `output_truncated`, `output_sizes` |
 | `ssh_readonly` | same | same |
+| `http_api` | `max_response_bytes` (default 65536) | JSON payload or fail-closed oversized response metadata |
 
 Truncated text is clipped for storage; digests always cover the full captured output.
+
+## Diagnostic partial failures
+
+A profile may set `metadata.continue_on_error: true` only on a connector step in a
+`read_only` workflow. The runner then:
+
+- emits the normal `step_failed` evidence event;
+- retains the failed per-step receipt;
+- stores only bounded `step_id`, redacted error and `error_class` under
+  `shared_state.continued_failures`;
+- continues to later normalization and receipt steps.
+
+The flag is ignored in mutating operation modes and rejected for internal/evidence steps.
+An overall execution receipt with `success: true` means the declared diagnostic workflow
+reached completion; it does not mean every component was healthy. Consumers must inspect
+`step_receipts` and the profile validation result.
 
 ## Relationship to other layers
 

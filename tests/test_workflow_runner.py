@@ -54,6 +54,85 @@ def test_workflow_runner_executes_declared_steps_only() -> None:
     ]
 
 
+def test_readonly_diagnostic_continues_after_declared_connector_failure() -> None:
+    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    executor = StepExecutor(
+        connector_dispatcher=ConnectorDispatcher(runtime),
+        internal_handlers={"record": lambda context: {"recorded": True}},
+    )
+    steps = [
+        {
+            "id": "optional_probe",
+            "type": "connector",
+            "connector": "missing",
+            "action": "probe",
+            "metadata": {"continue_on_error": True},
+        },
+        {"id": "aggregate", "type": "internal", "action": "record"},
+    ]
+
+    result = WorkflowRunner(executor).run(
+        operation_id="op-diagnostic",
+        target="host",
+        mode="dry_run",
+        planned_steps=steps,
+        correlation_id="corr",
+    )
+
+    assert result.success is True
+    assert result.executed_steps == ["aggregate"]
+    assert result.step_results["optional_probe"]["success"] is False
+    assert result.shared_state["continued_failures"]["optional_probe"]["error"]
+    assert result.shared_state["execution_receipt"]["success"] is True
+
+
+def test_continue_on_error_does_not_apply_to_mutating_mode() -> None:
+    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    executor = StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
+    result = WorkflowRunner(executor).run(
+        operation_id="op-apply",
+        target="host",
+        mode="apply",
+        planned_steps=[
+            {
+                "id": "optional_probe",
+                "type": "connector",
+                "connector": "missing",
+                "action": "probe",
+                "metadata": {"continue_on_error": True},
+            }
+        ],
+        correlation_id="corr",
+    )
+
+    assert result.success is False
+    assert "continued_failures" not in result.shared_state
+
+
+def test_continued_failure_metadata_is_bounded() -> None:
+    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    executor = StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
+    result = WorkflowRunner(executor).run(
+        operation_id="op-bounded",
+        target="host",
+        mode="dry_run",
+        planned_steps=[
+            {
+                "id": "optional_probe",
+                "type": "connector",
+                "connector": "missing",
+                "action": "x" * 2048,
+                "metadata": {"continue_on_error": True},
+            }
+        ],
+        correlation_id="corr",
+    )
+
+    failure = result.shared_state["continued_failures"]["optional_probe"]
+    assert len(failure["error"]) <= 512
+    assert len(failure["error_class"]) <= 64
+
+
 def test_validator_is_deterministic() -> None:
     from rexecop.profile.loader import load_profile
 

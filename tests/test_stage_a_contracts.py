@@ -170,6 +170,30 @@ def test_workflow_contract_rejects_escape_step_type() -> None:
         validate_workflow_contract(escaped, environment)
 
 
+def test_workflow_contract_rejects_continue_on_error_for_internal_step() -> None:
+    environment = load_environment(ENVIRONMENT)
+    workflow = load_workflow(WORKFLOW)
+    invalid = Workflow(
+        id=workflow.id,
+        intent=workflow.intent,
+        mode="read_only",
+        risk=workflow.risk,
+        description=workflow.description,
+        steps=[
+            WorkflowStep.from_dict(
+                {
+                    "id": "masked_internal_failure",
+                    "type": "internal",
+                    "action": "missing",
+                    "metadata": {"continue_on_error": True},
+                }
+            )
+        ],
+    )
+    with pytest.raises(RExecOpValidationError, match="read_only connector step"):
+        validate_workflow_contract(invalid, environment)
+
+
 def test_workflow_runner_does_not_execute_undeclared_steps() -> None:
     planned = [
         {"id": "only", "type": "internal", "action": "record_rollback_marker"},
