@@ -10,6 +10,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/checkout@v4
         with:
@@ -46,7 +48,7 @@ jobs:
             exit 1
           fi
 
-      - name: Secret scan (basic)
+      - name: Secret scan (tracked tree and history)
         run: bash scripts/secret_scan.sh
 
       - name: Package install smoke
@@ -79,6 +81,9 @@ jobs:
 
       - name: Check package metadata
         run: python -m twine check dist/*
+
+      - name: Check package secret and path hygiene
+        run: python scripts/validate_distribution.py dist
 
       - name: Wheel install smoke
         run: |

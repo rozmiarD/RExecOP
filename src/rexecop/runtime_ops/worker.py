@@ -9,6 +9,7 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.operation.controller import OperationController
 from rexecop.operation.model import Operation
+from rexecop.storage.atomic import secure_directory, secure_file
 
 
 def drain_queue(controller: OperationController) -> list[str]:
@@ -115,10 +116,12 @@ def _process_inbox(controller: OperationController) -> list[str]:
     inbox = root / "inbox"
     if not inbox.is_dir():
         return []
+    secure_directory(inbox)
 
     started: list[str] = []
     for path in sorted(inbox.glob("*.json")):
         try:
+            secure_file(path)
             payload = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(payload, dict):
                 raise RExecOpValidationError(f"invalid inbox trigger: {path.name}")

@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from rexecop.storage.atomic import atomic_write_text, secure_directory
 from rexecop.storage.port import RuntimeStore
 
 
@@ -16,7 +17,7 @@ class RunNowQueue:
         self.queue_file = self.queue_dir / "run_now.json"
 
     def _load(self) -> dict[str, Any]:
-        self.queue_dir.mkdir(parents=True, exist_ok=True)
+        secure_directory(self.queue_dir)
         if not self.queue_file.is_file():
             return {"pending": []}
         data = json.loads(self.queue_file.read_text(encoding="utf-8"))
@@ -28,10 +29,10 @@ class RunNowQueue:
         return {"pending": [str(item) for item in pending]}
 
     def _save(self, data: dict[str, Any]) -> None:
-        self.queue_dir.mkdir(parents=True, exist_ok=True)
-        self.queue_file.write_text(
+        secure_directory(self.queue_dir)
+        atomic_write_text(
+            self.queue_file,
             json.dumps(data, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
         )
 
     def list_pending(self) -> list[str]:

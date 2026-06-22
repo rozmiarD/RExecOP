@@ -120,7 +120,8 @@ for `check_backup_status` / `all_critical_vms` / `dry_run` using
 
 ```bash
 cp examples/environments/small-public-unit-proxmox.staging.example.yaml ~/lab/
-cp examples/secrets/staging-http.lab.example.yaml ~/.rexecop/secrets.yaml  # edit values; chmod 0600
+cp examples/secrets/staging-http.lab.example.yaml ~/.rexecop/secrets.yaml  # edit values
+chmod 0600 ~/.rexecop/secrets.yaml
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
 python scripts/run_staging_http_lab.py --env ~/lab/small-public-unit-proxmox.staging.yaml
 ```

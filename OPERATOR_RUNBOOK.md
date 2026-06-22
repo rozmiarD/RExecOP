@@ -43,12 +43,13 @@ Create `~/.rexecop/secrets.yaml` with mode `0600`:
 ```yaml
 secrets:
   proxmox_base_url: https://pve-staging.example:8006
-  proxmox_api_token: user@pam!token-id=uuid
+  proxmox_api_token: REPLACE_ME
   pbs_base_url: https://pbs-staging.example:8007
-  pbs_api_token: pbs-token-value
+  pbs_api_token: REPLACE_ME
 ```
 
 ```bash
+chmod 0600 ~/.rexecop/secrets.yaml
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
 ```
 

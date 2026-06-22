@@ -8,7 +8,7 @@ RExecOp maintains two related but distinct evidence concepts.
 
 - Append-only JSON events emitted by `EvidenceManager`
 - Used for operational history, debugging, and correlation
-- Redacted for secret-like fields (`password`, `token`, `api_key`, `authorization`, …)
+- Redacted by key, known provider-token patterns and exact values resolved by the process
 - **Not** the long-term auditable truth layer
 
 Event types are defined in `rexecop.evidence.event.EvidenceEventType`. Every event type
@@ -58,7 +58,8 @@ Connector responses (including `http_api` JSON) pass through `redact_payload()` 
 persistence in evidence or step results. Shell backends (`local_shell_readonly`, `ssh_readonly`)
 also cap stored stdout/stderr via `bounded_text()` and attach full-output SHA-256 digests —
 see [execution-contract.md](execution-contract.md). Environment YAML must use `secret_ref` — inline
-secrets are rejected at load time (`environment/sanitize.py`).
+secrets are rejected across the complete environment at plan time (`environment/sanitize.py`).
+Redaction is repeated at connector dispatch, step execution and evidence persistence boundaries.
 
 ## GovEngine boundary
 

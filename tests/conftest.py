@@ -3,8 +3,16 @@ from __future__ import annotations
 import pytest
 
 from delivery_scope import DELIVERY_TEST_MODULES
+from rexecop.evidence.redaction import clear_registered_secret_values
 
 _DELIVERY_STEMS = frozenset(DELIVERY_TEST_MODULES)
+
+
+@pytest.fixture(autouse=True)
+def isolate_registered_secret_values():
+    clear_registered_secret_values()
+    yield
+    clear_registered_secret_values()
 
 
 def pytest_configure(config: pytest.Config) -> None:

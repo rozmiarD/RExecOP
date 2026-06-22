@@ -17,6 +17,8 @@ from rexecop.adapters.sclite_port.execution_receipt_metrics import (
     receipt_non_claims,
 )
 from rexecop.adapters.sclite_port.target_host import sclite_target_ref
+from rexecop.evidence.redaction import register_secret_value
+from rexecop.storage.atomic import atomic_write_text
 
 FULL_BUNDLE_MANIFEST_PROFILE = "sclite-v0.5-rexecop-integrity"
 REXECOP_RUNTIME_REF = "runtime:rexecop-executor"
@@ -363,7 +365,7 @@ def write_full_bundle_sidecars(
     }
     for filename, payload in sidecars.items():
         path = base / filename
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return sidecars
 
 
@@ -383,7 +385,7 @@ def write_kernel_guard_manifest(
         nonces=[f"nonce-{index}" for index, _entry in enumerate(manifest["entries"])],
     )
     path = base / KERNEL_GUARD_MANIFEST_FILE
-    path.write_text(json.dumps(guard, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(guard, indent=2, sort_keys=True) + "\n")
     return guard
 
 
@@ -391,6 +393,7 @@ def maybe_write_operator_kernel_guard_manifest(bundle_dir: str | Path) -> dict[s
     key = os.environ.get(KERNEL_GUARD_KEY_ENV, "").strip()
     if not key:
         return None
+    register_secret_value(key)
     key_id = os.environ.get(KERNEL_GUARD_KEY_ID_ENV, "").strip() or "rexecop-operator-guard-key"
     return write_kernel_guard_manifest(bundle_dir, key=key, key_id=key_id)
 

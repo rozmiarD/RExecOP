@@ -7,7 +7,7 @@ from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest, ConnectorResponse
 from rexecop.connectors.command_shape import normalize_allowlisted_argv
 from rexecop.connectors.errors import READ_ONLY_MODES
-from rexecop.evidence.redaction import redact_payload
+from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.execution.output import bounded_text
 
 
@@ -126,7 +126,7 @@ class LocalShellReadonlyRuntime:
                     },
                 }
             ),
-            error="" if success else completed.stderr.strip() or "command failed",
+            error="" if success else redact_text(completed.stderr.strip()) or "command failed",
         )
 
     def _find_allowlist_entry(

@@ -161,6 +161,16 @@ def test_read_http_error_body_redacts_json_secrets() -> None:
     assert "[REDACTED]" in snippet
 
 
+def test_read_http_error_body_redacts_plaintext_assignments() -> None:
+    class FakeError:
+        def read(self) -> bytes:
+            return b"request denied token=fixture-secret-value"
+
+    snippet = read_http_error_body(FakeError())
+    assert "fixture-secret-value" not in snippet
+    assert "[REDACTED]" in snippet
+
+
 def test_ssh_readonly_builds_batch_mode_command() -> None:
     runtime = SshReadonlyRuntime(
         connector_name="host_ro",
@@ -199,3 +209,40 @@ def test_ssh_readonly_builds_batch_mode_command() -> None:
     assert argv[-1] == "uptime"
     assert response.data["output_digests"]["stdout"].startswith("sha256:")
     assert response.data["output_truncated"]["stdout"] is False
+
+
+def test_ssh_readonly_redacts_resolved_identity_path_from_error() -> None:
+    secret_path = "/operator/private/id_runtime"
+
+    class Resolver:
+        def resolve(self, secret_ref: str) -> str:
+            assert secret_ref == "ssh_identity"
+            return secret_path
+
+    runtime = SshReadonlyRuntime(
+        connector_name="host_ro",
+        config={
+            "host": "host.example",
+            "user": "readonly",
+            "identity_file_secret_ref": "ssh_identity",
+            "allowlist": [{"action": "uptime", "command": "uptime"}],
+        },
+        secret_resolver=Resolver(),
+    )
+
+    class Result:
+        returncode = 1
+        stdout = ""
+        stderr = f"cannot read identity {secret_path}"
+
+    with patch("rexecop.connectors.ssh_readonly.subprocess.run", return_value=Result()):
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="host_ro",
+                action="uptime",
+                target="host",
+                mode="dry_run",
+            )
+        )
+    assert secret_path not in str(response.as_dict())
+    assert "[REDACTED]" in response.error

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -10,6 +11,7 @@ from typing import Any
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
+from rexecop.storage.atomic import FILE_MODE, secure_directory, secure_file
 from rexecop.storage.file_store import FileStore
 
 _SCHEMA_VERSION = 1
@@ -47,7 +49,7 @@ class SqliteStore:
 
     def ensure_layout(self) -> None:
         self._files.ensure_layout()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        secure_directory(self.db_path.parent)
 
     def _init_schema(self) -> None:
         self.ensure_layout()
@@ -61,14 +63,38 @@ class SqliteStore:
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         self.ensure_layout()
+        if not self.db_path.exists():
+            try:
+                descriptor = os.open(
+                    self.db_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    FILE_MODE,
+                )
+            except FileExistsError:
+                pass
+            else:
+                os.close(descriptor)
+        secure_file(self.db_path)
         conn = sqlite3.connect(self.db_path)
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
+            self._secure_database_files()
             yield conn
             conn.commit()
         finally:
+            self._secure_database_files()
             conn.close()
+            self._secure_database_files()
+
+    def _secure_database_files(self) -> None:
+        for path in (
+            self.db_path,
+            Path(f"{self.db_path}-wal"),
+            Path(f"{self.db_path}-shm"),
+        ):
+            if path.exists():
+                secure_file(path)
 
     def operation_sclite_dir(self, operation_id: str) -> Path:
         return self._files.operation_sclite_dir(operation_id)

@@ -7,6 +7,7 @@ from typing import Any
 
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.state import OperationState
+from rexecop.storage.atomic import atomic_write_text, secure_directory
 from rexecop.storage.port import RuntimeStore
 
 ACTIVE_LOCK_STATES = frozenset(
@@ -35,7 +36,7 @@ class TargetLockManager:
         self.locks_dir = store.root / "locks"
 
     def _path(self, environment: str, target: str) -> Path:
-        self.locks_dir.mkdir(parents=True, exist_ok=True)
+        secure_directory(self.locks_dir)
         return self.locks_dir / lock_filename(environment, target)
 
     def read(self, environment: str, target: str) -> dict[str, Any] | None:
@@ -78,7 +79,7 @@ class TargetLockManager:
             "acquired_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
         }
         path = self._path(environment, target)
-        path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        atomic_write_text(path, json.dumps(record, indent=2, sort_keys=True) + "\n")
         return True
 
     def try_acquire(self, *, environment: str, target: str, operation_id: str) -> bool:

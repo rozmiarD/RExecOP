@@ -9,7 +9,7 @@ from rexecop.connectors.base import ConnectorRequest, ConnectorResponse
 from rexecop.connectors.command_shape import normalize_allowlisted_argv
 from rexecop.connectors.errors import READ_ONLY_MODES
 from rexecop.errors import RExecOpValidationError
-from rexecop.evidence.redaction import redact_payload
+from rexecop.evidence.redaction import redact_payload, redact_text, register_secret_value
 from rexecop.execution.output import bounded_text
 from rexecop.secrets.port import SecretResolver
 from rexecop.secrets.resolver import default_secret_resolver
@@ -127,7 +127,7 @@ class SshReadonlyRuntime:
                     },
                 }
             ),
-            error="" if success else completed.stderr.strip() or "ssh command failed",
+            error="" if success else redact_text(completed.stderr.strip()) or "ssh command failed",
         )
 
     def _build_remote_command(
@@ -172,7 +172,9 @@ class SshReadonlyRuntime:
             argv.extend(["-p", str(port)])
         identity_ref = str(self.config.get("identity_file_secret_ref") or "").strip()
         if identity_ref:
-            argv.extend(["-i", self.secret_resolver.resolve(identity_ref)])
+            identity_file = self.secret_resolver.resolve(identity_ref)
+            register_secret_value(identity_file)
+            argv.extend(["-i", identity_file])
         argv.append(f"{user}@{host}")
         argv.append(remote_command)
         return argv

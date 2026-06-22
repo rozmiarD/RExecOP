@@ -45,8 +45,8 @@ what the software does **not** provide so expectations stay aligned with impleme
 | Limitation | Detail |
 | --- | --- |
 | Secrets via operator config | `REXECOP_SECRETS_FILE` / env vars — no KMS/HSM integration |
-| Redaction is pattern-based | `redact_payload()` covers common key names; novel secret shapes may need profile discipline |
-| Alpha CI secret scan is basic | `scripts/secret_scan.sh` — not a substitute for dedicated secret management review |
+| Redaction has finite detectors | Key names, resolved values and common provider/token patterns are covered; arbitrary unknown plaintext still requires bounded profile outputs |
+| CI secret scan is heuristic | Full tracked tree/history scan covers common providers, private keys and credential assignments; it is not a KMS or external repository audit |
 | Apply on critical targets | Requires explicit operator approval, GovEngine allow, and operational procedure — not unmanned |
 
 ## Distribution

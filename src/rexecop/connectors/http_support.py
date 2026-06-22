@@ -5,7 +5,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from rexecop.connectors import errors as connector_errors
-from rexecop.evidence.redaction import redact_payload
+from rexecop.evidence.redaction import redact_payload, redact_text
 
 
 def resolve_retry_config(
@@ -74,8 +74,8 @@ def read_http_error_body(exc: Any, *, max_len: int = 200) -> str:
             snippet_obj = redact_payload({"value": parsed})
         snippet = json.dumps(snippet_obj, ensure_ascii=True)
     except json.JSONDecodeError:
-        snippet = raw
-    return snippet[:max_len]
+        snippet = redact_text(raw)
+    return redact_text(snippet)[:max_len]
 
 
 def merge_paginated_items(items_path: str, collected: list[Any]) -> dict[str, Any]:

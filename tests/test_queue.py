@@ -40,6 +40,9 @@ def test_queue_respects_max_concurrent_operations(tmp_path: Path) -> None:
     queued = controller.start(second.id)
     assert queued.metadata["queue"]["reason"] == "max_concurrent_reached"
     assert controller.runtime.queue.list_pending() == [second.id]
+    queue_file = controller.store.root / "queue" / "run_now.json"
+    assert queue_file.stat().st_mode & 0o777 == 0o600
+    assert queue_file.parent.stat().st_mode & 0o777 == 0o700
 
 
 def test_process_queue_starts_next_operation(tmp_path: Path) -> None:

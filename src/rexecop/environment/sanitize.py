@@ -4,12 +4,13 @@ import re
 from typing import Any
 
 from rexecop.errors import RExecOpValidationError
-from rexecop.evidence.redaction import SECRET_KEY_PATTERN
+from rexecop.evidence.redaction import SECRET_KEY_PATTERN, contains_strong_secret_pattern
 
 FORBIDDEN_INLINE_SECRET_KEYS = re.compile(
     r"(password|passwd|secret|token|api_key|apikey|private_key|credential)$",
     re.IGNORECASE,
 )
+NON_SECRET_METADATA_KEYS = frozenset({"secrets_source"})
 
 
 def sanitize_connectors_for_storage(connectors: dict[str, Any]) -> dict[str, Any]:
@@ -22,8 +23,8 @@ def sanitize_connectors_for_storage(connectors: dict[str, Any]) -> dict[str, Any
     return sanitized
 
 
-def validate_no_inline_secrets(connectors: dict[str, Any]) -> None:
-    sanitize_connectors_for_storage(connectors)
+def validate_no_inline_secrets(value: dict[str, Any]) -> None:
+    _sanitize_mapping(value, path="environment")
 
 
 def _sanitize_mapping(value: dict[str, Any], *, path: str) -> dict[str, Any]:
@@ -36,9 +37,7 @@ def _sanitize_mapping(value: dict[str, Any], *, path: str) -> dict[str, Any]:
             continue
         if isinstance(item, list):
             cleaned[key_text] = [
-                _sanitize_mapping(entry, path=f"{full_path}[]")
-                if isinstance(entry, dict)
-                else entry
+                _sanitize_value(entry, path=f"{full_path}[]")
                 for entry in item
             ]
             continue
@@ -47,11 +46,29 @@ def _sanitize_mapping(value: dict[str, Any], *, path: str) -> dict[str, Any]:
                 raise RExecOpValidationError(
                     f"inline secret-like value forbidden at {full_path}; use secret_ref"
                 )
+        if isinstance(item, str) and contains_strong_secret_pattern(item):
+            raise RExecOpValidationError(
+                f"inline secret material forbidden at {full_path}; use secret_ref"
+            )
         cleaned[key_text] = item
     return cleaned
 
 
+def _sanitize_value(value: Any, *, path: str) -> Any:
+    if isinstance(value, dict):
+        return _sanitize_mapping(value, path=path)
+    if isinstance(value, list):
+        return [_sanitize_value(item, path=f"{path}[]") for item in value]
+    if isinstance(value, str) and contains_strong_secret_pattern(value):
+        raise RExecOpValidationError(
+            f"inline secret material forbidden at {path}; use secret_ref"
+        )
+    return value
+
+
 def _is_inline_secret_key(key: str) -> bool:
+    if key.lower() in NON_SECRET_METADATA_KEYS:
+        return False
     if key.endswith("_ref"):
         return False
     return bool(FORBIDDEN_INLINE_SECRET_KEYS.search(key) or SECRET_KEY_PATTERN.search(key))

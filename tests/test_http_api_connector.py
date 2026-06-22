@@ -140,6 +140,33 @@ def test_local_shell_readonly_bounds_output_and_keeps_digest() -> None:
     assert response.data["output_digests"]["stdout"].startswith("sha256:")
 
 
+def test_local_shell_redacts_plaintext_secret_from_output_and_error() -> None:
+    runtime = LocalShellReadonlyRuntime(
+        connector_name="host_probe",
+        config={"allowlist": [{"action": "probe", "command": "printf"}]},
+    )
+
+    class Result:
+        returncode = 1
+        stdout = "token=fixture-output-secret"
+        stderr = "password=fixture-error-secret"
+
+    with patch("rexecop.connectors.local_shell.subprocess.run", return_value=Result()):
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="host_probe",
+                action="probe",
+                target="local",
+                mode="dry_run",
+            )
+        )
+
+    serialized = str(response.as_dict())
+    assert "fixture-output-secret" not in serialized
+    assert "fixture-error-secret" not in serialized
+    assert "[REDACTED]" in serialized
+
+
 def test_api_response_redaction_masks_secret_fields() -> None:
     payload = {
         "vms": [{"name": "vm-1"}],
@@ -150,3 +177,46 @@ def test_api_response_redaction_masks_secret_fields() -> None:
     assert redacted["api_key"] == "[REDACTED]"
     assert redacted["auth_header"] == "[REDACTED]"
     assert redacted["vms"][0]["name"] == "vm-1"
+
+
+def test_http_api_redacts_resolved_secret_echoed_under_neutral_key() -> None:
+    secret = "fixture-resolved-http-secret"
+
+    class Resolver:
+        def resolve(self, secret_ref: str) -> str:
+            assert secret_ref == "api_auth"
+            return secret
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self) -> bytes:
+            return ('{"value":"' + secret + '"}').encode()
+
+    runtime = HttpApiConnectorRuntime(
+        connector_name="api",
+        config={
+            "base_url": "https://api.example",
+            "auth": {"secret_ref": "api_auth"},
+            "actions": {"probe": {"method": "GET", "path": "/probe"}},
+        },
+        profile_root=None,
+        mutating_allowed=False,
+        secret_resolver=Resolver(),
+    )
+    with patch("rexecop.connectors.http_api.urllib.request.urlopen", return_value=Response()):
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="api",
+                action="probe",
+                target="target",
+                mode="dry_run",
+            )
+        )
+    assert response.success
+    assert secret not in str(response.as_dict())
+    assert response.data["value"] == "[REDACTED]"

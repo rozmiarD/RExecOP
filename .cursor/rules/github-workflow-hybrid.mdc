@@ -10,7 +10,7 @@ Repository: `rozmiarD/RExecOP` only. Never use other GitHub accounts or repos.
 All remote git/gh operations MUST use:
 
 ```bash
-/home/probo/.openclaw/workspace/scripts/github-rozmiard-token.sh --exec -- <cmd>
+${HOME}/.openclaw/workspace/scripts/github-rozmiard-token.sh --exec -- <cmd>
 ```
 
 Never put `Co-authored-by` in commit messages.

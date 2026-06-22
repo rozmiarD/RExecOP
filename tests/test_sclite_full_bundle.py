@@ -80,6 +80,10 @@ def test_full_bundle_review_verdict_pass(tmp_path: Path) -> None:
     assert result.bundle_profile == "govengine_integration_v0.5"
     assert result.review_record["summary"]["scope_fidelity_verdict"] == "pass"
     assert result.review_record["summary"]["ticket_use_status"] == "pass"
+    assert bundle_dir.stat().st_mode & 0o777 == 0o700
+    for path in bundle_dir.rglob("*"):
+        expected = 0o700 if path.is_dir() else 0o600
+        assert path.stat().st_mode & 0o777 == expected
 
 
 def test_full_bundle_sidecars_and_kernel_guard(tmp_path: Path) -> None:

@@ -24,7 +24,8 @@ Factory: `rexecop.storage.factory.create_store()`.
 | `queue/`, `locks/`, `inbox/` | Runtime coordination (not in StoragePort JSON API) | file drops |
 
 `FileStore` uses `storage.atomic.atomic_write_text` (write temp + `os.replace`) for JSON
-files to avoid torn reads on crash.
+files to avoid torn reads on crash. Runtime directories are forced to mode `0700`; JSON,
+receipt, lock, queue and SCLite files are forced to `0600`.
 
 ## SqliteStore (`sqlite` backend)
 
@@ -38,6 +39,8 @@ SCLite bundles, receipt exports, queue entries, target locks, and inbox triggers
 filesystem paths so review tooling and host-owned workers keep stable paths across backends.
 
 `PRAGMA journal_mode=WAL` is enabled on open.
+The database, WAL and shared-memory files are forced to mode `0600` inside a `0700`
+runtime directory.
 
 ## InMemoryStore (tests)
 

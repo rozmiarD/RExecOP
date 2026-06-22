@@ -69,6 +69,7 @@ python -m pip install "govengine>=0.15.0,<0.16" "sclite-core>=1.0.1,<1.1"
 rm -rf dist build *.egg-info
 python -m build
 python -m twine check dist/*
+python scripts/validate_distribution.py dist
 ```
 
 ## Install from Git (no local clone)

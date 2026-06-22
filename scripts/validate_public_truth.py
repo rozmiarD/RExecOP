@@ -160,8 +160,10 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/ci.yml", "rozmiarD/tecrax")
     _require(errors, ".github/workflows/ci.yml", "python -m build")
     _require(errors, ".github/workflows/ci.yml", "twine check")
+    _require(errors, ".github/workflows/ci.yml", "validate_distribution.py")
     _require(errors, ".github/workflows/publish.yml", "workflow_dispatch")
     _require(errors, ".github/workflows/publish.yml", "twine upload")
+    _require(errors, ".github/workflows/publish.yml", "validate_distribution.py")
 
     init_text = _read("src/rexecop/__init__.py")
     if f'__version__ = "{version}"' not in init_text:

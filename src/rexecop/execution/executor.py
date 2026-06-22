@@ -5,6 +5,7 @@ from typing import Any
 
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
+from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
 from rexecop.execution.internal_registry import InternalHandler, load_internal_handlers
 
@@ -37,7 +38,12 @@ class StepExecutor:
                 return self._execute_evidence(context, step_id, action)
             return self._execute_internal(context, step_id, action)
         except Exception as exc:  # noqa: BLE001 - step boundary
-            return StepExecutionResult(step_id=step_id, success=False, output={}, error=str(exc))
+            return StepExecutionResult(
+                step_id=step_id,
+                success=False,
+                output={},
+                error=redact_text(str(exc)),
+            )
 
     def _execute_connector(
         self,
@@ -55,7 +61,7 @@ class StepExecutor:
             )
         )
         if not response.success:
-            output = response.as_dict()
+            output = redact_payload(response.as_dict())
             error_class = str(response.data.get("error_class") or "")
             if error_class:
                 output["error_class"] = error_class
@@ -63,9 +69,9 @@ class StepExecutor:
                 step_id=step_id,
                 success=False,
                 output=output,
-                error=response.error,
+                error=redact_text(response.error),
             )
-        output = response.as_dict()
+        output = redact_payload(response.as_dict())
         before_state = response.data.get("before_state")
         after_state = response.data.get("after_state")
         if isinstance(before_state, dict):

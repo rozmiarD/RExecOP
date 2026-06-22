@@ -8,6 +8,14 @@ tracked incremental roadmap delivery.
 
 ## Unreleased
 
+### Secret and runtime artifact hardening
+
+- Value-aware redaction for resolved secrets, provider tokens, connector output and errors
+- Operator secrets files require current-user ownership, regular-file semantics and mode 0600
+- Runtime directories/files and SQLite artifacts enforce modes 0700/0600
+- Whole-environment inline-secret validation and history-aware CI secret scanning
+- Source distributions exclude local editor workflow metadata
+
 ## [0.2.4a0] - 2026-06-16
 
 ### Execution request / receipt boundary

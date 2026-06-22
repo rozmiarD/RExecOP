@@ -24,7 +24,7 @@ from rexecop.connectors.http_support import (
 )
 from rexecop.connectors.mutating import MUTATING_ACTIONS
 from rexecop.errors import RExecOpValidationError
-from rexecop.evidence.redaction import redact_payload
+from rexecop.evidence.redaction import redact_payload, redact_text, register_secret_value
 from rexecop.secrets.port import SecretResolver
 from rexecop.secrets.resolver import default_secret_resolver
 
@@ -281,7 +281,7 @@ class HttpApiConnectorRuntime:
                     connector=request.connector,
                     action=request.action,
                     success=False,
-                    error=reason,
+                    error=redact_text(reason),
                     data={"error_class": error_class},
                 ),
                 {},
@@ -305,7 +305,7 @@ class HttpApiConnectorRuntime:
                     connector=request.connector,
                     action=request.action,
                     success=False,
-                    error=str(exc),
+                    error=redact_text(str(exc)),
                     data={"error_class": connector_errors.VALIDATION_FAILED},
                 ),
                 {},
@@ -352,6 +352,7 @@ class HttpApiConnectorRuntime:
         if not secret_ref:
             return {}
         value = self.secret_resolver.resolve(secret_ref)
+        register_secret_value(value)
         header = str(auth.get("header") or "Authorization")
         prefix = str(auth.get("prefix") or "")
         return {header: f"{prefix}{value}" if prefix else value}

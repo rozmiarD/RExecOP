@@ -37,6 +37,9 @@ jobs:
       - name: Check metadata
         run: python -m twine check dist/*
 
+      - name: Check package secret and path hygiene
+        run: python scripts/validate_distribution.py dist
+
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__

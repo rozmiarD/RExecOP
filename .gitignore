@@ -12,3 +12,25 @@ venv/
 .pytest_cache/
 .rexecop/
 *.egg
+
+# Operator secrets and credentials
+.env
+.env.*
+!.env.example
+secrets.yaml
+secrets.yml
+secrets.local.*
+credentials.json
+credentials.*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.kdbx
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+known_hosts

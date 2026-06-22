@@ -45,6 +45,7 @@ def test_sqlite_store_uses_db_not_json_operations(tmp_path: Path) -> None:
     )
 
     assert store.db_path.is_file()
+    assert store.db_path.stat().st_mode & 0o777 == 0o600
     assert not (store.root / "operations" / "op-sqlite.json").is_file()
 
     with sqlite3.connect(store.db_path) as conn:
@@ -75,3 +76,4 @@ def test_sqlite_store_receipt_export_still_file_backed(tmp_path: Path) -> None:
     assert path.is_file()
     assert store.load_receipt_export("op-1") == export
     assert json.loads(path.read_text(encoding="utf-8")) == export
+    assert path.stat().st_mode & 0o777 == 0o600

@@ -88,3 +88,4 @@ def test_worker_processes_inbox_trigger(tmp_path: Path) -> None:
     started = run_worker(controller, once=True, watch_inbox=True)
     assert started
     assert not list(inbox.glob("job-1.json"))
+    assert inbox.stat().st_mode & 0o777 == 0o700

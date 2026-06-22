@@ -35,6 +35,7 @@ from rexecop.policy.operation import evaluate_operation_policy
 from rexecop.policy.pack import compile_environment_policy_pack, policy_decision_from_verdict
 from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
+from rexecop.storage.atomic import atomic_write_text
 from rexecop.storage.factory import create_store
 from rexecop.storage.port import RuntimeStore
 from rexecop.workflow.contract import validate_workflow_contract
@@ -91,7 +92,7 @@ class OperationController:
         resolved_profile_path = resolve_profile_path(profile_path)
         profile = load_profile(resolved_profile_path)
         environment = load_environment(environment_path)
-        validate_no_inline_secrets(environment.connectors)
+        validate_no_inline_secrets(environment.as_dict())
         if environment.profile and environment.profile != profile.name:
             raise RExecOpValidationError(
                 f"environment profile {environment.profile} does not match {profile.name}"
@@ -455,9 +456,9 @@ class OperationController:
         intent = self.sclite_emitter.emit_intent_contract(operation, plan)
         bundle_dir = self.store.operation_sclite_dir(operation.id)
         intent_path = bundle_dir / "01_intent_contract.json"
-        intent_path.write_text(
+        atomic_write_text(
+            intent_path,
             json.dumps(intent, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
         )
         descriptor = artifact_descriptor(intent)
         operation.sclite_refs = {

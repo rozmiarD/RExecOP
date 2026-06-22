@@ -8,7 +8,7 @@
 | RExecOp version (PyPI published) | `0.2.4a0` |
 | GovEngine version | `0.15.0` |
 | Tecrax version | `0.3.3a0` |
-| Operator | lab automation (`/home/probo/projects/rexecop`) |
+| Operator | local operator checkout |
 | Host / environment | dev workstation; lab cwd `/tmp/rexecop-lab-runtime` |
 | Date (UTC) | 2026-06-21 |
 

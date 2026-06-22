@@ -7,7 +7,7 @@ from typing import Any
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
-from rexecop.storage.atomic import atomic_write_text
+from rexecop.storage.atomic import atomic_write_text, secure_directory
 
 
 class FileStore:
@@ -21,17 +21,21 @@ class FileStore:
         self.approvals_dir = self.root / "approvals"
 
     def ensure_layout(self) -> None:
-        self.operations_dir.mkdir(parents=True, exist_ok=True)
-        self.plans_dir.mkdir(parents=True, exist_ok=True)
-        self.evidence_dir.mkdir(parents=True, exist_ok=True)
-        self.receipts_dir.mkdir(parents=True, exist_ok=True)
-        self.sclite_dir.mkdir(parents=True, exist_ok=True)
-        self.approvals_dir.mkdir(parents=True, exist_ok=True)
+        secure_directory(self.root)
+        for path in (
+            self.operations_dir,
+            self.plans_dir,
+            self.evidence_dir,
+            self.receipts_dir,
+            self.sclite_dir,
+            self.approvals_dir,
+        ):
+            secure_directory(path)
 
     def operation_sclite_dir(self, operation_id: str) -> Path:
         self.ensure_layout()
         path = self.sclite_dir / operation_id
-        path.mkdir(parents=True, exist_ok=True)
+        secure_directory(path)
         return path
 
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
@@ -75,7 +79,7 @@ class FileStore:
         self.ensure_layout()
         event_id = str(event["event_id"])
         op_dir = self.evidence_dir / operation_id
-        op_dir.mkdir(parents=True, exist_ok=True)
+        secure_directory(op_dir)
         path = op_dir / f"{event_id}.json"
         self._write_json(path, event)
 

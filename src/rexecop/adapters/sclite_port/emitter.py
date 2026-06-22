@@ -33,6 +33,7 @@ from rexecop.adapters.sclite_port.govengine_policy_bridge import (
 from rexecop.adapters.sclite_port.target_host import resolve_sclite_target_host
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
+from rexecop.storage.atomic import atomic_write_text, secure_tree
 
 REAL_EMITTER_NAME = "sclite"
 
@@ -382,9 +383,9 @@ class SCLiteArtifactEmitter:
         manifest_path = Path(bundle_dir) / "artifact_chain_manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["profile"] = FULL_BUNDLE_MANIFEST_PROFILE
-        manifest_path.write_text(
+        atomic_write_text(
+            manifest_path,
             json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
         )
 
         sidecars = write_full_bundle_sidecars(
@@ -395,6 +396,7 @@ class SCLiteArtifactEmitter:
             link=_link,
         )
         maybe_write_operator_kernel_guard_manifest(bundle_dir)
+        secure_tree(Path(bundle_dir))
         validate_review_bundle_shape(bundle_dir)
         review_record = verify_full_bundle(bundle_dir, artifacts)
         refs = build_sclite_refs(bundle_dir, artifacts, sidecars=sidecars)

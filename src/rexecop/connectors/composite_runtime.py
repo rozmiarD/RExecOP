@@ -16,6 +16,7 @@ from rexecop.connectors.http_api import HttpApiConnectorRuntime
 from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
 from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
+from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.policy.connector import connector_policy_gate
 from rexecop.secrets.port import SecretResolver
 from rexecop.secrets.resolver import default_secret_resolver
@@ -75,7 +76,14 @@ class CompositeConnectorRuntime:
         if blocked is not None:
             return blocked
         backend = self._backend_for(request.connector, config)
-        return backend.invoke(request)
+        response = backend.invoke(request)
+        return ConnectorResponse(
+            connector=response.connector,
+            action=response.action,
+            success=response.success,
+            data=redact_payload(response.data),
+            error=redact_text(response.error),
+        )
 
     def _build_backends(self) -> None:
         for name, config in self.connectors.items():

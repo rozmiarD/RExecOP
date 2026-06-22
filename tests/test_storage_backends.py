@@ -60,6 +60,12 @@ def test_storage_round_trip(runtime_store: RuntimeStore) -> None:
     assert runtime_store.load_plan("op-1").intent == "http_health_check"
     assert len(runtime_store.list_evidence_events("op-1")) == 1
     assert len(runtime_store.list_operations()) == 1
+    assert runtime_store.root.stat().st_mode & 0o777 == 0o700
+    for directory in ("operations", "plans", "evidence", "receipts", "sclite", "approvals"):
+        assert (runtime_store.root / directory).stat().st_mode & 0o777 == 0o700
+    operation_file = runtime_store.root / "operations" / "op-1.json"
+    if operation_file.exists():
+        assert operation_file.stat().st_mode & 0o777 == 0o600
 
 
 def test_controller_plan_persists_across_backends(runtime_store: RuntimeStore) -> None:

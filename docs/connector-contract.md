@@ -93,7 +93,9 @@ Resolve via `rexecop.secrets` (`ChainedSecretResolver`):
 | Environment variables | `REXECOP_SECRET_<REF>` (ref normalized to uppercase underscores) |
 | Secrets file | `REXECOP_SECRETS_FILE` pointing at YAML with `secrets.<ref>` |
 
-Never store resolved secrets under `.rexecop/` or commit them to git.
+Never store resolved secrets under `.rexecop/` or commit them to git. The secrets file must
+be a regular file owned by the current user, with mode `0600` or stricter; symlinks and
+group/world-readable files are rejected.
 
 ## local_shell_readonly
 

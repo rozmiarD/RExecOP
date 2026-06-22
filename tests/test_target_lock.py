@@ -41,6 +41,10 @@ def test_target_lock_blocks_second_apply_on_same_target(tmp_path: Path) -> None:
     assert queued.state == OperationState.APPROVED.value
     assert queued.metadata["queue"]["reason"] == "target_locked"
     assert controller.runtime.queue.list_pending() == [second.id]
+    lock_files = list((controller.store.root / "locks").glob("*.lock"))
+    assert lock_files
+    assert lock_files[0].stat().st_mode & 0o777 == 0o600
+    assert lock_files[0].parent.stat().st_mode & 0o777 == 0o700
 
 
 def test_target_lock_released_after_completion(tmp_path: Path) -> None:
