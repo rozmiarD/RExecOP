@@ -99,10 +99,17 @@ class OperationController:
             )
 
         intent_meta = profile.intent_metadata(intent)
+        intent_modes = intent_meta.get("modes")
+        if intent_meta.get("enforce_declared_modes") is True and (
+            not isinstance(intent_modes, list) or mode not in intent_modes
+        ):
+            raise RExecOpValidationError(
+                f"mode {mode} not declared for intent: {intent}"
+            )
         workflow_path = profile.resolve_workflow_path(intent)
         workflow = load_workflow(workflow_path)
         validate_operation_target(environment, target)
-        validate_workflow_contract(workflow, environment)
+        validate_workflow_contract(workflow, environment, profile)
         compiled_policy = compile_environment_policy_pack(environment.policy_pack)
         target_crit = target_criticality(environment, target)
 

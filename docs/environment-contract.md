@@ -48,6 +48,14 @@ Each workflow `connector` step must reference a connector name present and **ena
 in `environment.connectors`. Disabled or missing connectors fail at `plan` with
 `RExecOpValidationError`.
 
+When a profile connector declares `backend` and `command_shapes`, RExecOp also requires
+the environment connector backend and allowlist to match the profile exactly. A changed
+command, argv list, missing action, duplicate action, or undeclared capability fails at
+plan time. Concrete command semantics remain owned by the profile, not RExecOp core.
+
+Profiles can set `enforce_declared_modes: true` on an intent to reject any CLI mode not
+listed by that intent. This is opt-in so older profiles retain their established behavior.
+
 ## Safety block
 
 `safety` carries runtime policy copied into `operation.metadata.runtime_policy`

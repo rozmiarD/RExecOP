@@ -316,7 +316,7 @@ def build_carrier_profile_ref(
         "schema_ref": "schemas/carrier_profile_ref.v0.1.schema.json",
         "profile_ref_id": f"rexecop-carrier-ref-{operation_id}",
         "created_at": created_at,
-        "carrier_profile": "tecrax_review_bundle",
+        "carrier_profile": "local_file_bundle",
         "links": {"subject": link("execution_ticket", execution_ticket)},
         "reference": {
             "kind": "local_review_bundle",

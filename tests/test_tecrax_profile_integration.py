@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.profile.loader import load_profile
@@ -17,6 +20,11 @@ FIXTURE_PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
 
 tecrax = pytest.importorskip("tecrax")
 
+TECRAX_ROOT = Path(tecrax.profile_root()).parents[2]
+HOST_INVENTORY_ENVIRONMENT = (
+    TECRAX_ROOT / "examples/environments/ubuntu-host.readonly.example.yaml"
+)
+
 
 def test_tecrax_profile_entry_point_registered() -> None:
     assert "tecrax" in list_registered_profiles()
@@ -26,12 +34,24 @@ def test_tecrax_profile_entry_point_registered() -> None:
     assert profile.version == "0.3.1"
 
 
-def test_core_has_no_tecrax_profile_imports() -> None:
+def test_core_has_no_domain_specific_tokens() -> None:
     src_root = REPO_ROOT / "src" / "rexecop"
+    domain_tokens = {
+        "adguard",
+        "docker",
+        "frigate",
+        "hillstone",
+        "ntp",
+        "pbs",
+        "proxmox",
+        "tecrax",
+        "ubuntu",
+        "zabbix",
+    }
     offenders: list[str] = []
     for path in src_root.rglob("*.py"):
-        text = path.read_text()
-        if "tecrax_profile" in text or "import tecrax" in text:
+        text = path.read_text().lower()
+        if any(token in text for token in domain_tokens):
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == []
 
@@ -54,6 +74,64 @@ def test_tecrax_profile_check_backup_status_e2e(tmp_path: Path) -> None:
 
     validation = controller.validate(operation.id)
     assert validation["passed"] is True
+
+
+def test_tecrax_basic_host_inventory_ssh_readonly_e2e(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets_path = tmp_path / "secrets.yaml"
+    secrets_path.write_text(
+        "secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n"
+    )
+    secrets_path.chmod(0o600)
+    monkeypatch.setenv("REXECOP_SECRETS_FILE", str(secrets_path))
+    outputs = {
+        "cat /etc/os-release": 'PRETTY_NAME="Ubuntu 24.04 LTS"\nID=ubuntu\nVERSION_ID="24.04"\n',
+        "uname -srm": "Linux 6.8.0 x86_64\n",
+        "hostname": "monitoring-host\n",
+        "uptime": "up 2 days\n",
+        "df -P /": (
+            "Filesystem 1024-blocks Used Available Capacity Mounted on\n"
+            "/dev/root 100000 9000 91000 9% /\n"
+        ),
+        "free -m": "Mem: 32000 8000 4000 100 2000 24000\n",
+    }
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        command = argv[-1]
+        return subprocess.CompletedProcess(argv, 0, outputs[command], "")
+
+    store = FileStore(tmp_path / ".rexecop")
+    controller = OperationController(store=store)
+    with patch("rexecop.connectors.ssh_readonly.subprocess.run", side_effect=run):
+        operation = controller.plan(
+            profile_path="tecrax",
+            environment_path=HOST_INVENTORY_ENVIRONMENT,
+            intent="collect_basic_host_inventory",
+            target="monitoring-host-01",
+            mode="dry_run",
+        )
+        completed = controller.start(operation.id)
+
+    assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
+    validation = controller.validate(operation.id)
+    assert validation["passed"] is True
+    receipt = controller.export_receipt(operation.id)
+    assert receipt["review_verdict"] == "pass"
+    assert receipt["sclite_refs"]["execution_receipt"]["status"] == "emitted"
+
+
+def test_tecrax_basic_host_inventory_rejects_apply(tmp_path: Path) -> None:
+    controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
+    with pytest.raises(RExecOpValidationError, match="mode apply not declared"):
+        controller.plan(
+            profile_path="tecrax",
+            environment_path=HOST_INVENTORY_ENVIRONMENT,
+            intent="collect_basic_host_inventory",
+            target="monitoring-host-01",
+            mode="apply",
+        )
 
 
 def test_validator_requires_profile_root_for_unknown_intent() -> None:

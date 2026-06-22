@@ -11,6 +11,15 @@ PyPI alpha line is **`0.2.4a0`**. Entries under [Releases](#releases) are newest
 
 ## Unreleased
 
+### R0-lite and read-only profile enforcement
+
+- Core boundary checks reject infrastructure-domain tokens under `src/rexecop`
+- SCLite carrier references use the neutral `local_file_bundle` profile
+- Profile connector contracts may bind actions to exact backend, command and argv shapes;
+  environment allowlists that drift from those shapes fail at plan time
+- Profiles may opt into strict intent-mode validation with `enforce_declared_modes: true`
+- `known_hosts_policy: strict` maps to OpenSSH `StrictHostKeyChecking=yes`
+
 ### Secret and runtime artifact hardening
 
 - Value-aware redaction for resolved secrets, provider tokens, connector output and errors

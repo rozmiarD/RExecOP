@@ -103,6 +103,7 @@ def test_full_bundle_sidecars_and_kernel_guard(tmp_path: Path) -> None:
     carrier = json.loads((base / CARRIER_PROFILE_REF_FILE).read_text(encoding="utf-8"))
     validate_artifact(trust, "trust_profile_ref.v0.1")
     validate_artifact(carrier, "carrier_profile_ref.v0.1")
+    assert carrier["carrier_profile"] == "local_file_bundle"
     ticket_digest = artifact_descriptor(result.artifacts["execution_ticket"])["digest"]
     assert trust["integrity"]["subject_artifact_digest"] == ticket_digest
     assert carrier["integrity"]["subject_artifact_digest"] == ticket_digest

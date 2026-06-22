@@ -10,11 +10,12 @@ from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.composite_runtime import build_connector_runtime
 from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
 from rexecop.environment.loader import load_environment
+from rexecop.environment.model import Environment
 from rexecop.environment.targets import describe_target, validate_operation_target
 from rexecop.errors import RExecOpValidationError
 from rexecop.execution.executor import StepExecutor
 from rexecop.operation.controller import OperationController
-from rexecop.profile.loader import load_profile
+from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.storage.file_store import FileStore
 from rexecop.validation.validator import validate_operation_result
 from rexecop.workflow.contract import validate_workflow_contract
@@ -85,6 +86,67 @@ def test_plan_rejects_disabled_connector(tmp_path: Path) -> None:
             target="all_critical_vms",
             mode="dry_run",
         )
+
+
+def test_workflow_contract_rejects_changed_command_argv(tmp_path: Path) -> None:
+    connectors_dir = tmp_path / "connectors"
+    connectors_dir.mkdir()
+    (connectors_dir / "host_probe.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "connector": {
+                    "name": "host_probe",
+                    "backend": "ssh_readonly",
+                    "capabilities": ["read_root_filesystem"],
+                    "command_shapes": {
+                        "read_root_filesystem": {
+                            "command": "df",
+                            "args": ["-P", "/"],
+                        }
+                    },
+                }
+            }
+        )
+    )
+    profile = LoadedProfile(root=tmp_path, contract={}, name="fixture", version="1")
+    environment = Environment(
+        id="fixture",
+        profile="fixture",
+        description="",
+        targets={"host": {"type": "host"}},
+        connectors={
+            "host_probe": {
+                "enabled": True,
+                "backend": "ssh_readonly",
+                "allowlist": [
+                    {
+                        "action": "read_root_filesystem",
+                        "command": "df",
+                        "args": ["-P"],
+                    }
+                ],
+            }
+        },
+    )
+    workflow = Workflow(
+        id="fixture.inventory",
+        intent="inventory",
+        mode="read_only",
+        risk="low",
+        description="",
+        steps=[
+            WorkflowStep.from_dict(
+                {
+                    "id": "root_filesystem",
+                    "type": "connector",
+                    "connector": "host_probe",
+                    "action": "read_root_filesystem",
+                }
+            )
+        ],
+    )
+    with pytest.raises(RExecOpValidationError, match="command shape mismatch"):
+        validate_workflow_contract(workflow, environment, profile)
 
 
 def test_workflow_contract_rejects_escape_step_type() -> None:
@@ -180,7 +242,7 @@ def test_ssh_readonly_strict_known_hosts_and_quoting() -> None:
     assert response.success
     argv = captured["argv"]
     assert isinstance(argv, list)
-    assert "StrictHostKeyChecking=strict" in argv
+    assert "StrictHostKeyChecking=yes" in argv
     assert "UserKnownHostsFile=/etc/ssh/ssh_known_hosts" in argv
     assert argv[-1] == "uptime"
 

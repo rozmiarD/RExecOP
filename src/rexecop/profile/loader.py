@@ -52,6 +52,20 @@ class LoadedProfile:
             raise RExecOpValidationError(f"intent mapping missing for: {intent_id}")
         return dict(intent)
 
+    def connector_contract(self, connector_name: str) -> dict[str, Any] | None:
+        path = self.root / "connectors" / f"{connector_name}.yaml"
+        if not path.is_file():
+            return None
+        data = yaml.safe_load(path.read_text())
+        if not isinstance(data, dict) or not isinstance(data.get("connector"), dict):
+            raise RExecOpValidationError(f"invalid connector contract: {connector_name}")
+        contract = dict(data["connector"])
+        if str(contract.get("name") or "").strip() != connector_name:
+            raise RExecOpValidationError(
+                f"connector contract name mismatch: {connector_name}"
+            )
+        return contract
+
 
 def load_profile(profile_path: Path) -> LoadedProfile:
     if profile_path.is_dir():

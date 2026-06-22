@@ -18,8 +18,8 @@ echo "==> validate_public_truth"
 "$PYTHON" scripts/validate_public_truth.py
 
 echo "==> core boundary grep"
-if rg -l 'tecrax_profile|import tecrax' src/rexecop; then
-  echo "domain import detected in rexecop core"
+if rg -il '\b(tecrax|proxmox|pbs|zabbix|adguard|frigate|hillstone|docker|ubuntu|ntp)\b' src/rexecop; then
+  echo "domain token detected in rexecop core"
   exit 1
 fi
 if rg -n 'rexecop-fixture-guard-key' src/rexecop/adapters/sclite_port/full_bundle.py; then

@@ -157,12 +157,13 @@ class SshReadonlyRuntime:
             raise RExecOpValidationError(
                 f"unsupported known_hosts_policy: {policy}"
             )
+        ssh_policy = "yes" if policy == "strict" else policy
         argv = [
             "ssh",
             "-o",
             "BatchMode=yes",
             "-o",
-            f"StrictHostKeyChecking={policy}",
+            f"StrictHostKeyChecking={ssh_policy}",
         ]
         known_hosts_file = str(self.config.get("known_hosts_file") or "").strip()
         if known_hosts_file:
