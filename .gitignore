@@ -11,6 +11,7 @@ venv/
 .ruff_cache/
 .pytest_cache/
 .rexecop/
+.cursor/
 *.egg
 
 # Operator secrets and credentials
