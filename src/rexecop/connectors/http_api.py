@@ -223,8 +223,32 @@ class HttpApiConnectorRuntime:
                 headers=headers,
                 data=request_body,
             )
+            max_response_bytes = int(
+                action_spec.get("max_response_bytes")
+                or self.config.get("max_response_bytes")
+                or 65536
+            )
+            if max_response_bytes < 1:
+                raise RExecOpValidationError("max_response_bytes must be positive")
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read().decode("utf-8")
+                raw_bytes = resp.read(max_response_bytes + 1)
+            if len(raw_bytes) > max_response_bytes:
+                return (
+                    ConnectorResponse(
+                        connector=request.connector,
+                        action=request.action,
+                        success=False,
+                        error="http response exceeds max_response_bytes",
+                        data={
+                            "error_class": connector_errors.VALIDATION_FAILED,
+                            "output_truncated": True,
+                            "max_response_bytes": max_response_bytes,
+                        },
+                    ),
+                    {},
+                    request_url,
+                )
+            raw = raw_bytes.decode("utf-8")
             parsed = json.loads(raw) if raw else {}
             if not isinstance(parsed, dict):
                 parsed = {"value": parsed}

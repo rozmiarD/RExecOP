@@ -194,7 +194,7 @@ def test_http_api_redacts_resolved_secret_echoed_under_neutral_key() -> None:
         def __exit__(self, *args):
             return None
 
-        def read(self) -> bytes:
+        def read(self, _size: int = -1) -> bytes:
             return ('{"value":"' + secret + '"}').encode()
 
     runtime = HttpApiConnectorRuntime(
@@ -220,3 +220,39 @@ def test_http_api_redacts_resolved_secret_echoed_under_neutral_key() -> None:
     assert response.success
     assert secret not in str(response.as_dict())
     assert response.data["value"] == "[REDACTED]"
+
+
+def test_http_api_rejects_oversized_success_payload_before_parsing() -> None:
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            return b"x" * size
+
+    runtime = HttpApiConnectorRuntime(
+        connector_name="api",
+        config={
+            "base_url": "https://api.example",
+            "max_response_bytes": 16,
+            "actions": {"probe": {"method": "GET", "path": "/probe"}},
+        },
+        profile_root=None,
+        mutating_allowed=False,
+    )
+    with patch("rexecop.connectors.http_api.urllib.request.urlopen", return_value=Response()):
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="api",
+                action="probe",
+                target="target",
+                mode="dry_run",
+            )
+        )
+
+    assert response.success is False
+    assert response.data["error_class"] == connector_errors.VALIDATION_FAILED
+    assert response.data["output_truncated"] is True

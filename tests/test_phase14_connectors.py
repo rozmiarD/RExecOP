@@ -153,7 +153,7 @@ def test_merge_paginated_items_uses_leaf_key() -> None:
 
 def test_read_http_error_body_redacts_json_secrets() -> None:
     class FakeError:
-        def read(self) -> bytes:
+        def read(self, _size: int = -1) -> bytes:
             return b'{"api_key":"secret-token","message":"denied"}'
 
     snippet = read_http_error_body(FakeError())
@@ -163,7 +163,7 @@ def test_read_http_error_body_redacts_json_secrets() -> None:
 
 def test_read_http_error_body_redacts_plaintext_assignments() -> None:
     class FakeError:
-        def read(self) -> bytes:
+        def read(self, _size: int = -1) -> bytes:
             return b"request denied token=fixture-secret-value"
 
     snippet = read_http_error_body(FakeError())

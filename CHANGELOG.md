@@ -19,6 +19,8 @@ PyPI alpha line is **`0.2.4a0`**. Entries under [Releases](#releases) are newest
   constraints; unsupported controls fail closed with explicit blockers
 - Negative matrices cover restricted argv, subprocess-not-called and PolicyEngine
   `allow_with_obligations` regression behavior
+- Successful `http_api` responses are bounded by `max_response_bytes` before JSON parsing;
+  oversized payloads fail without persistence
 
 ### R0-lite and read-only profile enforcement
 

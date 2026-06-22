@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -134,6 +135,75 @@ def test_tecrax_basic_host_inventory_rejects_apply(tmp_path: Path) -> None:
             target="monitoring-host-01",
             mode="apply",
         )
+
+
+def test_tecrax_ntp_health_ssh_readonly_e2e(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets_path = tmp_path / "secrets.yaml"
+    secrets_path.write_text(
+        "secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n"
+    )
+    secrets_path.chmod(0o600)
+    monkeypatch.setenv("REXECOP_SECRETS_FILE", str(secrets_path))
+    outputs = {
+        "timedatectl show --property=NTPSynchronized --property=NTP": (
+            "NTP=no\nNTPSynchronized=yes\n"
+        ),
+        "systemctl is-active ntp": "active\n",
+    }
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        command = argv[-1]
+        return subprocess.CompletedProcess(argv, 0, outputs[command], "")
+
+    controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
+    with patch("rexecop.connectors.ssh_readonly.subprocess.run", side_effect=run):
+        operation = controller.plan(
+            profile_path="tecrax",
+            environment_path=HOST_INVENTORY_ENVIRONMENT,
+            intent="check_ntp_health",
+            target="monitoring-host-01",
+            mode="dry_run",
+        )
+        completed = controller.start(operation.id)
+
+    assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
+    assert controller.validate(operation.id)["passed"] is True
+
+
+def test_tecrax_zabbix_application_health_http_e2e(tmp_path: Path) -> None:
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, _size: int = -1) -> bytes:
+            return json.dumps(
+                {"jsonrpc": "2.0", "result": "7.2.14", "id": 1}
+            ).encode()
+
+    controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
+    with patch(
+        "rexecop.connectors.http_api.urllib.request.urlopen",
+        return_value=Response(),
+    ):
+        operation = controller.plan(
+            profile_path="tecrax",
+            environment_path=HOST_INVENTORY_ENVIRONMENT,
+            intent="check_zabbix_container_health",
+            target="monitoring-host-01",
+            mode="dry_run",
+        )
+        completed = controller.start(operation.id)
+
+    assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
+    validation = controller.validate(operation.id)
+    assert validation["passed"] is True
+    assert validation["details"]["container_runtime_state"] == "not_observed"
 
 
 def test_validator_requires_profile_root_for_unknown_intent() -> None:

@@ -31,6 +31,7 @@ connectors:
       header: Authorization
       prefix: "PVEAPIToken="
     timeout_seconds: 10
+    max_response_bytes: 65536
     retry:
       max_attempts: 3
       base_delay: 0.2
@@ -70,6 +71,9 @@ Templates:
 5. **Evidence** — connector responses pass through `redact_payload()` before persistence.
 6. **HTTP failures** — `http_api` sets `error_class`, `status_code`, and a redacted `body_snippet`
    when the upstream API returns an HTTP error body.
+7. **HTTP response bounds** — successful bodies are read only up to
+   `max_response_bytes + 1` (default `65536`); oversized responses fail before JSON parsing
+   and are not persisted.
 
 ## Error taxonomy
 
