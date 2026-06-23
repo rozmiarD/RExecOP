@@ -95,6 +95,7 @@ def test_tecrax_basic_host_inventory_ssh_readonly_e2e(
         "uname -srm": "Linux 6.8.0 x86_64\n",
         "hostname": "monitoring-host\n",
         "uptime": "up 2 days\n",
+        "cat /proc/loadavg": "0.10 0.20 0.30 1/234 5678\n",
         "df -P /": (
             "Filesystem 1024-blocks Used Available Capacity Mounted on\n"
             "/dev/root 100000 9000 91000 9% /\n"
@@ -222,6 +223,7 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
         "uname -srm": "Linux 6.8.0 x86_64\n",
         "hostname": "monitoring-host\n",
         "uptime": "up 2 days\n",
+        "cat /proc/loadavg": "0.10 0.20 0.30 1/234 5678\n",
         "df -P /": (
             "Filesystem 1024-blocks Used Available Capacity Mounted on\n"
             "/dev/root 100000 9000 91000 9% /\n"
