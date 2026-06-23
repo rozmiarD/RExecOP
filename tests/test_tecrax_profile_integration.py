@@ -34,6 +34,27 @@ DOCKER_SOCKET_SHOW = (
     "systemctl show docker.socket --property=LoadState --property=ActiveState "
     "--property=SubState --property=UnitFileState --no-pager"
 )
+ADGUARD_DNS_QUERY = (
+    "dig @adguard.example.invalid example.com A +time=2 +tries=1 +noall +answer"
+)
+ADGUARD_LOGIN_STATUS = (
+    "curl -q -sS -m 3 --connect-timeout 2 --max-redirs 0 -o /dev/null "
+    "-w %{http_code} http://adguard.example.invalid/login.html"
+)
+
+
+def _ssh_remote_command(argv: object) -> str:
+    if isinstance(argv, list) and argv and str(argv[0]) == "ssh":
+        return str(argv[-1])
+    text = " ".join(str(item) for item in argv) if isinstance(argv, list) else str(argv)
+    marker = " readonly-ssh-user@monitoring-host.example.invalid "
+    if marker in text:
+        return text.split(marker, 1)[1]
+    return text
+
+
+def _local_command(argv: object) -> str:
+    return " ".join(str(item) for item in argv) if isinstance(argv, list) else str(argv)
 
 
 def test_tecrax_profile_entry_point_registered() -> None:
@@ -112,7 +133,7 @@ def test_tecrax_basic_host_inventory_ssh_readonly_e2e(
     }
 
     def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        command = argv[-1]
+        command = _ssh_remote_command(argv)
         return subprocess.CompletedProcess(argv, 0, outputs[command], "")
 
     store = FileStore(tmp_path / ".rexecop")
@@ -171,7 +192,7 @@ def test_tecrax_ntp_health_ssh_readonly_e2e(
     }
 
     def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        command = argv[-1]
+        command = _ssh_remote_command(argv)
         return subprocess.CompletedProcess(argv, 0, outputs[command], "")
 
     controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
@@ -209,7 +230,7 @@ def test_tecrax_docker_services_health_ssh_readonly_e2e(
     }
 
     def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        command = argv[-1]
+        command = _ssh_remote_command(argv)
         return subprocess.CompletedProcess(argv, 0, outputs[command], "")
 
     controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
@@ -263,6 +284,37 @@ def test_tecrax_zabbix_application_health_http_e2e(tmp_path: Path) -> None:
     assert validation["details"]["container_runtime_state"] == "not_observed"
 
 
+def test_tecrax_adguard_health_local_shell_e2e(tmp_path: Path) -> None:
+    outputs = {
+        ADGUARD_DNS_QUERY: (
+            "example.com. 300 IN A 104.20.23.154\n"
+            "example.com. 300 IN A 172.66.147.243\n"
+        ),
+        ADGUARD_LOGIN_STATUS: "200",
+    }
+
+    def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        command = _local_command(argv)
+        return subprocess.CompletedProcess(argv, 0, outputs[command], "")
+
+    controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
+    with patch("rexecop.connectors.local_shell.subprocess.run", side_effect=run):
+        operation = controller.plan(
+            profile_path="tecrax",
+            environment_path=HOST_INVENTORY_ENVIRONMENT,
+            intent="check_adguard_health",
+            target="monitoring-host-01",
+            mode="dry_run",
+        )
+        completed = controller.start(operation.id)
+
+    assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
+    validation = controller.validate(operation.id)
+    assert validation["passed"] is True
+    assert validation["details"]["scope"] == "dns_and_web_login_only"
+    assert validation["details"]["management_api_state"] == "not_observed"
+
+
 def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -295,9 +347,19 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
             "LoadState=loaded\nActiveState=active\nSubState=listening\nUnitFileState=enabled\n"
         ),
     }
+    local_outputs = {
+        ADGUARD_DNS_QUERY: (
+            "example.com. 300 IN A 104.20.23.154\n"
+            "example.com. 300 IN A 172.66.147.243\n"
+        ),
+        ADGUARD_LOGIN_STATUS: "200",
+    }
 
     def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        command = argv[-1]
+        local_command = _local_command(argv)
+        if local_command in local_outputs:
+            return subprocess.CompletedProcess(argv, 0, local_outputs[local_command], "")
+        command = _ssh_remote_command(argv)
         return subprocess.CompletedProcess(argv, 0, outputs[command], "")
 
     controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
@@ -325,6 +387,7 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
     assert details["observed_health"] == "degraded"
     assert details["components"]["docker"]["status"] == "healthy"
     assert details["components"]["zabbix"]["status"] == "unhealthy"
+    assert details["components"]["adguard"]["status"] == "healthy"
     assert details["continued_failures"] == [
         {
             "step_id": "read_zabbix_api_version",
