@@ -57,6 +57,7 @@ what the software does **not** provide so expectations stay aligned with impleme
 | --- | --- |
 | Public PyPI | `rexecop==0.2.5a0` published for alpha evaluation — not a production-ready claim |
 | Alpha semver line | `0.2.5a0` is the current alpha line; see [CHANGELOG.md](../CHANGELOG.md) for history |
+| Unreleased B2 dependency | Current main consumes GovEngine enforcement-plan APIs from GovEngine main; the next coordinated package release must raise the published dependency floor before publishing an RExecOp wheel |
 
 ## What alpha **does** provide (allowed claims)
 
@@ -64,8 +65,8 @@ what the software does **not** provide so expectations stay aligned with impleme
 - Profile-defined workflow execution and declarative validation
 - SCLite artifact emission on the completion path with honest execution receipt metrics
 - Connectors: `mock`, `http_api`, `local_shell_readonly`, temporary `ssh_readonly` (bounded output + digests)
-- Workflow execution contracts: `ExecutionRequest` / `ExecutionReceipt` in `shared_state` (schema `v0.1`)
-- GovEngine `PolicyEngine` when `environment.policy_pack` is configured (plan + connector invoke)
+- Workflow execution contracts: digest-bound `ExecutionRequest` / `ExecutionReceipt` in `shared_state` (schema `v0.2`)
+- GovEngine `PolicyEngine` when `environment.policy_pack` is configured (operation admission/control projection + connector invoke)
 - Host-owned worker, queue drain, and JSON `trigger` ingress
 - Optional SQLite storage backend for operations, plans, and evidence
 - Wheel build + `twine check` validated in CI

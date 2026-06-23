@@ -4,7 +4,7 @@ RExecOp separates **what was approved to run** from **what actually ran** using
 bounded runtime records in workflow `shared_state`. These are operator/runtime
 contracts — not SCLite truth artifacts (see [sclite-integration.md](sclite-integration.md)).
 
-## Schemas (`v0.1`)
+## Schemas (`v0.2`)
 
 | Record | ID pattern | Purpose |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ Module: `rexecop.execution.model`.
 `WorkflowRunner.run()` (called from the operation orchestration path):
 
 1. Builds `ExecutionRequest` via `execution_request_from_workflow()` from the
-   planned step list, target, mode, and `max_steps`.
+   planned step list, target, mode, admitted resource limits, and policy binding.
 2. Stores `shared_state["execution_request"]` before the step loop.
 3. On each terminal path (step failure or full success), builds
    `ExecutionReceipt` via `execution_receipt_from_results()` and stores
@@ -31,6 +31,7 @@ Module: `rexecop.execution.model`.
 - `request_id`, `operation_id`, `target_ref`, `mode`
 - `steps[]`: `step_id`, `step_type`, `action`, `connector`, public metadata only
 - `resource_limits`: `timeout_seconds`, `max_steps`, `max_output_bytes` (default 65536)
+- `policy_binding`: GovEngine enforcement plan, existing admission, pack, and verdict IDs/digests
 
 Steps are derived from workflow plan entries — RExecOp does not invent steps
 outside the profile workflow.
@@ -38,11 +39,13 @@ outside the profile workflow.
 ## ExecutionReceipt fields
 
 - `success`, `executed_steps[]`, optional `error` / `error_class`
+- `request_digest`, `receipt_digest`, and the same immutable `policy_binding`
+- `enforcement`: resource limits, receipt emission, and output-digest verification status
 - `step_receipts[]`: per-step `success`, `error_class`, `output_digest_refs`,
   `output_truncated`
 
-Receipts reference digests produced by connectors; they do **not** embed raw
-stdout/stderr or HTTP bodies.
+Receipts reference bounded runtime output-record digests and connector stream
+digests where available; they do **not** embed raw stdout/stderr or HTTP bodies.
 
 ## Bounded connector output
 
@@ -57,7 +60,12 @@ Connectors that emit bounded output today:
 | `ssh_readonly` | same | same |
 | `http_api` | `max_response_bytes` (default 65536) | JSON payload or fail-closed oversized response metadata |
 
-Truncated text is clipped for storage; digests always cover the full captured output.
+Truncated connector text is clipped for storage; its stream digest covers the full
+captured stream. The executor additionally bounds the redacted serialized step result
+before it enters `shared_state` or evidence. For internal handlers, the bound covers
+the returned output and the handler's `shared_state` delta; an oversized or exceptional
+step rolls that delta back. Oversized records are replaced by digest, original byte size,
+and truncation metadata.
 
 ## Diagnostic partial failures
 
@@ -96,19 +104,32 @@ Workflow plan (profile)
 When `environment.policy_pack` is set:
 
 1. **Plan** — `PolicyEngine.evaluate()` builds an operation-level `PolicyVerdict`.
-   RExecOp accepts only a plain `allow` with no obligations or constraints; every
-   other verdict fails plan. The accepted verdict is projected to `GovPolicyDecision`
-   in `govengine_request_preview.policy_decision` for `GovEngineClient` /
-   `compose_runtime_admission_result()`.
-2. **Connector invoke** — `CompositeConnectorRuntime` evaluates each `ConnectorRequest` against the same compiled pack **before** the backend runs. Any verdict other than plain `allow` with no obligations or constraints returns `error_class: policy_denied` without subprocess/HTTP/SSH I/O.
+   GovEngine binds the compiled pack and verdict into `PolicyEnforcementPlan` and
+   projects it into the existing `GovAdmissionDecision` contract.
+   Plain `allow` and enforceable `allow_with_obligations` may proceed; unsupported
+   controls, deny, approval-required, and invalid values fail closed.
+2. **Start/advance** — RExecOp recompiles the stored pack and validates the entire
+   plan, admission, and digests before constructing the runner. Drift and unsupported backend
+   capabilities stop execution before connector IO.
+3. **Runtime enforcement** — `max_steps` bounds the whole declared workflow;
+   `timeout` is a per-connector-call upper bound; `output_limit` bounds each persisted
+   redacted step record; receipt and output digest obligations are checked on terminal
+   receipt creation.
+4. **Connector invoke** — `CompositeConnectorRuntime` independently evaluates each
+   `ConnectorRequest` before the backend. Connector-level verdicts remain
+   plain-allow-only; connector-specific obligations fail closed.
 
-Module: `rexecop.policy` (`pack.py`, `operation.py`, `connector.py`, `criticality.py`).
+Module: `rexecop.policy` (`pack.py`, `operation.py`, `enforcement.py`,
+`connector.py`, `criticality.py`).
 
 Without `policy_pack`, connector allowlists and mode checks behave as before.
 
 ## GovEngine note
 
-GovEngine `0.15.0` ships the PolicyEngine MVP (`govengine.policy`). RExecOp uses it when `policy_pack` is configured; otherwise governance flows through `RuntimeAdmissionResult` compose with host-supplied summaries only.
+Current GovEngine main provides the PolicyEngine enforcement-plan and existing-admission
+binding contracts. RExecOp uses them when `policy_pack` is configured. Without a pack, the legacy
+unbound runtime path remains available for compatibility and must not be described as
+policy-bound execution.
 
 ## Related
 

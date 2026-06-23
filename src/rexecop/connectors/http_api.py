@@ -11,7 +11,12 @@ from typing import Any
 from urllib.parse import urlencode
 
 from rexecop.connectors import errors as connector_errors
-from rexecop.connectors.base import ConnectorRequest, ConnectorResponse
+from rexecop.connectors.base import (
+    ConnectorRequest,
+    ConnectorResponse,
+    effective_output_bytes,
+    effective_timeout_seconds,
+)
 from rexecop.connectors.capability import connector_action_allowed
 from rexecop.connectors.errors import READ_ONLY_MODES
 from rexecop.connectors.http_support import (
@@ -213,10 +218,13 @@ class HttpApiConnectorRuntime:
             if body is not None and override_url is None:
                 headers["Content-Type"] = "application/json"
                 request_body = json.dumps(body).encode("utf-8")
-            timeout = float(
-                action_spec.get("timeout_seconds")
-                or self.config.get("timeout_seconds")
-                or 10
+            timeout = effective_timeout_seconds(
+                request,
+                float(
+                    action_spec.get("timeout_seconds")
+                    or self.config.get("timeout_seconds")
+                    or 10
+                ),
             )
             req = urllib.request.Request(
                 url=request_url,
@@ -224,10 +232,13 @@ class HttpApiConnectorRuntime:
                 headers=headers,
                 data=request_body,
             )
-            max_response_bytes = int(
-                action_spec.get("max_response_bytes")
-                or self.config.get("max_response_bytes")
-                or 65536
+            max_response_bytes = effective_output_bytes(
+                request,
+                int(
+                    action_spec.get("max_response_bytes")
+                    or self.config.get("max_response_bytes")
+                    or 65536
+                ),
             )
             if max_response_bytes < 1:
                 raise RExecOpValidationError("max_response_bytes must be positive")

@@ -19,6 +19,10 @@ from rexecop.execution.executor import StepExecutor
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState
+from rexecop.policy.enforcement import (
+    execution_policy_binding,
+    validate_policy_enforcement_record,
+)
 from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.storage.port import RuntimeStore
@@ -264,6 +268,7 @@ class OperationOrchestrator:
 
     def _prepare_start(self, operation: Operation) -> None:
         plan = self.store.load_plan(operation.id)
+        self._policy_enforcement_for_operation(operation, plan)
         correlation_id = operation.correlation_id
 
         if operation.state == OperationState.PLANNED.value and operation.mode in READ_ONLY_MODES:
@@ -358,6 +363,10 @@ class OperationOrchestrator:
 
             shared_state = dict(operation.metadata.get("shared_state") or {})
             sink = _WorkflowEvidenceSink(self, operation)
+            policy_enforcement = self._policy_enforcement_for_operation(
+                operation,
+                plan,
+            )
             run_result = self._runner_for_operation(operation).run(
                 operation_id=operation.id,
                 target=operation.target,
@@ -368,6 +377,7 @@ class OperationOrchestrator:
                 shared_state=shared_state,
                 start_index=start_index,
                 max_steps=1,
+                policy_enforcement=policy_enforcement,
             )
             operation.metadata["shared_state"] = run_result.shared_state
             operation.metadata["step_results"] = run_result.step_results
@@ -400,6 +410,41 @@ class OperationOrchestrator:
 
             if max_steps is not None and steps_executed >= max_steps:
                 return self.store.load_operation(operation_id)
+
+    def _policy_enforcement_for_operation(
+        self,
+        operation: Operation,
+        plan: OperationPlan,
+    ) -> dict[str, Any]:
+        policy_raw = operation.metadata.get("policy_pack")
+        if not isinstance(policy_raw, dict):
+            return {}
+        record = operation.metadata.get("policy_enforcement")
+        verdict = operation.metadata.get("policy_verdict")
+        if not isinstance(record, dict) or not isinstance(verdict, dict):
+            raise RExecOpValidationError("policy enforcement binding is missing")
+        policy_pack = compile_environment_policy_pack(policy_raw)
+        if policy_pack is None:
+            raise RExecOpValidationError("compiled policy pack is missing")
+        connectors = operation.metadata.get("environment_connectors")
+        enforcement_plan, admission = validate_policy_enforcement_record(
+            record,
+            policy_pack=policy_pack,
+            verdict=verdict,
+            planned_steps=plan.planned_steps,
+            connectors=connectors if isinstance(connectors, dict) else {},
+        )
+        plan_digest = str(record.get("plan_digest") or "")
+        admission_digest = str(record.get("admission_digest") or "")
+        return {
+            "binding": execution_policy_binding(
+                enforcement_plan,
+                admission,
+                plan_digest=plan_digest,
+                admission_digest=admission_digest,
+            ),
+            "controls": enforcement_plan.controls.as_dict(),
+        }
 
     def _begin_validation(self, operation: Operation) -> Operation:
         self._transition(

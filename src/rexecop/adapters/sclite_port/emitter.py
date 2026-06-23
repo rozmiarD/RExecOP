@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -138,7 +139,7 @@ def build_intent_contract(
     created_at = operation.created_at
     capability_mode = _rexecop_mode(plan.mode)
     target_host = resolve_sclite_target_host(plan)
-    artifact = {
+    artifact: dict[str, Any] = {
         "artifact_type": "intent_contract",
         "schema_version": "v0.2",
         "schema_ref": SCLITE_SCHEMA_REFS["intent_contract"],
@@ -229,7 +230,7 @@ def build_execution_contract(
     target_host = resolve_sclite_target_host(plan)
     normalized_args = [f"rexecop:{plan.environment}/{plan.target}"]
     capability_mode = _rexecop_mode(plan.mode)
-    artifact = {
+    artifact: dict[str, Any] = {
         "artifact_type": "execution_contract",
         "schema_version": "v0.2",
         "schema_ref": SCLITE_SCHEMA_REFS["execution_contract"],
@@ -266,7 +267,52 @@ def build_execution_contract(
     }
     if plan.catalog_binding:
         artifact["catalog_binding"] = dict(plan.catalog_binding)
+    policy_enforcement = _policy_enforcement_summary(operation)
+    if policy_enforcement:
+        artifact["policy_enforcement"] = policy_enforcement
+        controls = policy_enforcement.get("controls")
+        if isinstance(controls, dict):
+            artifact["execution_bounds"].update(
+                {
+                    "max_commands": int(controls.get("max_steps") or len(steps)),
+                    "timeout_seconds": math.ceil(
+                        float(controls.get("timeout_seconds") or 0.0)
+                    ),
+                    "max_output_bytes": int(controls.get("max_output_bytes") or 65536),
+                }
+            )
+            artifact["expected_receipt"]["output_digest_required"] = bool(
+                controls.get("output_digest_required", False)
+            )
     return _validate("execution_contract", artifact)
+
+
+def _policy_enforcement_summary(operation: Operation) -> dict[str, Any]:
+    record = operation.metadata.get("policy_enforcement")
+    if not isinstance(record, dict):
+        return {}
+    plan = record.get("plan")
+    admission = record.get("admission")
+    if not isinstance(plan, dict) or not isinstance(admission, dict):
+        return {}
+    fields = (
+        "schema_version",
+        "policy_pack_id",
+        "policy_pack_version",
+        "policy_pack_digest",
+        "verdict_id",
+        "verdict_digest",
+    )
+    summary: dict[str, Any] = {
+        field: str(plan.get(field) or "") for field in fields
+    }
+    summary["enforcement_plan_id"] = str(plan.get("plan_id") or "")
+    summary["enforcement_plan_digest"] = str(record.get("plan_digest") or "")
+    summary["admission_id"] = str(admission.get("decision_id") or "")
+    summary["admission_digest"] = str(record.get("admission_digest") or "")
+    controls = plan.get("controls")
+    summary["controls"] = dict(controls) if isinstance(controls, dict) else {}
+    return summary
 
 
 def build_lifecycle_artifacts(

@@ -79,9 +79,13 @@ environment:
 
 - Compiled at `plan` via `PolicyCompiler`; invalid packs fail plan with `RExecOpValidationError`.
 - Persisted on the operation as `metadata.policy_pack` and `metadata.target_criticality`.
-- Operation-level verdict must be plain `allow` with no obligations or constraints; every other verdict fails plan.
+- Operation-level `allow` and `allow_with_obligations` are admitted only through
+  GovEngine `PolicyEnforcementPlan` and existing `GovAdmissionDecision`. Supported controls are `receipt_required`,
+  `output_digest_required`, `output_limit`, `timeout`, and `max_steps`; unknown or
+  malformed controls fail plan.
 - Accepted operation verdict → `plan.govengine_request_preview.policy_decision` for GovEngine admission compose.
-- Connector-level evaluation runs in `CompositeConnectorRuntime.invoke()` before any backend (shell, SSH, `http_api`, plugins) and follows the same plain-allow-only rule.
+- Connector-level evaluation runs in `CompositeConnectorRuntime.invoke()` before any
+  backend and remains plain-allow-only; connector-specific obligations are fail-closed.
 
 Example pack: [examples/policy/rexecop-connectors-default.yaml](../examples/policy/rexecop-connectors-default.yaml).
 

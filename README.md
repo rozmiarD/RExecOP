@@ -74,8 +74,9 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - Operational controls: approve, pause, resume, cancel, retry, rollback, queue, target lock, maintenance windows
 - Runtime worker: `rexecop worker run`, `rexecop queue --drain`, `rexecop trigger` (host-owned scheduling)
 - Connectors: `mock`, config-driven `http_api` (retry, pagination, error mapping), `local_shell_readonly`, `ssh_readonly` (temporary; bounded output + digests)
-- Execution contracts: `ExecutionRequest` / `ExecutionReceipt` in workflow `shared_state` (schema `v0.1`)
-- GovEngine `PolicyEngine` when `environment.policy_pack` is set (plan + per-connector invoke gate)
+- Execution contracts: digest-bound `ExecutionRequest` / `ExecutionReceipt` in workflow `shared_state` (schema `v0.2`)
+- GovEngine `PolicyEngine` when `environment.policy_pack` is set: plan admission,
+  supported neutral controls, pre-execution drift validation, and per-connector invoke gate
 - Operator target catalog and profile-derived operation catalog with deterministic applicability
   and start-time drift rejection; catalog compatibility never replaces GovEngine admission
 - Storage: `FileStore` (default) or optional `SqliteStore` (`REXECOP_STORAGE` / `--storage`)

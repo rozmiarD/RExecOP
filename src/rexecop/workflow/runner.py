@@ -75,20 +75,56 @@ class WorkflowRunner:
         shared_state: dict[str, Any] | None = None,
         start_index: int = 0,
         max_steps: int | None = None,
+        policy_enforcement: dict[str, Any] | None = None,
     ) -> WorkflowRunResult:
         state = dict(shared_state or {})
         executed = list(state.get("executed_steps") or [])
         results = dict(state.get("step_results") or {})
+        enforcement = dict(policy_enforcement or {})
+        controls_raw = enforcement.get("controls")
+        controls = dict(controls_raw) if isinstance(controls_raw, dict) else {}
+        binding_raw = enforcement.get("binding")
+        binding = dict(binding_raw) if isinstance(binding_raw, dict) else {}
+        policy_max_steps = int(controls.get("max_steps") or 0)
+        max_output_bytes = int(controls.get("max_output_bytes") or 65536)
+        timeout_seconds = float(controls.get("timeout_seconds") or 0.0)
+        output_digest_required = bool(controls.get("output_digest_required", False))
         execution_request = execution_request_from_workflow(
             operation_id=operation_id,
             target=target,
             mode=mode,
             planned_steps=planned_steps,
-            max_steps=max_steps,
+            max_steps=policy_max_steps or len(planned_steps),
+            max_output_bytes=max_output_bytes,
+            timeout_seconds=timeout_seconds,
+            policy_binding=binding,
         )
         state["execution_request"] = execution_request.as_dict()
+        state["execution_controls"] = execution_request.resource_limits.as_dict()
         index = start_index
         steps_run = 0
+
+        if policy_max_steps and len(planned_steps) > policy_max_steps:
+            receipt = execution_receipt_from_results(
+                request=execution_request,
+                success=False,
+                executed_steps=executed,
+                step_results=results,
+                output_digest_required=output_digest_required,
+                error="policy max_steps is lower than planned workflow",
+                error_class="policy_denied",
+            )
+            state["execution_receipt"] = receipt.as_dict()
+            return WorkflowRunResult(
+                operation_id=operation_id,
+                success=False,
+                executed_steps=executed,
+                step_results=results,
+                shared_state=state,
+                error="policy max_steps is lower than planned workflow",
+                error_class="policy_denied",
+                next_step_index=index,
+            )
 
         while index < len(planned_steps):
             if max_steps is not None and steps_run >= max_steps:
@@ -151,6 +187,7 @@ class WorkflowRunner:
                 success=False,
                 executed_steps=executed,
                 step_results=results,
+                output_digest_required=output_digest_required,
                 error=result.error or f"step failed: {step_id}",
                 error_class=error_class,
             )
@@ -174,6 +211,7 @@ class WorkflowRunner:
             success=True,
             executed_steps=executed,
             step_results=results,
+            output_digest_required=output_digest_required,
         )
         state["execution_receipt"] = receipt.as_dict()
         return WorkflowRunResult(

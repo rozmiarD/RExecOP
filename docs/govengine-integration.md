@@ -38,18 +38,29 @@ Pinned compatible with the SCLite alpha line used by RExecOp (`sclite-core>=1.0.
 When the environment declares `policy_pack`, RExecOp:
 
 1. Compiles the pack at `plan` and stores it on the operation.
-2. Evaluates operation policy and fails plan unless the verdict is a plain `allow`
-   with no obligations or constraints.
-3. Projects the operation verdict to `govengine_request_preview.policy_decision`
+2. Evaluates operation policy and asks GovEngine to build a digest-bound
+   `PolicyEnforcementPlan` plus an existing `GovAdmissionDecision`.
+3. Accepts plain `allow` or `allow_with_obligations` only when every returned control
+   projects to the supported neutral runtime set.
+4. Projects the operation verdict to `govengine_request_preview.policy_decision`
    (via `policy_verdict_to_gov_policy_decision()`).
-4. Re-evaluates per connector at invoke time in `CompositeConnectorRuntime` before backends run.
+5. Revalidates pack, verdict, admission, and digest at start/advance before backend IO.
+6. Re-evaluates per connector at invoke time in `CompositeConnectorRuntime` before backends run.
 
 Without `policy_pack`, `GovEngineClient` behavior is unchanged (compose inputs from preview overrides or fail-closed defaults).
 
-RExecOp does not satisfy GovEngine PolicyEngine obligations by implication. If
-GovEngine returns `allow_with_obligations`, `approval_required`, `deny`, blockers,
-obligations, or constraints on the policy-pack path, RExecOp treats that as
-not executable until a future enforcement adapter explicitly implements those controls.
+Supported operation controls are:
+
+- `receipt` / `receipt_required`: terminal internal receipt is mandatory;
+- `output_digest_required`: each executed step receipt must have a bounded digest;
+- `output_limit`: maximum serialized, redacted result bytes per step;
+- `timeout`: tighter per-call limit for built-in shell, SSH, and HTTP connectors;
+- `max_steps`: maximum declared workflow step count.
+
+Unknown/malformed controls, timeout on an unsupported plugin backend, digest drift,
+`approval_required`, and `deny` remain fail-closed. RExecOp does not infer that an
+obligation is satisfied merely because it was returned. Connector-level policy controls
+are not projected and remain blocked.
 
 ## Decision mapping
 
@@ -83,8 +94,10 @@ operation plan. Post-execution receipt binding uses GovEngine validation helpers
 ## SCLite bridge
 
 Admission metadata from `operation.metadata["govengine_admission"]` is bridged into SCLite
-`policy_decision` and scoped ticket approval fields during bundle emission
-(`adapters/sclite_port/govengine_policy_bridge.py`).
+`policy_decision` and scoped ticket approval fields. Policy enforcement plan, admission,
+pack, and verdict digest references are included in the SCLite execution contract and receipt.
+SCLite computes and validates its own artifact descriptors; RExecOp does not claim SCLite
+canonicalization ownership.
 
 ## Boundary
 

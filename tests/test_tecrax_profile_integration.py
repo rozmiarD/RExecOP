@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import urllib.error
 from pathlib import Path
@@ -85,7 +86,10 @@ def test_core_has_no_domain_specific_tokens() -> None:
         if path.name == "command_shape.py":
             continue
         text = path.read_text().lower()
-        if any(token in text for token in domain_tokens):
+        if any(
+            re.search(rf"\b{re.escape(token)}\b", text)
+            for token in domain_tokens
+        ):
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == []
 

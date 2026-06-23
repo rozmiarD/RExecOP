@@ -148,11 +148,11 @@ connectors:
 
 **Policy layers:** when `environment.policy_pack` is set, GovEngine `PolicyEngine` runs at plan (operation) and at each connector invoke before backends execute. Allowlists and read-only mode checks remain as a second layer for shell/SSH backends.
 
-Operation planning and connector execution currently accept only a plain `allow` verdict
-with no obligations or constraints. `allow_with_obligations`, `approval_required`, `deny`,
-or any verdict carrying controls RExecOp cannot enforce is blocked before execution.
-RExecOp does not claim that receipt, output-limit, timeout, or other obligations are
-fulfilled merely because GovEngine returned them.
+Operation planning accepts plain `allow` and GovEngine `allow_with_obligations` only for
+the supported neutral B2 controls documented in [execution-contract.md](execution-contract.md).
+RExecOp validates the digest-bound admission before IO and enforces those controls.
+Connector-level evaluation remains plain-allow-only; connector-specific obligations,
+`approval_required`, `deny`, unknown controls, and unsupported timeout backends are blocked.
 
 ### Risk notes
 

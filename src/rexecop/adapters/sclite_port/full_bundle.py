@@ -207,6 +207,20 @@ def build_scoped_execution_receipt(
             network_execution_performed=network_execution_performed,
         ),
     }
+    policy_record = operation.metadata.get("policy_enforcement")
+    if isinstance(policy_record, dict):
+        plan = policy_record.get("plan")
+        admission = policy_record.get("admission")
+        if isinstance(plan, dict) and isinstance(admission, dict):
+            artifact["policy_enforcement"] = {
+                "enforcement_plan_id": str(plan.get("plan_id") or ""),
+                "enforcement_plan_digest": str(policy_record.get("plan_digest") or ""),
+                "admission_id": str(admission.get("decision_id") or ""),
+                "admission_digest": str(policy_record.get("admission_digest") or ""),
+                "policy_pack_digest": str(plan.get("policy_pack_digest") or ""),
+                "verdict_digest": str(plan.get("verdict_digest") or ""),
+                "status": "enforced",
+            }
     return validate("execution_receipt", artifact)
 
 

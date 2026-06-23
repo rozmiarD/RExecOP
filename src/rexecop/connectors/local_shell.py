@@ -4,7 +4,12 @@ import subprocess
 from typing import Any
 
 from rexecop.connectors import errors as connector_errors
-from rexecop.connectors.base import ConnectorRequest, ConnectorResponse
+from rexecop.connectors.base import (
+    ConnectorRequest,
+    ConnectorResponse,
+    effective_output_bytes,
+    effective_timeout_seconds,
+)
 from rexecop.connectors.command_shape import normalize_allowlisted_argv
 from rexecop.connectors.errors import READ_ONLY_MODES
 from rexecop.evidence.redaction import redact_payload, redact_text
@@ -82,7 +87,10 @@ class LocalShellReadonlyRuntime:
                 error=str(exc),
                 data={"error_class": connector_errors.VALIDATION_FAILED},
             )
-        timeout = float(self.config.get("timeout_seconds") or 10)
+        timeout = effective_timeout_seconds(
+            request,
+            float(self.config.get("timeout_seconds") or 10),
+        )
         try:
             completed = subprocess.run(
                 command,
@@ -100,7 +108,10 @@ class LocalShellReadonlyRuntime:
                 data={"error_class": connector_errors.TIMEOUT},
             )
         success = completed.returncode == 0
-        max_output_bytes = int(self.config.get("max_output_bytes") or 65536)
+        max_output_bytes = effective_output_bytes(
+            request,
+            int(self.config.get("max_output_bytes") or 65536),
+        )
         stdout = bounded_text(completed.stdout, max_bytes=max_output_bytes)
         stderr = bounded_text(completed.stderr, max_bytes=max_output_bytes)
         return ConnectorResponse(

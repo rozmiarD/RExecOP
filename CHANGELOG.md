@@ -11,12 +11,32 @@ PyPI alpha line is **`0.2.5a0`**. Entries under [Releases](#releases) are newest
 
 ## Unreleased
 
+### Full B2 policy binding and runtime enforcement
+
+- `ExecutionRequest` / `ExecutionReceipt` schema `v0.2` binds GovEngine policy
+  pack, verdict, enforcement-plan, and existing-admission digests; receipts also bind the
+  request digest and carry a self-digest plus an enforcement summary.
+- Operation-level `allow_with_obligations` supports GovEngine-projected
+  `receipt_required`, `output_digest_required`, `output_limit`, `timeout`, and
+  `max_steps`; unknown controls and binding drift fail closed before backend IO.
+- Runtime output and internal-handler state deltas are redacted and bounded before
+  entering `shared_state` or evidence. Oversized records roll back their state delta
+  and retain only size, truncation status, and digest.
+- Built-in shell, SSH, and HTTP connectors apply the tighter admitted timeout
+  and output bound. Timeout controls reject unsupported plugin backends.
+- SCLite execution contracts and receipts carry bounded GovEngine admission,
+  pack, and verdict references; SCLite still owns artifact canonicalization and
+  review truth.
+- Added E2E, digest-drift, max-steps, backend-not-called, timeout, output-leak,
+  and cross-repository Tecrax profile vectors.
+
 ### B2-lite enforcement hardening
 
 - Structured argv restrictions block shell `-c`, `sudo`, service mutations, Docker
   mutations and Docker Compose lifecycle commands before subprocess execution
-- Connector policy admission now accepts only plain `allow` without obligations or
-  constraints; unsupported controls fail closed with explicit blockers
+- Connector-level policy admission accepts only plain `allow`; unsupported
+  connector controls fail closed. Supported operation-level controls are handled
+  by the full B2 admission/enforcement path above.
 - Negative matrices cover restricted argv, subprocess-not-called and PolicyEngine
   `allow_with_obligations` regression behavior
 - Successful `http_api` responses are bounded by `max_response_bytes` before JSON parsing;

@@ -46,12 +46,14 @@ def evaluate_operation_policy(
     return PolicyEngine().evaluate(request, policy_pack)
 
 
-def operation_policy_allows_plan(verdict: PolicyVerdict) -> bool:
-    return (
-        verdict.decision == "allow"
-        and not verdict.obligations
-        and not verdict.constraints
-    )
+def operation_policy_allows_plan(
+    verdict: PolicyVerdict,
+    *,
+    controls_enforced: bool = False,
+) -> bool:
+    if verdict.decision == "allow" and not verdict.obligations and not verdict.constraints:
+        return True
+    return controls_enforced and verdict.decision == "allow_with_obligations"
 
 
 def operation_policy_blockers(verdict: PolicyVerdict) -> tuple[str, list[str]]:
@@ -71,8 +73,12 @@ def operation_policy_blockers(verdict: PolicyVerdict) -> tuple[str, list[str]]:
     return reason, list(verdict.blockers) if verdict.blockers else [reason]
 
 
-def require_operation_policy_allows_plan(verdict: PolicyVerdict) -> None:
-    if operation_policy_allows_plan(verdict):
+def require_operation_policy_allows_plan(
+    verdict: PolicyVerdict,
+    *,
+    controls_enforced: bool = False,
+) -> None:
+    if operation_policy_allows_plan(verdict, controls_enforced=controls_enforced):
         return
     reason, blockers = operation_policy_blockers(verdict)
     blocker_text = ",".join(blockers)

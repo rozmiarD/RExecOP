@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from typing import Any
 
+from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.evidence.redaction import redact_payload, redact_text
@@ -30,14 +34,22 @@ class StepExecutor:
         step_id = str(context.step.get("id") or "")
         step_type = str(context.step.get("type") or "internal")
         action = str(context.step.get("action") or "")
+        state_before = deepcopy(context.shared_state)
 
         try:
             if step_type == "connector":
-                return self._execute_connector(context, step_id, action)
-            if step_type == "evidence":
-                return self._execute_evidence(context, step_id, action)
-            return self._execute_internal(context, step_id, action)
+                result = self._execute_connector(context, step_id, action)
+            elif step_type == "evidence":
+                result = self._execute_evidence(context, step_id, action)
+            else:
+                result = self._execute_internal(context, step_id, action)
+            bounded = self._apply_output_controls(context, result, state_before=state_before)
+            if bounded.success:
+                self._store_bounded_result(context, step_type, bounded)
+            return bounded
         except Exception as exc:  # noqa: BLE001 - step boundary
+            context.shared_state.clear()
+            context.shared_state.update(state_before)
             return StepExecutionResult(
                 step_id=step_id,
                 success=False,
@@ -58,6 +70,11 @@ class StepExecutor:
                 action=action,
                 target=context.target,
                 mode=context.mode,
+                metadata={
+                    "execution_controls": dict(
+                        context.shared_state.get("execution_controls") or {}
+                    )
+                },
             )
         )
         if not response.success:
@@ -78,12 +95,6 @@ class StepExecutor:
             output["before_state"] = before_state
         if isinstance(after_state, dict):
             output["after_state"] = after_state
-        context.shared_state.setdefault("connector_results", {})[step_id] = response.data
-        if isinstance(before_state, dict) and isinstance(after_state, dict):
-            context.shared_state.setdefault("mutation_states", {})[step_id] = {
-                "before_state": before_state,
-                "after_state": after_state,
-            }
         return StepExecutionResult(step_id=step_id, success=True, output=output)
 
     def _execute_internal(
@@ -101,7 +112,6 @@ class StepExecutor:
                 error=f"internal_action_not_registered:{action}",
             )
         output = handler(context)
-        context.shared_state.setdefault("internal_results", {})[step_id] = output
         return StepExecutionResult(step_id=step_id, success=True, output=output)
 
     def _execute_evidence(
@@ -118,3 +128,77 @@ class StepExecutor:
             success=True,
             output={"action": action, "status": "recorded"},
         )
+
+    def _apply_output_controls(
+        self,
+        context: StepExecutionContext,
+        result: StepExecutionResult,
+        *,
+        state_before: dict[str, Any],
+    ) -> StepExecutionResult:
+        controls = context.shared_state.get("execution_controls")
+        raw_controls = controls if isinstance(controls, Mapping) else {}
+        max_output_bytes = int(raw_controls.get("max_output_bytes") or 65536)
+        state_delta = {
+            key: value
+            for key, value in context.shared_state.items()
+            if key not in state_before or state_before[key] != value
+        }
+        canonical = json.dumps(
+            {"output": result.output, "state_delta": state_delta},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            default=str,
+        ).encode("utf-8")
+        digest = f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+        if len(canonical) > max_output_bytes:
+            context.shared_state.clear()
+            context.shared_state.update(state_before)
+            return StepExecutionResult(
+                step_id=result.step_id,
+                success=False,
+                output={
+                    "error_class": connector_errors.VALIDATION_FAILED,
+                    "output_digests": {"record": digest},
+                    "output_truncated": {"record": True},
+                    "output_sizes": {"record_bytes": len(canonical)},
+                    "max_output_bytes": max_output_bytes,
+                },
+                error="execution output exceeds policy limit",
+            )
+        output = dict(result.output)
+        digests = output.get("output_digests")
+        merged = dict(digests) if isinstance(digests, Mapping) else {}
+        merged["record"] = digest
+        output["output_digests"] = merged
+        return StepExecutionResult(
+            step_id=result.step_id,
+            success=result.success,
+            output=output,
+            error=result.error,
+        )
+
+    def _store_bounded_result(
+        self,
+        context: StepExecutionContext,
+        step_type: str,
+        result: StepExecutionResult,
+    ) -> None:
+        if step_type == "internal":
+            context.shared_state.setdefault("internal_results", {})[result.step_id] = dict(
+                result.output
+            )
+            return
+        if step_type != "connector":
+            return
+        data = result.output.get("data")
+        bounded_data = dict(data) if isinstance(data, Mapping) else {}
+        context.shared_state.setdefault("connector_results", {})[result.step_id] = bounded_data
+        before_state = bounded_data.get("before_state")
+        after_state = bounded_data.get("after_state")
+        if isinstance(before_state, dict) and isinstance(after_state, dict):
+            context.shared_state.setdefault("mutation_states", {})[result.step_id] = {
+                "before_state": before_state,
+                "after_state": after_state,
+            }

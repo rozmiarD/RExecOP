@@ -188,7 +188,7 @@ def test_plan_persists_policy_pack_and_verdict(tmp_path: Path) -> None:
     assert plan.govengine_request_preview["policy_decision"]["decision"] == "allow"
 
 
-def test_plan_blocks_operation_policy_obligations(tmp_path: Path) -> None:
+def test_plan_projects_supported_operation_policy_obligations(tmp_path: Path) -> None:
     env_path = tmp_path / "env.yaml"
     env_data = yaml.safe_load(ENVIRONMENT.read_text())
     env_data["environment"]["policy_pack"] = {
@@ -217,7 +217,52 @@ def test_plan_blocks_operation_policy_obligations(tmp_path: Path) -> None:
     env_path.write_text(yaml.safe_dump(env_data))
     controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
 
-    with pytest.raises(RExecOpValidationError, match="unsupported_policy_controls"):
+    operation = controller.plan(
+        profile_path=PROFILE,
+        environment_path=env_path,
+        intent="check_backup_status",
+        target="all_critical_vms",
+        mode="dry_run",
+    )
+
+    enforcement = operation.metadata["policy_enforcement"]
+    assert enforcement["admission_digest"].startswith("sha256:")
+    assert enforcement["admission"]["outcome"] == "allowed"
+    assert enforcement["plan"]["status"] == "ready"
+    assert enforcement["plan"]["controls"]["max_output_bytes"] == 4096
+
+
+def test_plan_blocks_unknown_operation_policy_control(tmp_path: Path) -> None:
+    env_path = tmp_path / "env.yaml"
+    env_data = yaml.safe_load(ENVIRONMENT.read_text())
+    env_data["environment"]["policy_pack"] = {
+        "policy_id": "unknown-control",
+        "version": "1",
+        "rules": [
+            {
+                "rule_id": "unsupported",
+                "effect": "allow_with_obligations",
+                "conditions": {
+                    "action.category": "operation",
+                    "action.mode": "read",
+                },
+                "constraints": [
+                    {
+                        "constraint_id": "vendor",
+                        "kind": "vendor_specific",
+                        "value": True,
+                    }
+                ],
+            }
+        ],
+    }
+    env_path.write_text(yaml.safe_dump(env_data))
+    controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
+
+    with pytest.raises(
+        RExecOpValidationError,
+        match="unsupported_policy_constraint:vendor_specific",
+    ):
         controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
