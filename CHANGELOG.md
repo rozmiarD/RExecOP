@@ -7,17 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Versioning:** pre-1.0 alpha tags use the `0.y.za0` form. Roadmap delivery before the
 public alpha gate used **`0.3.0a0`–`0.11.0a0`** (Phases 2B–9; see [Pre-alpha gate history](#pre-alpha-gate-history)).
 **`0.1.0a0`** (Phase 10) reset the public line and declared the alpha gate. The current
-PyPI alpha line is **`0.2.5a0`**. Entries under [Releases](#releases) are newest first.
+PyPI alpha line is **`0.2.6a0`**. Entries under [Releases](#releases) are newest first.
 
 ## Unreleased
 
-No changes after the `0.2.6a0` source candidate.
+No changes after the `0.2.6a0` release.
 
-## [0.2.6a0] - Unreleased
+## [0.2.6a0] - 2026-06-24
 
 - Advanced the source package beyond the published `0.2.5a0` wheel so B2,
   R4c, and their GovEngine `0.16.0` floor have an unambiguous release line.
-- Publication and tagging remain separate operator-approved actions.
+- Published after GovEngine `0.16.0` passed its public-index install gate.
 - Removed an import-order cycle between `rexecop.policy` and
   `rexecop.connectors` by lazily exposing the composite connector runtime.
 
@@ -299,7 +299,7 @@ Roadmap versions before the Phase 10 reset (`0.1.0a0`). Listed oldest → newest
 
 - Phases 0–2A: repository bootstrap, operation core, static GovEngine gating
 
-[0.2.6a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.5a0...HEAD
+[0.2.6a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.5a0...v0.2.6a0
 [0.2.5a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.4a0...v0.2.5a0
 [0.2.4a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.3a0...v0.2.4a0
 [0.2.3a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.2a0...v0.2.3a0

@@ -1,15 +1,14 @@
 # Distribution and installation
 
-RExecOp `0.2.6a0` is the current **unpublished alpha source line**. The latest
-PyPI package is [`rexecop==0.2.5a0`](https://pypi.org/project/rexecop/0.2.5a0/),
-which predates full B2 and R4c. Maturity limits in
-[known-limitations.md](known-limitations.md) apply to both.
+RExecOp `0.2.6a0` is the current published alpha line on
+[PyPI](https://pypi.org/project/rexecop/). It contains full B2 and R4c while retaining the maturity limits in
+[known-limitations.md](known-limitations.md).
 
 ## Supported install paths
 
 | Path | When to use |
 | --- | --- |
-| **PyPI** (`pip install rexecop==0.2.5a0`) | Evaluation of the published pre-B2 package only |
+| **PyPI** (`pip install rexecop==0.2.6a0`) | Evaluation of the published B2/R4c alpha line |
 | Coordinated editable source (`pip install -e`) | B2/R4c development and operator lab |
 | Wheel from `dist/` after `python -m build` | Offline install, internal mirrors |
 | Git URL install | Pin a commit or tag without PyPI |
@@ -18,7 +17,7 @@ which predates full B2 and R4c. Maturity limits in
 
 - Python **3.11+**
 - Network access to install pinned dependencies:
-  - `govengine>=0.16.0,<0.17` for the source line
+  - `govengine>=0.16.0,<0.17`
   - `sclite-core>=1.0.4,<1.1`
 - Optional domain profile: [`tecrax`](https://pypi.org/project/tecrax/) or Git
 
@@ -27,21 +26,14 @@ which predates full B2 and R4c. Maturity limits in
 ```bash
 python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "rexecop==0.2.5a0"
+python -m pip install "rexecop==0.2.6a0"
 rexecop version
 ```
 
-With Tecrax profile (after `tecrax` is on PyPI at a compatible version):
+With the compatible Tecrax profile:
 
 ```bash
-python -m pip install "rexecop[tecrax]==0.2.5a0"
-```
-
-If the `tecrax` extra cannot resolve from PyPI yet, install Tecrax from Git:
-
-```bash
-python -m pip install "rexecop==0.2.5a0"
-python -m pip install "tecrax @ git+https://github.com/rozmiarD/tecrax.git@main"
+python -m pip install "rexecop[tecrax]==0.2.6a0"
 ```
 
 ## Coordinated editable install
@@ -83,8 +75,8 @@ python -m pip install "govengine @ git+https://github.com/rozmiarD/GovEngine.git
 python -m pip install "rexecop @ git+https://github.com/rozmiarD/RExecOP.git@main"
 ```
 
-Do not install RExecOp `main` against the published GovEngine `0.15.0` wheel;
-that wheel does not provide the enforcement-plan imports required by B2.
+RExecOp `0.2.6a0` requires GovEngine `0.16.x`; earlier GovEngine wheels do not
+provide the enforcement-plan imports required by B2.
 
 ## Private index / GitHub Packages (operator-owned)
 
