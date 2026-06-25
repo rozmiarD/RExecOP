@@ -16,10 +16,10 @@ from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 POLICY_ENVIRONMENT = (
-    REPO_ROOT / "examples/environments/small-public-unit-proxmox.policy.example.yaml"
+    REPO_ROOT / "examples/environments/runtime-fixture.policy.example.yaml"
 )
 POLICY_PACK_PATH = REPO_ROOT / "examples/policy/rexecop-connectors-default.yaml"
 
@@ -66,7 +66,7 @@ def test_connector_policy_denies_ssh_on_critical_before_backend() -> None:
             ConnectorRequest(
                 connector="pve_ro",
                 action="uptime",
-                target="all_critical_vms",
+                target="fixture-target",
                 mode="dry_run",
             )
         )
@@ -104,7 +104,7 @@ def test_connector_policy_allows_read_shell_on_critical() -> None:
             ConnectorRequest(
                 connector="host_probe",
                 action="uptime",
-                target="all_critical_vms",
+                target="fixture-target",
                 mode="dry_run",
             )
         )
@@ -175,15 +175,15 @@ def test_plan_persists_policy_pack_and_verdict(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=POLICY_ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
 
-    assert operation.metadata["policy_pack"]["policy_id"] == "rexecop-connectors"
-    assert operation.metadata["target_criticality"] == "critical"
+    assert operation.metadata["policy_pack"]["policy_id"] == "rexecop-runtime-fixture"
+    assert operation.metadata["target_criticality"] == "low"
     assert operation.metadata["policy_verdict"]["decision"] == "allow"
-    assert operation.metadata["policy_verdict"]["reason_code"] == "check_backup_status_allowed"
+    assert operation.metadata["policy_verdict"]["reason_code"] == "fixture_read_allowed"
     plan = controller.store.load_plan(operation.id)
     assert plan.govengine_request_preview["policy_decision"]["decision"] == "allow"
 
@@ -201,7 +201,7 @@ def test_plan_projects_supported_operation_policy_obligations(tmp_path: Path) ->
                 "conditions": {
                     "action.category": "operation",
                     "action.mode": "read",
-                    "action.intent": "check_backup_status",
+                    "action.intent": "inspect_fixture_state",
                 },
                 "obligations": [{"obligation_id": "receipt", "kind": "receipt"}],
                 "constraints": [
@@ -220,8 +220,8 @@ def test_plan_projects_supported_operation_policy_obligations(tmp_path: Path) ->
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=env_path,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
 
@@ -266,8 +266,8 @@ def test_plan_blocks_unknown_operation_policy_control(tmp_path: Path) -> None:
         controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="inspect_fixture_state",
+            target="fixture-target",
             mode="dry_run",
         )
 
@@ -296,8 +296,8 @@ def test_plan_fails_closed_without_operation_allow_rule(tmp_path: Path) -> None:
         controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="inspect_fixture_state",
+            target="fixture-target",
             mode="dry_run",
         )
 
@@ -312,8 +312,8 @@ def test_plan_rejects_invalid_policy_pack(tmp_path: Path) -> None:
         controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="inspect_fixture_state",
+            target="fixture-target",
             mode="dry_run",
         )
 
@@ -323,4 +323,4 @@ def test_environment_loader_reads_policy_pack() -> None:
     assert env.policy_pack is None
     loaded = load_environment(POLICY_ENVIRONMENT)
     assert loaded.policy_pack is not None
-    assert loaded.policy_pack["policy_id"] == "rexecop-connectors"
+    assert loaded.policy_pack["policy_id"] == "rexecop-runtime-fixture"

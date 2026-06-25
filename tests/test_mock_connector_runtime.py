@@ -7,6 +7,7 @@ import pytest
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
 from rexecop.connectors.runtime import ConnectorDispatcher
+from rexecop.connectors.static_fixture import StaticFixtureRuntime
 from rexecop.errors import RExecOpValidationError
 from rexecop.execution.backend import StepExecutionContext
 from rexecop.execution.executor import StepExecutor
@@ -15,16 +16,14 @@ from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
 
-tecrax_fixture = pytest.importorskip("tecrax.fixture.mock_runtime")
-
 
 def test_generic_mock_rejects_unknown_actions() -> None:
     runtime = MockConnectorRuntime()
     response = runtime.invoke(
         ConnectorRequest(
-            connector="proxmox",
-            action="list_vms",
-            target="all_critical_vms",
+            connector="source",
+            action="read_state",
+            target="fixture-target",
             mode="dry_run",
         )
     )
@@ -32,41 +31,52 @@ def test_generic_mock_rejects_unknown_actions() -> None:
     assert "unsupported mock" in response.error
 
 
-def test_tecrax_fixture_returns_domain_payloads() -> None:
-    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
-    proxmox = runtime.invoke(
+def test_static_fixture_returns_configured_payload() -> None:
+    runtime = StaticFixtureRuntime(
+        connector_name="fixture_source",
+        config={
+            "fixture_only": True,
+            "actions": {"read_fixture_state": {"data": {"status": "ready"}}},
+        },
+        mutating_allowed=False,
+    )
+    response = runtime.invoke(
         ConnectorRequest(
-            connector="proxmox",
-            action="list_vms",
-            target="all_critical_vms",
+            connector="fixture_source",
+            action="read_fixture_state",
+            target="fixture-target",
             mode="dry_run",
         )
     )
-    pbs = runtime.invoke(
-        ConnectorRequest(
-            connector="pbs",
-            action="list_snapshots",
-            target="all_critical_vms",
-            mode="dry_run",
-        )
-    )
-    assert proxmox.success and proxmox.data["vms"]
-    assert pbs.success and pbs.data["snapshots"]
+    assert response.success
+    assert response.data == {"status": "ready"}
 
 
 def test_dispatcher_uses_injected_runtime() -> None:
-    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    runtime = StaticFixtureRuntime(
+        connector_name="fixture_source",
+        config={
+            "fixture_only": True,
+            "actions": {"read_fixture_state": {"data": {"status": "ready"}}},
+        },
+        mutating_allowed=False,
+    )
     dispatcher = ConnectorDispatcher(runtime)
     response = dispatcher.invoke(
-        ConnectorRequest(connector="pbs", action="list_snapshots", target="t", mode="dry_run")
+        ConnectorRequest(
+            connector="fixture_source",
+            action="read_fixture_state",
+            target="t",
+            mode="dry_run",
+        )
     )
     assert response.success
 
 
-def test_internal_action_registry_loads_tecrax_handlers() -> None:
+def test_internal_action_registry_loads_builtin_handlers() -> None:
     handlers = load_internal_handlers()
-    assert "environment.resolve_targets" in handlers
-    assert "correlate_vm_backup_coverage" in handlers
+    assert "record_execution_checkpoint" in handlers
+    assert "record_rollback_marker" in handlers
 
 
 def test_unregistered_internal_action_error() -> None:
@@ -84,8 +94,8 @@ def test_unregistered_internal_action_error() -> None:
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def test_escalate_from_failed_operation(tmp_path: Path) -> None:
@@ -94,8 +104,8 @@ def test_escalate_from_failed_operation(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     failed = controller.get_operation(operation.id)
@@ -114,8 +124,8 @@ def test_escalate_rejects_non_failed_state(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     with pytest.raises(RExecOpValidationError):

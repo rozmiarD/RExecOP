@@ -12,7 +12,7 @@ from a dedicated directory (for example `~/lab/rexecop-runtime`) so artifacts st
 |------|-----------------|
 | Python 3.11+ | `python --version` |
 | RExecOp | `pip install -e ".[dev]"` from repo root (see [docs/distribution.md](docs/distribution.md)) |
-| Tecrax (domain plugins) | `pip install -e ../tecrax` |
+| Tecrax (optional domain profile) | `pip install -e ../tecrax` only for Tecrax-specific checks |
 | GovEngine / SCLite | Installed via rexecop dependencies |
 | Secrets file | `~/.rexecop/secrets.yaml` mode `0600` |
 
@@ -29,7 +29,7 @@ python scripts/validate_public_truth.py
 
 - [ ] `python scripts/validate_public_truth.py` passes
 - [ ] `ruff check . --exclude tecrax` passes
-- [ ] `rg 'vm-101|proxmox|pbs|zabbix' src/rexecop` returns **no matches**
+- [ ] `rg 'vm-101|proxmox|pbs|zabbix|tecrax' src/rexecop` returns **no matches**
 - [ ] `rg 'import tecrax' src/rexecop` returns **no matches**
 
 ### 2. Secrets hygiene
@@ -51,16 +51,16 @@ Manual path: copy a staging env with `backend: http_api` pointing at your `/heal
 - [ ] `plan` + `start` → `completed`
 - [ ] `validate` → `passed: true`, rule `http_health_check.probe_ok`
 
-### 4. Tecrax offline fixture (bootstrap)
+### 4. Neutral runtime fixture (bootstrap)
 
-Requires `tecrax` installed (`rexecop.internal_actions` + `tecrax_fixture` mock).
+Uses `examples/profiles/runtime-fixture`; no domain package or real endpoint is required.
 
 ```bash
 rexecop plan \
-  --profile examples/profiles/tecrax-fixture/profile.yaml \
-  --env examples/environments/small-public-unit-proxmox.example.yaml \
-  --intent check_backup_status \
-  --target all_critical_vms \
+  --profile examples/profiles/runtime-fixture/profile.yaml \
+  --env examples/environments/runtime-fixture.example.yaml \
+  --intent inspect_fixture_state \
+  --target fixture-target \
   --mode dry_run
 
 rexecop start --operation <id>
@@ -74,8 +74,8 @@ rexecop validate --operation <id>
 
 ### 4b. Policy pack on lab fixture
 
-Use `examples/environments/small-public-unit-proxmox.policy.example.yaml` (readonly
-mock path with `policy_pack`). The base `small-public-unit-proxmox.example.yaml`
+Use `examples/environments/runtime-fixture.policy.example.yaml` (readonly
+static fixture path with `policy_pack`). The base `runtime-fixture.example.yaml`
 stays without a pack so apply/mutation tests keep a neutral fixture.
 
 ```bash
@@ -86,20 +86,20 @@ Manual lab:
 
 ```bash
 rexecop plan \
-  --profile examples/profiles/tecrax-fixture/profile.yaml \
-  --env examples/environments/small-public-unit-proxmox.policy.example.yaml \
-  --intent check_backup_status --target all_critical_vms --mode dry_run
+  --profile examples/profiles/runtime-fixture/profile.yaml \
+  --env examples/environments/runtime-fixture.policy.example.yaml \
+  --intent inspect_fixture_state --target fixture-target --mode dry_run
 rexecop start --operation <id>
 ```
 
-- [ ] Readonly `check_backup_status` completes with `policy_verdict.decision: allow`
+- [ ] Readonly `inspect_fixture_state` completes with `policy_verdict.decision: allow`
 - [ ] Connector policy denies `ssh_readonly` on critical targets (unit tests)
 
 ### 5. Tecrax product profile (optional)
 
 ```bash
 rexecop plan --profile tecrax --env <env> \
-  --intent check_backup_status --target all_critical_vms --mode dry_run
+  --intent collect_basic_host_inventory --target <operator-target> --mode dry_run
 rexecop start --operation <id>
 ```
 
@@ -112,18 +112,18 @@ python scripts/run_staging_http_lab.py
 # optional: --workdir /tmp/rexecop-staging-http-lab
 ```
 
-Starts embedded Proxmox/PBS API stub on `127.0.0.1`, runs `plan` → `start` → `validate`
-for `check_backup_status` / `all_critical_vms` / `dry_run` using
-`examples/environments/small-public-unit-proxmox.staging.lab.example.yaml`.
+Starts embedded domain-neutral API stub on `127.0.0.1`, runs `plan` → `start` → `validate`
+for `inspect_fixture_state` / `fixture-target` / `dry_run` using
+`examples/environments/runtime-fixture.staging.lab.example.yaml`.
 
 **Real staging endpoints:**
 
 ```bash
-cp examples/environments/small-public-unit-proxmox.staging.example.yaml ~/lab/
+cp examples/environments/runtime-fixture.staging.example.yaml ~/lab/
 cp examples/secrets/staging-http.lab.example.yaml ~/.rexecop/secrets.yaml  # edit values
 chmod 0600 ~/.rexecop/secrets.yaml
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
-python scripts/run_staging_http_lab.py --env ~/lab/small-public-unit-proxmox.staging.yaml
+python scripts/run_staging_http_lab.py --env ~/lab/runtime-fixture.staging.example.yaml
 ```
 
 **CI-equivalent pytest:**
@@ -133,7 +133,7 @@ pytest tests/test_staging_connectors_e2e.py -q
 ```
 
 - [ ] `staging_http_lab_ok` printed with operation id
-- [ ] `validate` → `passed: true`, rule `check_backup_status.all_critical_covered`
+- [ ] `validate` → `passed: true`, rule `runtime_fixture.state_observed`
 - [ ] No secret material in `.rexecop/evidence/` (script checks; `rg` for manual audit)
 
 ### 7. Worker and queue smoke

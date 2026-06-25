@@ -24,7 +24,7 @@ policy engine or a parallel truth layer.
 | Current source line | `0.2.6a0` |
 | Maturity | **alpha** — operator evaluation with documented limits |
 | Delivery | Published B2/R4c alpha line (see [CHANGELOG](CHANGELOG.md)) |
-| Tests | 290 passed, 1 skipped (2026-06-23 R5d snapshot; CI reruns the current suite) |
+| Tests | 294 passed, 1 skipped (current local suite; CI reruns the current suite) |
 | Latest PyPI | [`rexecop==0.2.6a0`](https://pypi.org/project/rexecop/0.2.6a0/) |
 | Source dependencies | `govengine>=0.16.0,<0.17`, `sclite-core>=1.0.4,<1.1` (see `pyproject.toml`) |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
@@ -72,8 +72,8 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - SCLite port: full GovEngine-integration bundle emission (scoped ticket v0.3, kernel guard, review pass)
 - Profile resolution by path or `rexecop.profiles` entry point (`tecrax`)
 - Declarative profile validation rules (YAML, not hardcoded domain logic in core)
-- Fixture-only vertical slices: `check_backup_status` and `restart_zabbix_agent`;
-  current operator targets remain read-only and do not expose apply
+- Domain-neutral `runtime-fixture` examples for lifecycle, policy and connector regressions;
+  Tecrax product semantics live only in the external `tecrax` package
 - Operational controls: approve, pause, resume, cancel, retry, rollback, queue, target lock, maintenance windows
 - Runtime worker: `rexecop worker run`, `rexecop queue --drain`, `rexecop trigger` (host-owned scheduling)
 - Connectors: `mock`, config-driven `http_api` (retry, pagination, error mapping), `local_shell_readonly`, `ssh_readonly` (temporary; bounded output + digests)
@@ -135,10 +135,10 @@ CI also checks out [`tecrax`](https://github.com/rozmiarD/tecrax) for integratio
 rexecop version
 
 rexecop plan \
-  --profile tecrax \
-  --env examples/environments/small-public-unit-proxmox.example.yaml \
-  --intent check_backup_status \
-  --target all_critical_vms \
+  --profile examples/profiles/runtime-fixture/profile.yaml \
+  --env examples/environments/runtime-fixture.example.yaml \
+  --intent inspect_fixture_state \
+  --target fixture-target \
   --mode dry_run
 
 rexecop start --operation <operation-id>
@@ -147,8 +147,8 @@ rexecop validate --operation <operation-id>
 ```
 
 - With `tecrax` installed, `--profile tecrax` resolves via entry point.
-- For offline tests without the external package, use `examples/profiles/tecrax-fixture/profile.yaml`.
-- Staging `http_api` template: `examples/environments/small-public-unit-proxmox.staging.example.yaml`
+- For offline tests without a domain package, use `examples/profiles/runtime-fixture/profile.yaml`.
+- Staging `http_api` template: `examples/environments/runtime-fixture.staging.example.yaml`
 
 Runtime artifacts live under `.rexecop/` (gitignored): operations, evidence, SCLite bundles, receipt exports.
 

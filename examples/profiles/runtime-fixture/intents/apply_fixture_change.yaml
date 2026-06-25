@@ -1,0 +1,6 @@
+intent:
+  id: apply_fixture_change
+  workflow: workflows/apply_fixture_change.yaml
+  risk: medium
+  modes:
+    - apply

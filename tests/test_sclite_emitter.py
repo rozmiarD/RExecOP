@@ -15,17 +15,17 @@ from rexecop.operation.plan import OperationPlan
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def _sample_operation() -> Operation:
     return Operation(
         id="op-test-001",
-        profile="tecrax-fixture",
-        environment="small-public-unit",
-        intent="check_backup_status",
-        target="all_critical_vms",
+        profile="runtime-fixture",
+        environment="runtime-fixture",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
         requested_by="operator",
         state="planned",
@@ -38,26 +38,21 @@ def _sample_operation() -> Operation:
 def _sample_plan() -> OperationPlan:
     return OperationPlan(
         operation_id="op-test-001",
-        profile="tecrax-fixture",
-        environment="small-public-unit",
-        intent="check_backup_status",
-        target="all_critical_vms",
+        profile="runtime-fixture",
+        environment="runtime-fixture",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
-        workflow={"id": "check_backup_status"},
+        workflow={"id": "inspect_fixture_state"},
         planned_steps=[
             {
-                "id": "resolve_inventory",
-                "type": "internal",
-                "action": "resolve_inventory",
-            },
-            {
-                "id": "query_pbs",
+                "id": "inspect_state",
                 "type": "connector",
-                "connector": "pbs",
-                "action": "list_snapshots",
+                "connector": "fixture_source",
+                "action": "read_fixture_state",
             },
         ],
-        required_connectors=["pbs"],
+        required_connectors=["fixture_source"],
         risk="low",
         govengine_request_preview={},
         expected_evidence=["plan_generated"],
@@ -100,8 +95,8 @@ def test_plan_emits_intent_sclite_ref(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     assert operation.sclite_refs["intent_contract"]["status"] == "emitted"
@@ -114,8 +109,8 @@ def test_export_receipt_populates_intent_and_execution_receipt_refs(tmp_path: Pa
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     result = controller.export_receipt(operation.id)

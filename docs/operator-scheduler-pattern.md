@@ -12,7 +12,7 @@ scheduler implementation. See GovEngine `runtime_shell` docs.
 
 ```bash
 OPERATION=$(rexecop plan --profile tecrax --env ~/.rexecop/env.yaml \
-  --intent check_backup_status --target all_critical_vms --mode dry_run)
+  --intent collect_basic_host_inventory --target monitoring-host --mode dry_run)
 rexecop start --operation "$OPERATION"
 ```
 
@@ -35,7 +35,7 @@ rexecop queue --drain
 ### Trigger from webhook wrapper
 
 ```bash
-echo '{"profile":"tecrax","env":"/path/env.yaml","intent":"check_backup_status","target":"all_critical_vms","mode":"dry_run","auto_start":true}' \
+echo '{"profile":"examples/profiles/runtime-fixture/profile.yaml","env":"examples/environments/runtime-fixture.policy.example.yaml","intent":"inspect_fixture_state","target":"fixture-target","mode":"dry_run","auto_start":true}' \
   | rexecop trigger
 ```
 

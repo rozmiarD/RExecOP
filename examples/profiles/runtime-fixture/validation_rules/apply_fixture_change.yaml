@@ -1,0 +1,13 @@
+validation_rule:
+  intent: apply_fixture_change
+  steps:
+    - type: require_mapping
+      key: mutation_states
+      fail:
+        rule: runtime_fixture.mutation_state_required
+        details:
+          reason: missing mutation state
+    - type: require_truthy_path
+      path: mutation_states.apply_change.after_state.changed
+      pass_rule: runtime_fixture.change_applied
+      details_from: mutation_states

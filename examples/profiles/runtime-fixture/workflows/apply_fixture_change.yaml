@@ -1,26 +1,26 @@
 workflow:
-  id: tecrax.restart_zabbix_agent
-  intent: restart_zabbix_agent
+  id: runtime_fixture.apply_fixture_change
+  intent: apply_fixture_change
   mode: apply
   risk: medium
-  description: Restart Zabbix agent on a target VM using mock Proxmox connector.
+  description: Exercise an admitted mutation against the no-I/O fixture backend.
 
   steps:
-    - id: capture_state
+    - id: pre_change_checkpoint
       type: internal
-      action: capture_agent_state
+      action: record_execution_checkpoint
       pause_safe: true
 
-    - id: restart_agent
+    - id: apply_change
       type: connector
-      connector: proxmox
-      action: restart
+      connector: fixture_source
+      action: apply_fixture_change
       timeout: 30s
       pause_safe: false
 
-    - id: verify_state
+    - id: post_change_checkpoint
       type: internal
-      action: verify_agent_state
+      action: record_execution_checkpoint
       pause_safe: true
 
     - id: produce_receipt

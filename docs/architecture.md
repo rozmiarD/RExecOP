@@ -6,7 +6,7 @@ GovEngine admission with auditable outcomes projected into SCLite.
 ## Layer boundaries
 
 ```text
-Profiles (tecrax, examples/tecrax-fixture)
+Profiles (tecrax, examples/runtime-fixture)
   intents, workflows, connector contracts, validation_rules/
 
 RExecOp (this package)
@@ -62,13 +62,14 @@ operator summaries; authoritative bundles live under `.rexecop/sclite/<operation
 ```text
 src/rexecop/                         tecrax (or other domain packages)
   internal_registry.py                 rexecop.internal_actions entry point
-  fixture_loader.py                    rexecop.connector_backends entry point
-  MockConnectorRuntime (generic)       TecraxFixtureConnectorRuntime (offline mock)
-  record_rollback_marker (builtin)     correlate_vm_backup_coverage, ...
+  connector backends                   optional profile-owned plugin entry points
+  StaticFixtureRuntime (generic)       Tecrax internal actions via entry point
+  record_rollback_marker (builtin)     profile-owned normalizers/aggregators
 ```
 
-Mock connectors without `fixture:` in environment YAML use the **generic** mock (unsupported
-actions fail). Tecrax offline workflows set `fixture: tecrax_fixture` on mock connectors.
+The bundled `runtime-fixture` profile uses the generic `static_fixture` backend. Tecrax and
+other domain packages may register internal actions, but RExecOp core does not import or own
+their semantics.
 
 ## Storage boundary
 

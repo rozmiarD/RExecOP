@@ -1,5 +1,5 @@
 profile_contract:
-  name: tecrax
+  name: runtime_fixture
   version: "0.1.0"
 
   intents:

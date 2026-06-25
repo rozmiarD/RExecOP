@@ -42,10 +42,10 @@ def test_govengine_client_fail_closed_without_policy() -> None:
     decision = client.evaluate(
         GovEngineRequest(
             operation_id="op-test",
-            profile="tecrax",
+            profile="runtime-fixture",
             environment="env",
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="apply_fixture_change",
+            target="fixture-target",
             mode="apply",
             risk="low",
             preview={"note": "preview only"},
@@ -59,7 +59,7 @@ def test_govengine_client_fail_closed_without_policy() -> None:
 
 def test_build_runner_request_preview_shape() -> None:
     preview = build_runner_request_preview(
-        [{"type": "connector", "connector": "pbs", "action": "list_snapshots"}],
+        [{"type": "connector", "connector": "fixture_source", "action": "read_fixture_state"}],
         operation_id="op-1",
     )
     assert preview["request_id"] == "req-op-1"

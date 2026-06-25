@@ -11,10 +11,10 @@ in profiles and environment configuration — not in rexecop core.
 | Backend | Purpose |
 | --- | --- |
 | `mock` | Bootstrap, offline tests, default when `backend` omitted |
-| `http_api` | Config-driven JSON REST (Proxmox, PBS, etc. as config instances) |
+| `http_api` | Config-driven JSON REST for profile-declared API actions |
 | `local_shell_readonly` | Allowlisted non-mutating host commands |
 | `ssh_readonly` | Temporary read-only remote SSH allowlist (documented non-production policy path) |
-| _plugin EP_ | Registered `rexecop.connector_backends` name (e.g. `tecrax_proxmox`, `tecrax_fixture`) |
+| _plugin EP_ | Registered `rexecop.connector_backends` name owned by an external package |
 
 Factory: `rexecop.connectors.composite_runtime.build_connector_runtime()`.
 
@@ -22,16 +22,16 @@ Factory: `rexecop.connectors.composite_runtime.build_connector_runtime()`.
 
 ```yaml
 connectors:
-  proxmox:
+  fixture_source:
     enabled: true
     backend: http_api
-    base_url_secret_ref: proxmox_base_url   # or base_url for staging/lab
+    base_url_secret_ref: fixture_base_url   # or base_url for local lab stubs
     tls:
-      ca_file_secret_ref: proxmox_ca_file   # optional operator-managed CA path
+      ca_file_secret_ref: fixture_ca_file   # optional operator-managed CA path
     auth:
-      secret_ref: proxmox_api_token
+      secret_ref: fixture_api_token
       header: Authorization
-      prefix: "PVEAPIToken="
+      prefix: "Bearer "
     timeout_seconds: 10
     max_response_bytes: 65536
     retry:
@@ -40,25 +40,21 @@ connectors:
       max_delay: 2.0
       on: [timeout, transient_connector_error]
     actions:
-      list_vms:
+      read_fixture_state:
         method: GET
-        path: /api2/json/cluster/resources
-        unwrap: data
-        pagination:
-          items_path: data
-          next_path: next
-          max_pages: 10
-      restart:
+        path: /fixture/state
+        unwrap: state
+      apply_fixture_change:
         method: POST
-        path: /api2/json/nodes/{node}/qemu/{vmid}/status/restart
+        path: /fixture/change
         mutating: true
 ```
 
 Templates:
 
-- `examples/environments/small-public-unit-proxmox.example.yaml` — mock connectors
-- `examples/environments/small-public-unit-proxmox.staging.example.yaml` — `http_api` + `secret_ref`
-- `examples/environments/small-public-unit-proxmox.staging.lab.example.yaml` — local lab stub (`base_url`)
+- `examples/environments/runtime-fixture.example.yaml` — mock connectors
+- `examples/environments/runtime-fixture.staging.example.yaml` — `http_api` + `secret_ref`
+- `examples/environments/runtime-fixture.staging.lab.example.yaml` — local lab stub (`base_url`)
 - `examples/secrets/staging-http.lab.example.yaml` — secrets template for real staging
 
 ## Safety rules
@@ -166,6 +162,6 @@ Connector-level evaluation remains plain-allow-only; connector-specific obligati
 
 ## Boundary
 
-Proxmox, PBS, Zabbix, and similar platforms are **configuration targets** of `http_api`, not
-hardcoded imports in `src/rexecop`. Profile connector YAML declares allowed capability names;
-environment YAML declares how to reach APIs.
+Infrastructure products are **profile/operator configuration targets** of generic connectors,
+not hardcoded imports in `src/rexecop`. Profile connector YAML declares allowed capability
+names and immutable action shapes; environment YAML declares how to reach APIs.

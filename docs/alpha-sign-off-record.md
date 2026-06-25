@@ -4,10 +4,10 @@
 
 | Field | Value |
 |-------|-------|
-| RExecOp version (dev line) | `0.2.5a0` |
-| RExecOp version (PyPI published) | `0.2.5a0` |
-| GovEngine version | `0.15.0` |
-| Tecrax version | `0.3.3a0` |
+| RExecOp version (dev line) | `0.2.6a0` |
+| RExecOp version (PyPI published) | `0.2.6a0` |
+| GovEngine version | `0.16.0` |
+| Tecrax version | `0.3.5a0` |
 | Operator | local operator checkout |
 | Host / environment | dev workstation; lab cwd `/tmp/rexecop-lab-runtime` |
 | Date (UTC) | 2026-06-21 |
@@ -16,12 +16,12 @@
 
 | Check | Pass? | Notes |
 |-------|-------|-------|
-| `bash scripts/run_alpha_signoff_checks.sh` | [x] | delivery **131** passed + public truth |
-| `pytest -q` (full) | [x] | **210** passed |
+| `bash scripts/run_alpha_signoff_checks.sh` | [x] | public truth + current CI gates |
+| `pytest -q` (full) | [x] | **294** passed, **1** skipped |
 | `pytest -m delivery` | [x] | includes policy + readonly slice + stage_a |
 | GitHub Actions `main` green | [x] | post-`e222dfb` (verify on merge) |
-| PyPI stack install smoke | [x] | `govengine==0.15.0` `rexecop==0.2.5a0` `tecrax==0.3.3a0`; `pip check` clean |
-| Policy lab E2E (fixture) | [x] | env `small-public-unit-proxmox.policy.example.yaml`; op below |
+| PyPI stack install smoke | [x] | `govengine==0.16.0` `rexecop==0.2.6a0` `tecrax==0.3.5a0`; `pip check` clean |
+| Policy lab E2E (fixture) | [x] | env `runtime-fixture.policy.example.yaml`; neutral no-I/O fixture |
 
 ## Human checklist (production-adjacent)
 
@@ -40,18 +40,18 @@
 | Field | Value |
 |-------|-------|
 | Script | `scripts/run_staging_http_lab.py` (local stub mode) |
-| Environment | `examples/environments/small-public-unit-proxmox.staging.lab.example.yaml` |
-| Intent | `check_backup_status` / `all_critical_vms` / `dry_run` |
+| Environment | `examples/environments/runtime-fixture.staging.lab.example.yaml` |
+| Intent | `inspect_fixture_state` / `fixture-target` / `dry_run` |
 | Operation id | `op-20260621-085305-f0633c` |
-| Validate rule | `check_backup_status.all_critical_covered` |
-| Connectors | `http_api` → local Proxmox/PBS stub (`StagingHttpServer`) |
+| Validate rule | `runtime_fixture.state_observed` |
+| Connectors | `http_api` → local neutral fixture stub (`StagingHttpServer`) |
 
 ## Policy lab evidence
 
 | Field | Value |
 |-------|-------|
-| Environment | `examples/environments/small-public-unit-proxmox.policy.example.yaml` |
-| Intent | `check_backup_status` / `all_critical_vms` / `dry_run` |
+| Environment | `examples/environments/runtime-fixture.policy.example.yaml` |
+| Intent | `inspect_fixture_state` / `fixture-target` / `dry_run` |
 | Operation id | `op-20260621-075639-63aaee` |
 | `policy_verdict.decision` | `allow` (readonly mock connectors) |
 | SCLite bundle | `.rexecop/sclite/op-20260621-075639-63aaee/` |
@@ -66,8 +66,8 @@ lab automation — 2026-06-21 UTC
 
 ## Notes
 
-- Etap A contract hardening + execution receipt boundary + PolicyEngine E2E in `0.2.5a0`.
+- Etap A contract hardening + execution receipt boundary + PolicyEngine E2E in `0.2.6a0`.
 - Default fixture env **without** `policy_pack` remains for apply/mutation tests; policy lab uses `*.policy.example.yaml`.
-- Staging template: `small-public-unit-proxmox.staging.example.yaml` (+ secrets outside git).
-- Local staging lab: `python scripts/run_staging_http_lab.py` (no external Proxmox required).
+- Staging template: `runtime-fixture.staging.example.yaml` (+ secrets outside git).
+- Local staging lab: `python scripts/run_staging_http_lab.py` (no external infrastructure required).
 - This record contains **no** secret values by design.

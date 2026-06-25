@@ -12,8 +12,8 @@ rules. RExecOp core must not embed Tecrax or other domain semantics.
 2. **Registered name** — via `rexecop.profiles` entry points (e.g. `tecrax`)
 
 ```bash
-rexecop plan --profile tecrax --env ... --intent check_backup_status ...
-rexecop plan --profile examples/profiles/tecrax-fixture/profile.yaml ...
+rexecop plan --profile tecrax --env ... --intent collect_basic_host_inventory ...
+rexecop plan --profile examples/profiles/runtime-fixture/profile.yaml ...
 ```
 
 Resolver: `rexecop.profile.resolver.resolve_profile_path()`.
@@ -33,31 +33,30 @@ Entry point:
 tecrax = "tecrax:profile_root"
 ```
 
-Domain packages may also register:
+Domain packages may also register internal handlers:
 
 ```toml
 [project.entry-points."rexecop.internal_actions"]
 tecrax = "tecrax.internal_actions:register_handlers"
-
-[project.entry-points."rexecop.connector_backends"]
-tecrax_fixture = "tecrax.fixture.mock_runtime:build_runtime"
-tecrax_proxmox = "tecrax.connectors.proxmox_runtime:build_connector_runtime"
 ```
 
-Environment YAML may reference a registered backend name directly:
+Connector backend plugins are supported through `rexecop.connector_backends`, but RExecOp
+does not ship or document domain-specific backend names as core behavior. Prefer the
+built-in generic backends (`http_api`, `ssh_readonly`, `local_shell_readonly`,
+`static_fixture`) unless a profile package explicitly owns an extension.
+
+Environment YAML may reference a backend name directly:
 
 ```yaml
 connectors:
-  proxmox:
+  fixture_source:
     enabled: true
-    backend: tecrax_proxmox
-    staging_paths: true
-    base_url_secret_ref: proxmox_base_url
+    backend: http_api
+    base_url_secret_ref: fixture_base_url
 ```
 
-`tecrax_proxmox` builds a generic `http_api` runtime from Tecrax Proxmox templates while
-allowing operator overrides (URLs, secrets, retry). Legacy mock fixtures still use `mode: mock`
-with `fixture: tecrax_fixture`.
+Domain API semantics belong in profile connector YAML and operator environment files, not in
+`src/rexecop`.
 
 RExecOp core must **never** import `tecrax` or `tecrax_profile`. CI enforces this with a grep
 guard on `src/rexecop`.
@@ -73,8 +72,9 @@ Missing handlers fail with `internal_action_not_registered:<action>`.
 
 ## Connector fixtures
 
-Mock connector backends (`mode: mock`) are generic unless environment YAML sets `fixture:` to a
-registered `rexecop.connector_backends` name (e.g. `tecrax_fixture`).
+`examples/profiles/runtime-fixture/` uses the built-in `static_fixture` backend for deterministic
+no-I/O lifecycle tests. Generic `mock` remains available for simple connector unit tests, but
+domain fixture behavior belongs in the owning profile package.
 
 ## Profile layout
 
@@ -112,7 +112,7 @@ Domain meaning stays in the profile package — not in `src/rexecop/validation/v
 
 | Location | Purpose |
 | --- | --- |
-| `examples/profiles/tecrax-fixture/` | Bootstrap/offline tests in rexecop repo (requires `tecrax` for mock + internals) |
+| `examples/profiles/runtime-fixture/` | Bootstrap/offline tests in rexecop repo; domain-neutral no-I/O fixture |
 | `examples/profiles/http-health-fixture/` | http_api-only golden path without domain internals |
 | `tecrax` package | Operator-facing Tecrax profile |
 

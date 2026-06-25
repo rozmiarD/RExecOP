@@ -93,7 +93,8 @@ connector routing (`CompositeConnectorRuntime`).
 
 | Intent | Mode | Workflow |
 | --- | --- | --- |
-| `check_backup_status` | `dry_run` / read-only | resolve → proxmox → pbs → correlate → receipt |
-| `restart_zabbix_agent` | `apply` | capture → restart → verify → receipt (+ optional rollback) |
+| `inspect_fixture_state` | `dry_run` / read-only | connector read → receipt |
+| `apply_fixture_change` | `apply` | checkpoint → fixture mutation → checkpoint → receipt (+ rollback marker) |
 
-Fixtures: `examples/profiles/tecrax-fixture/` and external `tecrax`.
+The fixture profile is for deterministic runner regression only. Product/domain workflows
+belong to external profiles such as Tecrax.

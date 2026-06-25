@@ -13,8 +13,8 @@ from rexecop.operation.controller import OperationController
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def test_export_placeholder_receipt_writes_non_authoritative_file(tmp_path: Path) -> None:
@@ -23,8 +23,8 @@ def test_export_placeholder_receipt_writes_non_authoritative_file(tmp_path: Path
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     with pytest.warns(DeprecationWarning, match="export_placeholder_receipt is deprecated"):
@@ -52,8 +52,8 @@ def test_export_receipt_writes_sclite_bundle_and_descriptor_refs(tmp_path: Path)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     result = controller.export_receipt(operation.id)

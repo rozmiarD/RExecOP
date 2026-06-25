@@ -1,7 +1,0 @@
-connector:
-  name: pbs
-  capabilities:
-    - list_snapshots
-  modes:
-    - read_only
-  timeout_default: 20s

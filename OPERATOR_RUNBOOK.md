@@ -14,7 +14,7 @@ For architecture and boundaries see [docs/](docs/) and [known-limitations.md](do
 | RExecOp | Install from source or internal wheel (see [docs/distribution.md](docs/distribution.md)) |
 | Tecrax profile | [`tecrax`](https://github.com/rozmiarD/tecrax) for `--profile tecrax` |
 | GovEngine / SCLite | Install coordinated GovEngine source first; SCLite resolves from the package range |
-| Operator host | Shell access; network to targets when using `http_api` |
+| Operator host | Shell access; network to targets when using real connector endpoints |
 
 ## Installation
 
@@ -44,10 +44,9 @@ Create `~/.rexecop/secrets.yaml` with mode `0600`:
 
 ```yaml
 secrets:
-  proxmox_base_url: https://pve-staging.example:8006
-  proxmox_api_token: REPLACE_ME
-  pbs_base_url: https://pbs-staging.example:8007
-  pbs_api_token: REPLACE_ME
+  fixture_base_url: https://api-staging.example.invalid
+  fixture_api_token: REPLACE_ME
+  fixture_ca_file: /path/outside/repo/ca.pem
 ```
 
 ```bash
@@ -55,7 +54,7 @@ chmod 0600 ~/.rexecop/secrets.yaml
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
 ```
 
-Alternative: `REXECOP_SECRET_PROXMOX_API_TOKEN`, etc. (see [connector-contract.md](docs/connector-contract.md)).
+Alternative: `REXECOP_SECRET_FIXTURE_API_TOKEN`, etc. (see [connector-contract.md](docs/connector-contract.md)).
 
 Environment YAML must use `secret_ref` / `base_url_secret_ref` — inline secrets are rejected at `plan`.
 
@@ -65,10 +64,11 @@ Copy a template out of git:
 
 | Template | Use |
 | --- | --- |
-| `examples/environments/small-public-unit-proxmox.example.yaml` | Offline mock connectors (`fixture: tecrax_fixture`) |
-| `examples/environments/small-public-unit-proxmox.staging.example.yaml` | Staging `http_api` |
+| `examples/environments/runtime-fixture.example.yaml` | Offline no-I/O `static_fixture` connector |
+| `examples/environments/runtime-fixture.policy.example.yaml` | Offline no-I/O fixture with fail-closed policy pack |
+| `examples/environments/runtime-fixture.staging.example.yaml` | Generic staging `http_api` |
 
-Example operator path: `~/.rexecop/environments/small-public-unit-proxmox.yaml`
+Example operator path: `~/.rexecop/environments/runtime-fixture.staging.yaml`
 
 Adjust `targets`, action `path` values, and `secret_ref` names for your APIs.
 
@@ -76,10 +76,10 @@ Adjust `targets`, action `path` values, and `secret_ref` names for your APIs.
 
 ```bash
 rexecop plan \
-  --profile tecrax \
-  --env ~/.rexecop/environments/small-public-unit-proxmox.yaml \
-  --intent check_backup_status \
-  --target all_critical_vms \
+  --profile /path/to/RExecOP/examples/profiles/runtime-fixture/profile.yaml \
+  --env ~/.rexecop/environments/runtime-fixture.staging.yaml \
+  --intent inspect_fixture_state \
+  --target fixture-target \
   --mode dry_run
 
 rexecop start --operation <operation-id>
@@ -95,16 +95,14 @@ rexecop history --operation <operation-id>
 - `.rexecop/sclite/<operation-id>/` contains artifact bundle
 - Evidence and exports contain no plaintext tokens
 
-Offline bootstrap (`tecrax-fixture` profile — **tests/bootstrap only**, not product profile):
+Offline bootstrap (`runtime-fixture` profile — **tests/bootstrap only**, not product profile):
 
 ```bash
-pip install -e ../tecrax   # required for tecrax_fixture mock + internal actions
-
 rexecop plan \
-  --profile examples/profiles/tecrax-fixture/profile.yaml \
-  --env examples/environments/small-public-unit-proxmox.example.yaml \
-  --intent check_backup_status \
-  --target all_critical_vms \
+  --profile examples/profiles/runtime-fixture/profile.yaml \
+  --env examples/environments/runtime-fixture.example.yaml \
+  --intent inspect_fixture_state \
+  --target fixture-target \
   --mode dry_run
 ```
 
@@ -121,7 +119,7 @@ rexecop plan \
 
 See [OPERATOR_LAB_RUNBOOK.md](OPERATOR_LAB_RUNBOOK.md) for the full lab checklist.
 
-## Apply workflow (non-critical targets only)
+## Apply workflow (fixture or non-critical targets only)
 
 1. Confirm GovEngine policy allows the intent on the target.
 2. Plan with `--mode apply`.
@@ -130,8 +128,9 @@ See [OPERATOR_LAB_RUNBOOK.md](OPERATOR_LAB_RUNBOOK.md) for the full lab checklis
 5. Inspect before/after state in evidence and SCLite receipt.
 
 ```bash
-rexecop plan --profile tecrax --env <env> \
-  --intent restart_zabbix_agent --target vm-zabbix-01 --mode apply
+rexecop plan --profile examples/profiles/runtime-fixture/profile.yaml \
+  --env examples/environments/runtime-fixture.policy.example.yaml \
+  --intent apply_fixture_change --target fixture-target --mode apply
 rexecop approve --operation <id>   # if required
 rexecop start --operation <id>
 ```
@@ -182,7 +181,7 @@ See [operator-scheduler-pattern.md](docs/operator-scheduler-pattern.md).
 Create operations from automation:
 
 ```bash
-echo '{"profile":"tecrax","env":"/path/env.yaml","intent":"check_backup_status","target":"all_critical_vms","mode":"dry_run","auto_start":true}' \
+echo '{"profile":"examples/profiles/runtime-fixture/profile.yaml","env":"examples/environments/runtime-fixture.policy.example.yaml","intent":"inspect_fixture_state","target":"fixture-target","mode":"dry_run","auto_start":true}' \
   | rexecop trigger
 ```
 
@@ -219,9 +218,9 @@ Directory is gitignored — back up operator-side if retention is required.
 
 | Symptom | Check |
 | --- | --- |
-| `profile not found: tecrax` | Install `tecrax` or use fixture path |
+| `profile not found: tecrax` | Install `tecrax` for the domain profile or use a fixture profile path |
 | `internal_action_not_registered:*` | Install domain package (e.g. `tecrax`) for internal workflow steps |
-| `unsupported mock connector action` | Set `fixture: tecrax_fixture` on mock connectors or use `http_api` |
+| `unsupported connector action` | Check profile connector capabilities and environment action names |
 | `secret not found` | `REXECOP_SECRETS_FILE` or `REXECOP_SECRET_*` env |
 | `mutating execution blocked` | GovEngine decision, approval state, maintenance window |
 | `capability_undeclared` | Action missing from profile `connectors/*.yaml` |

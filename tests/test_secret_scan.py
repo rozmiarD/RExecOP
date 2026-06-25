@@ -50,7 +50,7 @@ def test_secret_scanner_detects_compound_token_key() -> None:
         scope="test",
         identity="fixture",
         path="environment.yaml",
-        data=b"proxmox_api_" + b"token: " + b"actual-credential-value",
+        data=b"fixture_api_" + b"token: " + b"actual-credential-value",
     )
     assert findings
 

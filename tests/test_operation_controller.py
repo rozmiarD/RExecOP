@@ -10,8 +10,8 @@ from rexecop.operation.state import OperationState, validate_transition
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def test_plan_creates_operation_and_plan(tmp_path: Path) -> None:
@@ -20,8 +20,8 @@ def test_plan_creates_operation_and_plan(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
 
@@ -36,8 +36,8 @@ def test_plan_emits_operation_created_and_plan_generated(tmp_path: Path) -> None
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
     )
 
     events = store.list_evidence_events(operation.id)
@@ -53,8 +53,8 @@ def test_plan_does_not_execute_connectors(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
     )
 
     events = store.list_evidence_events(operation.id)
@@ -69,8 +69,8 @@ def test_dry_run_plan_has_no_govengine_decision(tmp_path: Path) -> None:
     operation = OperationController(store=store).plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     assert operation.govengine_decision_type == ""

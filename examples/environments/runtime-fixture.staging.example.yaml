@@ -1,0 +1,69 @@
+environment:
+  id: runtime-fixture-staging
+  description: Sanitized HTTP staging template for neutral connector tests.
+  profile: runtime_fixture
+
+  targets:
+    fixture-group:
+      type: group
+      members: [fixture-target]
+    fixture-target:
+      type: fixture
+      criticality: low
+    fixture-target-2:
+      type: fixture
+      criticality: low
+
+  connectors:
+    fixture_source:
+      enabled: true
+      backend: http_api
+      base_url_secret_ref: fixture_base_url
+      auth:
+        secret_ref: fixture_api_token
+        header: Authorization
+        prefix: "Bearer "
+      timeout_seconds: 10
+      retry:
+        max_attempts: 2
+        on: [timeout, transient_connector_error]
+      actions:
+        read_fixture_state:
+          method: GET
+          path: /fixture/state
+          unwrap: state
+        apply_fixture_change:
+          method: POST
+          path: /fixture/change
+          mutating: true
+          body: {target: "{target}"}
+
+  safety:
+    default_mode: dry_run
+    apply_requires_govengine: true
+    secrets_source: external
+    max_concurrent_operations: 1
+    target_lock_enabled: true
+
+  policy_pack:
+    policy_id: rexecop-runtime-fixture-http
+    version: "2026-06-24"
+    rules:
+      - rule_id: allow-inspect-fixture-state
+        effect: allow
+        conditions:
+          action.category: operation
+          action.mode: read
+          action.intent: inspect_fixture_state
+        reason_code: fixture_read_allowed
+      - rule_id: allow-read-fixture-connector
+        effect: allow
+        conditions:
+          action.category: connector
+          action.mode: read
+        reason_code: fixture_connector_read_allowed
+      - rule_id: deny-mutating-fixture-actions
+        effect: deny
+        conditions:
+          action.mode: mutating
+        reason_code: fixture_mutation_denied

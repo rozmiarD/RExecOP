@@ -10,8 +10,8 @@ from rexecop.runtime_ops.worker import drain_queue, run_worker, trigger_operatio
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def test_queue_drain_starts_approved_operation(tmp_path: Path) -> None:
@@ -20,8 +20,8 @@ def test_queue_drain_starts_approved_operation(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     completed = controller.start(operation.id)
@@ -45,8 +45,8 @@ def test_trigger_emits_operation_triggered_event(tmp_path: Path) -> None:
         controller,
         profile=str(PROFILE),
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
         source="test",
     )
@@ -62,8 +62,8 @@ def test_trigger_auto_start_completes_readonly(tmp_path: Path) -> None:
         controller,
         profile=str(PROFILE),
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
         source="test",
         auto_start=True,
@@ -79,8 +79,8 @@ def test_worker_processes_inbox_trigger(tmp_path: Path) -> None:
     payload = {
         "profile": str(PROFILE),
         "env": str(ENVIRONMENT),
-        "intent": "check_backup_status",
-        "target": "all_critical_vms",
+        "intent": "inspect_fixture_state",
+        "target": "fixture-target",
         "mode": "dry_run",
         "auto_start": True,
     }

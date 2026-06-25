@@ -18,8 +18,7 @@ from rexecop.storage.file_store import FileStore
 from rexecop.validation.validator import validate_operation_result
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
-FIXTURE_PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
+FIXTURE_PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 
 tecrax = pytest.importorskip("tecrax")
 
@@ -92,26 +91,6 @@ def test_core_has_no_domain_specific_tokens() -> None:
         ):
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == []
-
-
-def test_tecrax_profile_check_backup_status_e2e(tmp_path: Path) -> None:
-    store = FileStore(tmp_path / ".rexecop")
-    controller = OperationController(store=store)
-    operation = controller.plan(
-        profile_path="tecrax",
-        environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
-        mode="dry_run",
-    )
-    assert operation.state == OperationState.PLANNED.value
-    assert operation.profile == "tecrax"
-
-    completed = controller.start(operation.id)
-    assert completed.state == OperationState.COMPLETED.value
-
-    validation = controller.validate(operation.id)
-    assert validation["passed"] is True
 
 
 def test_tecrax_basic_host_inventory_ssh_readonly_e2e(
@@ -194,6 +173,13 @@ def test_tecrax_ntp_health_ssh_readonly_e2e(
         DOCKER_SOCKET_SHOW: (
             "LoadState=loaded\nActiveState=active\nSubState=listening\nUnitFileState=enabled\n"
         ),
+        "systemctl is-enabled unattended-upgrades": "enabled\n",
+        "sysctl -n kernel.randomize_va_space": "2\n",
+        "sysctl -n kernel.dmesg_restrict": "1\n",
+        "find /var/run -maxdepth 1 -name reboot-required -printf '%f\\n'": "",
+        "ntpq -c 'rv 0 stratum,offset,rootdelay,rootdisp,leap'": (
+            "stratum=3, offset=0.123, rootdelay=1.23, rootdisp=2.34, leap=0\n"
+        ),
     }
 
     def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
@@ -232,6 +218,13 @@ def test_tecrax_docker_services_health_ssh_readonly_e2e(
         DOCKER_SOCKET_SHOW: (
             "LoadState=loaded\nActiveState=active\nSubState=listening\nUnitFileState=enabled\n"
         ),
+        "systemctl is-enabled unattended-upgrades": "enabled\n",
+        "sysctl -n kernel.randomize_va_space": "2\n",
+        "sysctl -n kernel.dmesg_restrict": "1\n",
+        "find /var/run -maxdepth 1 -name reboot-required -printf '%f\\n'": "",
+        "ntpq -c 'rv 0 stratum,offset,rootdelay,rootdisp,leap'": (
+            "stratum=3, offset=0.123, rootdelay=1.23, rootdisp=2.34, leap=0\n"
+        ),
     }
 
     def run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
@@ -252,7 +245,7 @@ def test_tecrax_docker_services_health_ssh_readonly_e2e(
     assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
     validation = controller.validate(operation.id)
     assert validation["passed"] is True
-    assert validation["details"]["scope"] == "systemd_service_only"
+    assert validation["details"]["observation_scope"] == "systemd_service_only"
     assert validation["details"]["container_runtime_state"] == "not_observed"
 
 
@@ -316,7 +309,7 @@ def test_tecrax_adguard_health_local_shell_e2e(tmp_path: Path) -> None:
     assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
     validation = controller.validate(operation.id)
     assert validation["passed"] is True
-    assert validation["details"]["scope"] == "dns_and_web_login_only"
+    assert validation["details"]["observation_scope"] == "dns_and_web_login_only"
     assert validation["details"]["management_api_state"] == "not_observed"
 
 
@@ -371,7 +364,7 @@ def test_tecrax_portainer_health_https_e2e(
     assert completed.state == OperationState.COMPLETED.value, completed.as_dict()
     validation = controller.validate(operation.id)
     assert validation["passed"] is True
-    assert validation["details"]["scope"] == "unauthenticated_status_only"
+    assert validation["details"]["observation_scope"] == "unauthenticated_status_only"
     assert validation["details"]["api_version"] == "2.33.5"
     assert validation["details"]["management_objects_state"] == "not_observed"
     assert "fixture-instance-id-must-not-persist" not in str(completed.as_dict())
@@ -411,6 +404,13 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
         ),
         DOCKER_SOCKET_SHOW: (
             "LoadState=loaded\nActiveState=active\nSubState=listening\nUnitFileState=enabled\n"
+        ),
+        "systemctl is-enabled unattended-upgrades": "enabled\n",
+        "sysctl -n kernel.randomize_va_space": "2\n",
+        "sysctl -n kernel.dmesg_restrict": "1\n",
+        "find /var/run -maxdepth 1 -name reboot-required -printf '%f\\n'": "",
+        "ntpq -c 'rv 0 stratum,offset,rootdelay,rootdisp,leap'": (
+            "stratum=3, offset=0.123, rootdelay=1.23, rootdisp=2.34, leap=0\n"
         ),
     }
     local_outputs = {
@@ -453,7 +453,7 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
     validation = controller.validate(operation.id)
     assert validation["passed"] is True
     details = validation["details"]
-    assert details["diagnostic_complete"] is True
+    assert details["aggregation_completed"] is True
     assert details["observed_health"] == "degraded"
     assert details["components"]["docker"]["status"] == "healthy"
     assert details["components"]["zabbix"]["status"] == "unhealthy"

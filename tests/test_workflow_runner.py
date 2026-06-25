@@ -4,6 +4,7 @@ from pathlib import Path
 
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
+from rexecop.connectors.static_fixture import StaticFixtureRuntime
 from rexecop.escalation.package import build_escalation_package
 from rexecop.execution.executor import StepExecutor
 from rexecop.operation.controller import OperationController
@@ -14,48 +15,79 @@ from rexecop.validation.validator import validate_operation_result
 from rexecop.workflow.runner import WorkflowRunner
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
-tecrax_fixture = __import__("pytest").importorskip("tecrax.fixture.mock_runtime")
+def _fixture_runtime(*, mutating_allowed: bool = False) -> StaticFixtureRuntime:
+    return StaticFixtureRuntime(
+        connector_name="fixture_source",
+        mutating_allowed=mutating_allowed,
+        config={
+            "fixture_only": True,
+            "actions": {
+                "read_fixture_state": {"data": {"observed": True}},
+                "apply_fixture_change": {
+                    "mutating": True,
+                    "data": {
+                        "before_state": {"changed": False},
+                        "after_state": {"changed": True},
+                    },
+                },
+            },
+        },
+    )
 
 
 def test_mock_connector_refuses_mutating_action_in_dry_run() -> None:
-    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    runtime = _fixture_runtime(mutating_allowed=True)
     response = runtime.invoke(
-        ConnectorRequest(connector="proxmox", action="restart", target="vm-1", mode="dry_run")
+        ConnectorRequest(
+            connector="fixture_source",
+            action="apply_fixture_change",
+            target="fixture-target",
+            mode="dry_run",
+        )
     )
     assert not response.success
     assert "refused" in response.error
 
 
 def test_workflow_runner_executes_declared_steps_only() -> None:
-    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    runtime = _fixture_runtime()
     executor = StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
     steps = [
-        {"id": "resolve_inventory", "type": "internal", "action": "environment.resolve_targets"},
-        {"id": "query_pbs", "type": "connector", "connector": "pbs", "action": "list_snapshots"},
+        {
+            "id": "checkpoint",
+            "type": "internal",
+            "action": "record_execution_checkpoint",
+        },
+        {
+            "id": "inspect_state",
+            "type": "connector",
+            "connector": "fixture_source",
+            "action": "read_fixture_state",
+        },
     ]
     result = WorkflowRunner(executor).run(
         operation_id="op-1",
-        target="all_critical_vms",
+        target="fixture-target",
         mode="dry_run",
         planned_steps=steps,
         correlation_id="corr",
     )
     assert result.success
-    assert result.executed_steps == ["resolve_inventory", "query_pbs"]
+    assert result.executed_steps == ["checkpoint", "inspect_state"]
     assert result.shared_state["execution_request"]["source"] == "approved_workflow_plan"
     assert result.shared_state["execution_receipt"]["success"] is True
     assert result.shared_state["execution_receipt"]["executed_steps"] == [
-        "resolve_inventory",
-        "query_pbs",
+        "checkpoint",
+        "inspect_state",
     ]
 
 
 def test_readonly_diagnostic_continues_after_declared_connector_failure() -> None:
-    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    runtime = _fixture_runtime()
     executor = StepExecutor(
         connector_dispatcher=ConnectorDispatcher(runtime),
         internal_handlers={"record": lambda context: {"recorded": True}},
@@ -87,7 +119,7 @@ def test_readonly_diagnostic_continues_after_declared_connector_failure() -> Non
 
 
 def test_continue_on_error_does_not_apply_to_mutating_mode() -> None:
-    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    runtime = _fixture_runtime()
     executor = StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
     result = WorkflowRunner(executor).run(
         operation_id="op-apply",
@@ -110,7 +142,7 @@ def test_continue_on_error_does_not_apply_to_mutating_mode() -> None:
 
 
 def test_continued_failure_metadata_is_bounded() -> None:
-    runtime = tecrax_fixture.TecraxFixtureConnectorRuntime()
+    runtime = _fixture_runtime()
     executor = StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
     result = WorkflowRunner(executor).run(
         operation_id="op-bounded",
@@ -138,13 +170,17 @@ def test_validator_is_deterministic() -> None:
 
     loaded = load_profile(PROFILE)
     passed = validate_operation_result(
-        intent="check_backup_status",
-        shared_state={"correlation": {"all_critical_covered": True, "rows": []}},
+        intent="inspect_fixture_state",
+        shared_state={
+            "connector_results": {"inspect_state": {"observed": True}}
+        },
         profile=loaded,
     )
     failed = validate_operation_result(
-        intent="check_backup_status",
-        shared_state={"correlation": {"all_critical_covered": False, "rows": []}},
+        intent="inspect_fixture_state",
+        shared_state={
+            "connector_results": {"inspect_state": {"observed": False}}
+        },
         profile=loaded,
     )
     assert passed["passed"] is True
@@ -156,7 +192,7 @@ def test_monitor_parses_timeout() -> None:
     status = OperationMonitor().status(
         operation_id="op-1",
         state="running",
-        current_step_id="query_pbs",
+        current_step_id="inspect_state",
         step={"timeout": "20s"},
     )
     assert status.timeout_seconds == 20
@@ -168,12 +204,14 @@ def test_escalation_package_contains_required_fields(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     operation.state = OperationState.FAILED.value
-    package = build_escalation_package(operation=operation, store=store, failed_step_id="query_pbs")
+    package = build_escalation_package(
+        operation=operation, store=store, failed_step_id="inspect_state"
+    )
     assert package["operation_id"] == operation.id
-    assert package["failed_step_id"] == "query_pbs"
+    assert package["failed_step_id"] == "inspect_state"
     assert package["safe_next_options"]

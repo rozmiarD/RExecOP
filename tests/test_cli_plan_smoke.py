@@ -8,8 +8,8 @@ from typer.testing import CliRunner
 from rexecop.cli import app
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 runner = CliRunner()
 
@@ -25,9 +25,9 @@ def test_cli_plan_smoke(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no
             "--env",
             str(ENVIRONMENT),
             "--intent",
-            "check_backup_status",
+            "inspect_fixture_state",
             "--target",
-            "all_critical_vms",
+            "fixture-target",
             "--mode",
             "dry_run",
         ],

@@ -21,6 +21,7 @@ from rexecop.adapters.govengine_port.contracts import (
 )
 from rexecop.adapters.sclite_port.contracts import SCLITE_ARTIFACT_AUTHORITY
 from rexecop.catalog.service import CatalogService
+from rexecop.connectors.action_shape import validate_http_action_shape
 from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import sanitize_connectors_for_storage, validate_no_inline_secrets
 from rexecop.environment.targets import validate_operation_target
@@ -174,6 +175,26 @@ class OperationController:
         operation.metadata["environment_connectors"] = sanitize_connectors_for_storage(
             environment.connectors
         )
+        http_action_bindings: dict[str, str] = {}
+        for step in workflow.steps:
+            if step.type != "connector" or not step.connector:
+                continue
+            config = environment.connectors.get(step.connector)
+            contract = profile.connector_contract(step.connector)
+            if not isinstance(config, dict) or not isinstance(contract, dict):
+                continue
+            if str(config.get("backend") or config.get("mode") or "") != "http_api":
+                continue
+            digest = validate_http_action_shape(
+                connector_name=step.connector,
+                action=step.action,
+                connector_contract=contract,
+                connector_config=config,
+            )
+            if digest:
+                http_action_bindings[f"{step.connector}.{step.action}"] = digest
+        if http_action_bindings:
+            operation.metadata["http_action_bindings"] = http_action_bindings
         operation.metadata["runtime_policy"] = {
             "max_concurrent_operations": int(
                 environment.safety.get("max_concurrent_operations") or 1

@@ -1,0 +1,13 @@
+validation_rule:
+  intent: inspect_fixture_state
+  steps:
+    - type: require_mapping
+      key: connector_results
+      fail:
+        rule: runtime_fixture.connector_results_required
+        details:
+          reason: missing connector results
+    - type: require_truthy_path
+      path: connector_results.inspect_state.observed
+      pass_rule: runtime_fixture.state_observed
+      details_from: connector_results

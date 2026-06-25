@@ -24,8 +24,8 @@ from rexecop.storage.file_store import FileStore
 from rexecop.workflow.runner import WorkflowRunner
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def _policy_environment(tmp_path: Path, *, max_steps: int = 20) -> Path:
@@ -41,7 +41,7 @@ def _policy_environment(tmp_path: Path, *, max_steps: int = 20) -> Path:
                 "conditions": {
                     "action.category": "operation",
                     "action.mode": "read",
-                    "action.intent": "check_backup_status",
+                    "action.intent": "inspect_fixture_state",
                 },
                 "obligations": [
                     {"obligation_id": "receipt", "kind": "receipt"},
@@ -85,8 +85,8 @@ def test_policy_binding_flows_to_request_receipt_and_sclite(tmp_path: Path) -> N
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=_policy_environment(tmp_path),
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
 
@@ -130,8 +130,8 @@ def test_policy_verdict_drift_blocks_before_executor(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=_policy_environment(tmp_path),
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     operation.metadata["policy_verdict"]["reason_code"] = "tampered"
@@ -153,8 +153,8 @@ def test_policy_admission_drift_blocks_before_state_transition(tmp_path: Path) -
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=_policy_environment(tmp_path),
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     operation.metadata["policy_enforcement"]["admission"]["reason_code"] = "tampered"
@@ -177,8 +177,8 @@ def test_policy_max_steps_blocks_before_executor(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=_policy_environment(tmp_path, max_steps=1),
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
 

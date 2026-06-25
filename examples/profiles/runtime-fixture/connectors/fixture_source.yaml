@@ -1,8 +1,8 @@
 connector:
-  name: proxmox
+  name: fixture_source
   capabilities:
-    - list_vms
-    - restart
+    - read_fixture_state
+    - apply_fixture_change
   modes:
     - read_only
     - apply

@@ -24,24 +24,24 @@ from rexecop.workflow.model import Workflow, WorkflowStep
 from rexecop.workflow.runner import WorkflowRunner
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
-WORKFLOW = PROFILE.parent / "workflows/check_backup_status.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
+WORKFLOW = PROFILE.parent / "workflows/inspect_fixture_state.yaml"
 
 
-def test_target_group_semantics_for_all_critical_vms() -> None:
+def test_target_semantics_for_fixture_target() -> None:
     environment = load_environment(ENVIRONMENT)
-    info = describe_target(environment, "all_critical_vms")
+    info = describe_target(environment, "fixture-group")
     assert info["kind"] == "group"
-    assert info["members"] == ["vm-zabbix-01", "vm-pbs-01"]
+    assert info["members"] == ["fixture-target"]
 
 
-def test_target_member_semantics() -> None:
+def test_target_host_semantics() -> None:
     environment = load_environment(ENVIRONMENT)
-    info = describe_target(environment, "vm-zabbix-01")
-    assert info["kind"] == "member"
-    assert info["group"] == "all_critical_vms"
-    validate_operation_target(environment, "vm-zabbix-01")
+    info = describe_target(environment, "fixture-target")
+    assert info["kind"] == "host"
+    assert info["declared_as"] == "fixture-target"
+    validate_operation_target(environment, "fixture-target")
 
 
 def test_plan_rejects_unknown_target(tmp_path: Path) -> None:
@@ -50,7 +50,7 @@ def test_plan_rejects_unknown_target(tmp_path: Path) -> None:
         controller.plan(
             profile_path=PROFILE,
             environment_path=ENVIRONMENT,
-            intent="check_backup_status",
+            intent="inspect_fixture_state",
             target="missing-target",
             mode="dry_run",
         )
@@ -59,15 +59,15 @@ def test_plan_rejects_unknown_target(tmp_path: Path) -> None:
 def test_plan_rejects_missing_connector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     env_path = tmp_path / "env.yaml"
     env_data = yaml.safe_load(ENVIRONMENT.read_text())
-    env_data["environment"]["connectors"].pop("pbs")
+    env_data["environment"]["connectors"].pop("fixture_source")
     env_path.write_text(yaml.safe_dump(env_data))
     controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
     with pytest.raises(RExecOpValidationError, match="connector not configured"):
         controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="inspect_fixture_state",
+            target="fixture-target",
             mode="dry_run",
         )
 
@@ -75,15 +75,15 @@ def test_plan_rejects_missing_connector(tmp_path: Path, monkeypatch: pytest.Monk
 def test_plan_rejects_disabled_connector(tmp_path: Path) -> None:
     env_path = tmp_path / "env.yaml"
     env_data = yaml.safe_load(ENVIRONMENT.read_text())
-    env_data["environment"]["connectors"]["pbs"]["enabled"] = False
+    env_data["environment"]["connectors"]["fixture_source"]["enabled"] = False
     env_path.write_text(yaml.safe_dump(env_data))
     controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
-    with pytest.raises(RExecOpValidationError, match="connector disabled: pbs"):
+    with pytest.raises(RExecOpValidationError, match="connector disabled: fixture_source"):
         controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="inspect_fixture_state",
+            target="fixture-target",
             mode="dry_run",
         )
 
@@ -201,7 +201,7 @@ def test_workflow_runner_does_not_execute_undeclared_steps() -> None:
     runner = WorkflowRunner(StepExecutor(internal_handlers={}))
     result = runner.run(
         operation_id="op-1",
-        target="all_critical_vms",
+        target="fixture-target",
         mode="dry_run",
         planned_steps=planned,
         correlation_id="corr-1",
@@ -212,12 +212,17 @@ def test_workflow_runner_does_not_execute_undeclared_steps() -> None:
 
 def test_composite_rejects_disabled_connector_at_invoke() -> None:
     runtime = build_connector_runtime(
-        connectors={"proxmox": {"enabled": False, "backend": "mock"}},
+        connectors={"fixture_source": {"enabled": False, "backend": "mock"}},
         profile_root=str(PROFILE.parent),
         mutating_allowed=False,
     )
     response = runtime.invoke(
-        ConnectorRequest(connector="proxmox", action="list_vms", target="t", mode="dry_run")
+        ConnectorRequest(
+            connector="fixture_source",
+            action="read_fixture_state",
+            target="t",
+            mode="dry_run",
+        )
     )
     assert not response.success
 
@@ -236,7 +241,7 @@ def test_ssh_readonly_strict_known_hosts_and_quoting() -> None:
     runtime = SshReadonlyRuntime(
         connector_name="host_ro",
         config={
-            "host": "pve-01.example.com",
+            "host": "host-01.example.invalid",
             "user": "readonly",
             "known_hosts_policy": "strict",
             "known_hosts_file": "/etc/ssh/ssh_known_hosts",
@@ -280,7 +285,7 @@ def test_file_store_writes_valid_json_without_tmp_artifacts(tmp_path: Path) -> N
         profile="p",
         environment="e",
         intent="i",
-        target="all_critical_vms",
+        target="fixture-target",
         mode="dry_run",
         state="planned",
         requested_by="test",

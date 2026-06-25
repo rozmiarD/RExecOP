@@ -9,25 +9,25 @@ Targets live under `environment.targets` as a map of names to specifications.
 
 | Kind | YAML shape | Meaning |
 | --- | --- | --- |
-| **group** | `type: group` + `members: [...]` | Logical target (for example `all_critical_vms`) expanding to member host ids |
+| **group** | `type: group` + `members: [...]` | Logical target (for example `fixture-group`) expanding to member ids |
 | **host** | `type: host` or omitted `type` | Single declared host id |
 | **member** | not a top-level key | A host id listed under a group's `members` — valid as `--target` but resolves to that single member |
 
-### `all_critical_vms`
+### Group targets
 
-`all_critical_vms` is **not** a built-in magic string. It is a conventional **group name**
-that profiles and runbooks use when the environment declares:
+Group names are **not** built-in magic strings. They are conventional names that profiles and
+runbooks use when the environment declares:
 
 ```yaml
 targets:
-  all_critical_vms:
+  fixture-group:
     type: group
     members:
-      - vm-zabbix-01
-      - vm-pbs-01
+      - fixture-target
+      - fixture-target-2
 ```
 
-Operations pass `--target all_critical_vms` to address the whole group. Connector and
+Operations pass `--target fixture-group` to address the whole group. Connector and
 internal actions receive the logical target string; domain handlers may expand members
 via `environment.resolve_targets`.
 
@@ -89,8 +89,8 @@ environment:
 
 Example pack: [examples/policy/rexecop-connectors-default.yaml](../examples/policy/rexecop-connectors-default.yaml).
 
-Lab environment with pack wired: [examples/environments/small-public-unit-proxmox.policy.example.yaml](../examples/environments/small-public-unit-proxmox.policy.example.yaml).
-The base [small-public-unit-proxmox.example.yaml](../examples/environments/small-public-unit-proxmox.example.yaml) omits `policy_pack` so apply/mutation tests stay neutral.
+Lab environment with pack wired: [examples/environments/runtime-fixture.policy.example.yaml](../examples/environments/runtime-fixture.policy.example.yaml).
+The base [runtime-fixture.example.yaml](../examples/environments/runtime-fixture.example.yaml) omits `policy_pack` so apply/mutation tests stay neutral.
 
 See [execution-contract.md](execution-contract.md) and [govengine-integration.md](govengine-integration.md).
 

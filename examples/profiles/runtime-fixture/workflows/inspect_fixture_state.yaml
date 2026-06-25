@@ -1,0 +1,24 @@
+workflow:
+  id: runtime_fixture.inspect_fixture_state
+  intent: inspect_fixture_state
+  mode: read_only
+  risk: low
+  description: Inspect deterministic no-I/O fixture state.
+
+  steps:
+    - id: inspect_state
+      type: connector
+      connector: fixture_source
+      action: read_fixture_state
+      timeout: 10s
+      pause_safe: false
+
+    - id: produce_receipt
+      type: evidence
+      action: produce_receipt
+      pause_safe: true
+
+  retry:
+    max_attempts: 2
+    allowed_on:
+      - transient_connector_error

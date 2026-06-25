@@ -15,10 +15,10 @@ def test_static_adapter_returns_configured_decision() -> None:
     decision = adapter.evaluate(
         GovEngineRequest(
             operation_id="op-test",
-            profile="tecrax",
+            profile="runtime-fixture",
             environment="env",
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="apply_fixture_change",
+            target="fixture-target",
             mode="apply",
             risk="low",
         )

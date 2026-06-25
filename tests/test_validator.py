@@ -5,7 +5,7 @@ from pathlib import Path
 from rexecop.validation.validator import validate_operation_result
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 
 
 def test_validator_hook_for_unknown_intent() -> None:

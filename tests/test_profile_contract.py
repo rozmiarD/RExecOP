@@ -10,12 +10,12 @@ from rexecop.profile.contract import validate_profile_contract
 from rexecop.profile.loader import load_profile
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 
 
 def test_valid_profile_contract_loads() -> None:
     profile = load_profile(PROFILE)
-    assert profile.name == "tecrax"
+    assert profile.name == "runtime_fixture"
     assert profile.version == "0.1.0"
 
 

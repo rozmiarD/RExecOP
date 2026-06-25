@@ -16,6 +16,7 @@ from rexecop.connectors.http_api import HttpApiConnectorRuntime
 from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
 from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
+from rexecop.connectors.static_fixture import StaticFixtureRuntime
 from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.policy.connector import connector_policy_gate
 from rexecop.secrets.port import SecretResolver
@@ -110,6 +111,12 @@ class CompositeConnectorRuntime:
                 connector_name=name,
                 config=config,
                 secret_resolver=self.secret_resolver,
+            )
+        elif backend_name == "static_fixture":
+            runtime = StaticFixtureRuntime(
+                connector_name=name,
+                config=config,
+                mutating_allowed=self.mutating_allowed,
             )
         elif backend_name in list_registered_connector_backends():
             plugin_runtime = load_connector_backend_for_connector(

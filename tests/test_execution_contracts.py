@@ -10,10 +10,15 @@ from rexecop.execution.model import (
 def test_execution_request_from_workflow_is_domain_neutral() -> None:
     request = execution_request_from_workflow(
         operation_id="op-1",
-        target="all_critical_vms",
+        target="fixture-target",
         mode="dry_run",
         planned_steps=[
-            {"id": "query", "type": "connector", "connector": "pbs", "action": "list"},
+            {
+                "id": "query",
+                "type": "connector",
+                "connector": "fixture_source",
+                "action": "read_fixture_state",
+            },
         ],
         max_steps=1,
         max_output_bytes=128,
@@ -22,7 +27,7 @@ def test_execution_request_from_workflow_is_domain_neutral() -> None:
     assert isinstance(request, ExecutionRequest)
     assert request.source == "approved_workflow_plan"
     assert request.steps[0].step_id == "query"
-    assert request.steps[0].connector == "pbs"
+    assert request.steps[0].connector == "fixture_source"
     assert request.resource_limits.max_output_bytes == 128
 
 

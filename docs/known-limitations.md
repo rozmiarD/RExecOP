@@ -27,11 +27,11 @@ what the software does **not** provide so expectations stay aligned with impleme
 
 | Limitation | Detail |
 | --- | --- |
-| `http_api` is generic REST | No built-in Proxmox/PBS/Zabbix SDKs — operators configure actions in environment YAML |
+| `http_api` is generic REST | No built-in product SDKs — profiles declare actions and operators configure endpoints |
 | Staging proven, production is operator-owned | CI uses HTTP stub; live infra requires operator runbook and secrets hygiene |
 | `local_shell_readonly` only | No general shell apply backend in core |
 | `ssh_readonly` is temporary | PolicyEngine gate when `policy_pack` set; allowlisted argv + read-only modes remain in connector |
-| Mock remains default offline | `examples/...proxmox.example.yaml` uses `mock` backend for offline use |
+| Static fixture is offline-only | `examples/profiles/runtime-fixture/` uses `static_fixture` for no-I/O lifecycle regression |
 
 ## Profiles and domain
 

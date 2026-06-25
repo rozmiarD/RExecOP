@@ -8,12 +8,12 @@ from urllib.parse import parse_qs, urlparse
 
 
 class StagingHttpServer:
-    """Minimal Proxmox/PBS API stub for Phase 9 staging tests."""
+    """Domain-neutral HTTP fixture for connector integration tests."""
 
     def __init__(self) -> None:
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
-        self.restart_calls = 0
+        self.change_calls = 0
         self.transient_failures_remaining = 0
 
     @property
@@ -38,26 +38,21 @@ class StagingHttpServer:
                 path = parsed.path
                 query = parse_qs(parsed.query)
 
-                if path == "/proxmox/vms":
+                if path == "/fixture/state":
                     parent._json(
                         self,
-                        {
-                            "vms": [
-                                {"id": "vm-101", "name": "zabbix-proxy", "critical": True},
-                                {"id": "vm-102", "name": "backup-gateway", "critical": True},
-                            ]
-                        },
+                        {"state": {"observed": True, "status": "ready"}},
                     )
                     return
-                if path == "/proxmox/vms/paged":
+                if path == "/fixture/items/paged":
                     page = int((query.get("page") or ["1"])[0])
                     if page == 1:
                         parent._json(
                             self,
                             {
                                 "data": {
-                                    "vms": [{"id": "vm-101", "name": "zabbix-proxy"}],
-                                    "next": "/proxmox/vms/paged?page=2",
+                                    "items": [{"id": "fixture-1"}],
+                                    "next": "/fixture/items/paged?page=2",
                                 }
                             },
                         )
@@ -67,30 +62,19 @@ class StagingHttpServer:
                             self,
                             {
                                 "data": {
-                                    "vms": [{"id": "vm-102", "name": "backup-gateway"}],
+                                    "items": [{"id": "fixture-2"}],
                                 }
                             },
                         )
                         return
-                if path == "/pbs/snapshots":
-                    parent._json(
-                        self,
-                        {
-                            "snapshots": [
-                                {"vm_id": "vm-101", "status": "ok"},
-                                {"vm_id": "vm-102", "status": "ok"},
-                            ]
-                        },
-                    )
-                    return
-                if path == "/proxmox/transient":
+                if path == "/fixture/transient":
                     if parent.transient_failures_remaining > 0:
                         parent.transient_failures_remaining -= 1
                         self.send_error(503, "temporary unavailable")
                         return
                     parent._json(self, {"status": "ok"})
                     return
-                if path == "/proxmox/auth-error":
+                if path == "/fixture/auth-error":
                     self.send_response(401)
                     body = json.dumps(
                         {"message": "invalid token", "api_key": "secret-token"}
@@ -103,20 +87,14 @@ class StagingHttpServer:
                 self.send_error(404)
 
             def do_POST(self) -> None:  # noqa: N802
-                if self.path == "/proxmox/restart":
-                    parent.restart_calls += 1
+                if self.path == "/fixture/change":
+                    parent.change_calls += 1
                     parent._json(
                         self,
                         {
-                            "before_state": {
-                                "vm_id": "vm-101",
-                                "agent_status": "running",
-                            },
-                            "after_state": {
-                                "vm_id": "vm-101",
-                                "agent_status": "restarted",
-                            },
-                            "mutation": "restart_zabbix_agent",
+                            "before_state": {"changed": False},
+                            "after_state": {"changed": True},
+                            "mutation": "apply_fixture_change",
                         },
                     )
                     return

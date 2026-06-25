@@ -1,0 +1,6 @@
+intent:
+  id: inspect_fixture_state
+  workflow: workflows/inspect_fixture_state.yaml
+  risk: low
+  modes:
+    - dry_run

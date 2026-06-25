@@ -18,9 +18,9 @@ if str(ROOT / "tests") not in sys.path:
 
 from helpers.staging_http_server import StagingHttpServer  # noqa: E402
 
-PROFILE = ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
+PROFILE = ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 LOCAL_ENV_TEMPLATE = (
-    ROOT / "examples/environments/small-public-unit-proxmox.staging.lab.example.yaml"
+    ROOT / "examples/environments/runtime-fixture.staging.lab.example.yaml"
 )
 
 
@@ -50,9 +50,9 @@ def _run_rexecop(workdir: Path, env_path: Path) -> dict:
             "--env",
             str(env_path),
             "--intent",
-            "check_backup_status",
+            "inspect_fixture_state",
             "--target",
-            "all_critical_vms",
+            "fixture-target",
             "--mode",
             "dry_run",
         ],

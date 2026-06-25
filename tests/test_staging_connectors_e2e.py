@@ -13,42 +13,29 @@ from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 
 
 def _staging_environment(server: StagingHttpServer) -> dict:
     return {
         "environment": {
             "id": "staging-http",
-            "profile": "tecrax",
+            "profile": "runtime_fixture",
             "targets": {
-                "all_critical_vms": {
-                    "type": "group",
-                    "members": ["vm-zabbix-01"],
+                "fixture-target": {
+                    "type": "fixture",
                 }
             },
             "connectors": {
-                "proxmox": {
+                "fixture_source": {
                     "enabled": True,
                     "backend": "http_api",
                     "base_url": server.base_url,
                     "actions": {
-                        "list_vms": {
+                        "read_fixture_state": {
                             "method": "GET",
-                            "path": "/proxmox/vms",
-                            "unwrap": "vms",
-                        }
-                    },
-                },
-                "pbs": {
-                    "enabled": True,
-                    "backend": "http_api",
-                    "base_url": server.base_url,
-                    "actions": {
-                        "list_snapshots": {
-                            "method": "GET",
-                            "path": "/pbs/snapshots",
-                            "unwrap": "snapshots",
+                            "path": "/fixture/state",
+                            "unwrap": "state",
                         }
                     },
                 },
@@ -62,7 +49,7 @@ def _staging_environment(server: StagingHttpServer) -> dict:
     }
 
 
-def test_readonly_check_backup_status_against_staging_http(tmp_path: Path) -> None:
+def test_readonly_inspect_fixture_state_against_staging_http(tmp_path: Path) -> None:
     server = StagingHttpServer()
     server.start()
     env_path = tmp_path / "staging.yaml"
@@ -73,8 +60,8 @@ def test_readonly_check_backup_status_against_staging_http(tmp_path: Path) -> No
         operation = controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
-            intent="check_backup_status",
-            target="all_critical_vms",
+            intent="inspect_fixture_state",
+            target="fixture-target",
             mode="dry_run",
         )
         completed = controller.start(operation.id)
@@ -91,7 +78,7 @@ def test_readonly_check_backup_status_against_staging_http(tmp_path: Path) -> No
         receipt = json.loads(
             (bundle_dir / "05_execution_receipt.json").read_text(encoding="utf-8")
         )
-        assert receipt["execution"]["executed_command_count"] >= 2
+        assert receipt["execution"]["executed_command_count"] == 1
         assert receipt["execution"]["network_execution_performed"] is False
     finally:
         server.stop()
@@ -102,9 +89,11 @@ def test_apply_restart_and_rollback_drill_on_staging_http(tmp_path: Path) -> Non
     server.start()
     env_path = tmp_path / "staging-apply.yaml"
     env_data = _staging_environment(server)
-    env_data["environment"]["connectors"]["proxmox"]["actions"]["restart"] = {
+    env_data["environment"]["connectors"]["fixture_source"]["actions"][
+        "apply_fixture_change"
+    ] = {
         "method": "POST",
-        "path": "/proxmox/restart",
+        "path": "/fixture/change",
         "mutating": True,
         "body": {"target": "{target}"},
     }
@@ -117,14 +106,14 @@ def test_apply_restart_and_rollback_drill_on_staging_http(tmp_path: Path) -> Non
         operation = controller.plan(
             profile_path=PROFILE,
             environment_path=env_path,
-            intent="restart_zabbix_agent",
-            target="vm-zabbix-01",
+            intent="apply_fixture_change",
+            target="fixture-target",
             mode="apply",
         )
         assert operation.state == OperationState.APPROVED.value
         completed = controller.start(operation.id)
         assert completed.state == OperationState.COMPLETED.value
-        assert server.restart_calls == 1
+        assert server.change_calls == 1
 
         failed = controller.get_operation(operation.id)
         failed.state = OperationState.FAILED.value

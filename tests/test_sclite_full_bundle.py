@@ -23,10 +23,10 @@ from rexecop.operation.plan import OperationPlan
 def _sample_operation() -> Operation:
     return Operation(
         id="op-test-001",
-        profile="tecrax-fixture",
-        environment="small-public-unit",
-        intent="check_backup_status",
-        target="all_critical_vms",
+        profile="runtime-fixture",
+        environment="runtime-fixture",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
         requested_by="operator",
         state="planned",
@@ -39,26 +39,21 @@ def _sample_operation() -> Operation:
 def _sample_plan() -> OperationPlan:
     return OperationPlan(
         operation_id="op-test-001",
-        profile="tecrax-fixture",
-        environment="small-public-unit",
-        intent="check_backup_status",
-        target="all_critical_vms",
+        profile="runtime-fixture",
+        environment="runtime-fixture",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
-        workflow={"id": "check_backup_status"},
+        workflow={"id": "inspect_fixture_state"},
         planned_steps=[
             {
-                "id": "resolve_inventory",
-                "type": "internal",
-                "action": "resolve_inventory",
-            },
-            {
-                "id": "query_pbs",
+                "id": "inspect_state",
                 "type": "connector",
-                "connector": "pbs",
-                "action": "list_snapshots",
+                "connector": "fixture_source",
+                "action": "read_fixture_state",
             },
         ],
-        required_connectors=["pbs"],
+        required_connectors=["fixture_source"],
         risk="low",
         govengine_request_preview={},
         expected_evidence=["plan_generated"],
@@ -132,7 +127,7 @@ def test_full_bundle_scoped_ticket_v03_and_receipt_bounded_evidence(tmp_path: Pa
 def test_target_host_resolution_for_logical_targets() -> None:
     plan = _sample_plan()
     host = resolve_sclite_target_host(plan)
-    assert host == "small-public-unit.fixture"
+    assert host == "runtime-fixture.fixture"
     assert "." in host
 
 

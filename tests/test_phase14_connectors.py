@@ -32,7 +32,7 @@ def test_http_api_retries_transient_with_configured_backoff() -> None:
     sleeps: list[float] = []
     try:
         runtime = HttpApiConnectorRuntime(
-            connector_name="proxmox",
+            connector_name="fixture_source",
             config={
                 "base_url": server.base_url,
                 "retry": {
@@ -42,7 +42,7 @@ def test_http_api_retries_transient_with_configured_backoff() -> None:
                     "on": [connector_errors.TRANSIENT],
                 },
                 "actions": {
-                    "probe": {"method": "GET", "path": "/proxmox/transient"},
+                    "probe": {"method": "GET", "path": "/fixture/transient"},
                 },
             },
             profile_root=None,
@@ -57,7 +57,7 @@ def test_http_api_retries_transient_with_configured_backoff() -> None:
         ):
             response = runtime.invoke(
                 ConnectorRequest(
-                    connector="proxmox",
+                    connector="fixture_source",
                     action="probe",
                     target="all",
                     mode="dry_run",
@@ -74,15 +74,15 @@ def test_http_api_pagination_collects_all_pages() -> None:
     server.start()
     try:
         runtime = HttpApiConnectorRuntime(
-            connector_name="proxmox",
+            connector_name="fixture_source",
             config={
                 "base_url": server.base_url,
                 "actions": {
-                    "list_vms": {
+                    "list_items": {
                         "method": "GET",
-                        "path": "/proxmox/vms/paged",
+                        "path": "/fixture/items/paged",
                         "pagination": {
-                            "items_path": "data.vms",
+                            "items_path": "data.items",
                             "next_path": "data.next",
                             "max_pages": 5,
                         },
@@ -94,16 +94,16 @@ def test_http_api_pagination_collects_all_pages() -> None:
         )
         response = runtime.invoke(
             ConnectorRequest(
-                connector="proxmox",
-                action="list_vms",
+                connector="fixture_source",
+                action="list_items",
                 target="all",
                 mode="dry_run",
             )
         )
         assert response.success
-        assert len(response.data["vms"]) == 2
-        assert response.data["vms"][0]["id"] == "vm-101"
-        assert response.data["vms"][1]["id"] == "vm-102"
+        assert len(response.data["items"]) == 2
+        assert response.data["items"][0]["id"] == "fixture-1"
+        assert response.data["items"][1]["id"] == "fixture-2"
     finally:
         server.stop()
 
@@ -113,11 +113,14 @@ def test_http_api_maps_auth_error_with_redacted_body_snippet() -> None:
     server.start()
     try:
         runtime = HttpApiConnectorRuntime(
-            connector_name="proxmox",
+            connector_name="fixture_source",
             config={
                 "base_url": server.base_url,
                 "actions": {
-                    "list_vms": {"method": "GET", "path": "/proxmox/auth-error"},
+                    "read_fixture_state": {
+                        "method": "GET",
+                        "path": "/fixture/auth-error",
+                    },
                 },
             },
             profile_root=None,
@@ -125,8 +128,8 @@ def test_http_api_maps_auth_error_with_redacted_body_snippet() -> None:
         )
         response = runtime.invoke(
             ConnectorRequest(
-                connector="proxmox",
-                action="list_vms",
+                connector="fixture_source",
+                action="read_fixture_state",
                 target="all",
                 mode="dry_run",
             )
@@ -148,7 +151,9 @@ def test_http_error_class_mapping() -> None:
 
 
 def test_merge_paginated_items_uses_leaf_key() -> None:
-    assert merge_paginated_items("data.vms", [{"id": "1"}]) == {"vms": [{"id": "1"}]}
+    assert merge_paginated_items("data.items", [{"id": "1"}]) == {
+        "items": [{"id": "1"}]
+    }
 
 
 def test_read_http_error_body_redacts_json_secrets() -> None:

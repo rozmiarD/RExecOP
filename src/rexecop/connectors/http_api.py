@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from rexecop.connectors import errors as connector_errors
+from rexecop.connectors.action_shape import validate_http_action_shape
 from rexecop.connectors.base import (
     ConnectorRequest,
     ConnectorResponse,
@@ -77,7 +78,17 @@ class HttpApiConnectorRuntime:
                 data={"error_class": connector_errors.CAPABILITY_UNDECLARED},
             )
 
-        action_spec = self._action_spec(request.action)
+        try:
+            action_spec = self._action_spec(request.action)
+            action_contract_digest = self._validate_action_shape(request.action)
+        except RExecOpValidationError as exc:
+            return ConnectorResponse(
+                connector=request.connector,
+                action=request.action,
+                success=False,
+                error=redact_text(str(exc)),
+                data={"error_class": connector_errors.VALIDATION_FAILED},
+            )
         if action_spec.get("mutating") or request.action in MUTATING_ACTIONS:
             if request.mode in READ_ONLY_MODES:
                 return ConnectorResponse(
@@ -96,7 +107,26 @@ class HttpApiConnectorRuntime:
                     data={"error_class": connector_errors.POLICY_DENIED},
                 )
 
-        return self._invoke_with_retry(request, action_spec)
+        response = self._invoke_with_retry(request, action_spec)
+        if action_contract_digest:
+            response.data["action_contract_digest"] = action_contract_digest
+        return response
+
+    def _validate_action_shape(self, action: str) -> str | None:
+        profile_root = self._profile_root_path()
+        if profile_root is None:
+            return None
+        from rexecop.profile.loader import load_profile
+
+        contract = load_profile(profile_root).connector_contract(self.connector_name)
+        if contract is None:
+            return None
+        return validate_http_action_shape(
+            connector_name=self.connector_name,
+            action=action,
+            connector_contract=contract,
+            connector_config=self.config,
+        )
 
     def _invoke_with_retry(
         self,

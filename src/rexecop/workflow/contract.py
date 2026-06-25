@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from rexecop.connectors.action_shape import validate_http_action_shape
 from rexecop.environment.model import Environment
 from rexecop.errors import RExecOpValidationError
 from rexecop.profile.loader import LoadedProfile
@@ -73,6 +74,13 @@ def _validate_profile_connector_step(
         raise RExecOpValidationError(
             f"connector backend mismatch for {connector_name}: "
             f"expected {expected_backend}, got {actual_backend or 'missing'}"
+        )
+    if actual_backend == "http_api":
+        validate_http_action_shape(
+            connector_name=connector_name,
+            action=action,
+            connector_contract=contract,
+            connector_config=config,
         )
     command_shapes = contract.get("command_shapes")
     if not isinstance(command_shapes, dict):

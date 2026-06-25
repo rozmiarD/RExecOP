@@ -13,8 +13,19 @@ INTERNAL_ACTION_ENTRY_GROUP = "rexecop.internal_actions"
 
 def _builtin_handlers() -> dict[str, InternalHandler]:
     return {
+        "record_execution_checkpoint": _record_execution_checkpoint,
         "record_rollback_marker": _record_rollback_marker,
     }
+
+
+def _record_execution_checkpoint(context: StepExecutionContext) -> dict[str, Any]:
+    checkpoint = {
+        "step_id": str(context.step.get("id") or ""),
+        "operation_id": context.operation_id,
+        "status": "checkpoint_recorded",
+    }
+    context.shared_state.setdefault("execution_checkpoints", []).append(checkpoint)
+    return checkpoint
 
 
 def _record_rollback_marker(context: StepExecutionContext) -> dict[str, Any]:

@@ -9,8 +9,8 @@ from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def _controller(tmp_path: Path, decision: GovEngineDecisionType) -> OperationController:
@@ -25,8 +25,8 @@ def test_apply_blocked_when_adapter_returns_blocked(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="apply",
     )
     assert operation.state == OperationState.BLOCKED.value
@@ -38,8 +38,8 @@ def test_apply_waits_when_adapter_returns_approval_required(tmp_path: Path) -> N
     operation = _controller(tmp_path, GovEngineDecisionType.APPROVAL_REQUIRED).plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="apply",
     )
     assert operation.state == OperationState.WAITING_FOR_APPROVAL.value
@@ -55,8 +55,8 @@ def test_apply_allowed_transitions_to_approved(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="apply",
     )
     assert operation.state == OperationState.APPROVED.value
@@ -72,8 +72,8 @@ def test_dry_run_does_not_call_governance_gate(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="check_backup_status",
-        target="all_critical_vms",
+        intent="inspect_fixture_state",
+        target="fixture-target",
         mode="dry_run",
     )
     assert operation.state == OperationState.PLANNED.value

@@ -1,13 +1,13 @@
 policy_id: rexecop-connectors
 version: "2026-06-20"
 rules:
-  - rule_id: allow-check-backup-status-operation
+  - rule_id: allow-inspect-fixture-state-operation
     effect: allow
     conditions:
       action.category: operation
       action.mode: read
-      action.intent: check_backup_status
-    reason_code: check_backup_status_allowed
+      action.intent: inspect_fixture_state
+    reason_code: fixture_read_allowed
   - rule_id: allow-read-connectors
     effect: allow
     conditions:

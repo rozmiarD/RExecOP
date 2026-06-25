@@ -1,0 +1,40 @@
+environment:
+  id: runtime-fixture
+  description: Deterministic no-I/O environment for neutral lifecycle tests.
+  profile: runtime_fixture
+
+  targets:
+    fixture-group:
+      type: group
+      members: [fixture-target]
+    fixture-target:
+      type: fixture
+      criticality: low
+    fixture-target-2:
+      type: fixture
+      criticality: low
+
+  connectors:
+    fixture_source:
+      enabled: true
+      backend: static_fixture
+      fixture_only: true
+      actions:
+        read_fixture_state:
+          data: {observed: true, state: ready}
+        apply_fixture_change:
+          mutating: true
+          data:
+            before_state: {changed: false}
+            after_state: {changed: true}
+
+  safety:
+    default_mode: dry_run
+    apply_requires_govengine: true
+    secrets_source: external
+    max_concurrent_operations: 1
+    target_lock_enabled: true
+    maintenance_windows:
+      - timezone: UTC
+        start: "00:00"
+        end: "23:59"

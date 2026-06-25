@@ -9,8 +9,8 @@ from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROFILE = REPO_ROOT / "examples/profiles/tecrax-fixture/profile.yaml"
-ENVIRONMENT = REPO_ROOT / "examples/environments/small-public-unit-proxmox.example.yaml"
+PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
+ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
 def _controller(tmp_path: Path) -> OperationController:
@@ -25,15 +25,15 @@ def test_target_lock_blocks_second_apply_on_same_target(tmp_path: Path) -> None:
     first = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="restart_zabbix_agent",
-        target="vm-zabbix-01",
+        intent="apply_fixture_change",
+        target="fixture-target",
         mode="apply",
     )
     second = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="restart_zabbix_agent",
-        target="vm-zabbix-01",
+        intent="apply_fixture_change",
+        target="fixture-target",
         mode="apply",
     )
     controller.advance(first.id)
@@ -52,8 +52,8 @@ def test_target_lock_released_after_completion(tmp_path: Path) -> None:
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
-        intent="restart_zabbix_agent",
-        target="vm-zabbix-01",
+        intent="apply_fixture_change",
+        target="fixture-target",
         mode="apply",
     )
     completed = controller.start(operation.id)
