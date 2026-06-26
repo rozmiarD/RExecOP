@@ -42,6 +42,7 @@ ADGUARD_LOGIN_STATUS = (
     "curl -q -sS -m 3 --connect-timeout 2 --max-redirs 0 -o /dev/null "
     "-w %{http_code} http://adguard.example.invalid/login.html"
 )
+AVAILABLE_UPDATES_SUMMARY = "/usr/lib/update-notifier/apt-check"
 
 
 def _http_binding(operation: object, connector_action: str) -> str:
@@ -234,6 +235,7 @@ def test_tecrax_ntp_health_ssh_readonly_e2e(
             "LoadState=loaded\nActiveState=active\nSubState=listening\nUnitFileState=enabled\n"
         ),
         "systemctl is-enabled unattended-upgrades": "enabled\n",
+        AVAILABLE_UPDATES_SUMMARY: "0;0\n",
         "sysctl -n kernel.randomize_va_space": "2\n",
         "sysctl -n kernel.dmesg_restrict": "1\n",
         "find /var/run -maxdepth 1 -name reboot-required -printf '%f\\n'": "",
@@ -279,6 +281,7 @@ def test_tecrax_docker_services_health_ssh_readonly_e2e(
             "LoadState=loaded\nActiveState=active\nSubState=listening\nUnitFileState=enabled\n"
         ),
         "systemctl is-enabled unattended-upgrades": "enabled\n",
+        AVAILABLE_UPDATES_SUMMARY: "0;0\n",
         "sysctl -n kernel.randomize_va_space": "2\n",
         "sysctl -n kernel.dmesg_restrict": "1\n",
         "find /var/run -maxdepth 1 -name reboot-required -printf '%f\\n'": "",
@@ -533,6 +536,7 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
             "LoadState=loaded\nActiveState=active\nSubState=listening\nUnitFileState=enabled\n"
         ),
         "systemctl is-enabled unattended-upgrades": "enabled\n",
+        AVAILABLE_UPDATES_SUMMARY: "0;0\n",
         "sysctl -n kernel.randomize_va_space": "2\n",
         "sysctl -n kernel.dmesg_restrict": "1\n",
         "find /var/run -maxdepth 1 -name reboot-required -printf '%f\\n'": "",

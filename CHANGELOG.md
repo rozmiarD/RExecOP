@@ -14,6 +14,8 @@ PyPI alpha line is **`0.2.6a0`**. Entries under [Releases](#releases) are newest
 - Added Tecrax Zabbix and Portainer HTTP action identity regression vectors that verify
   plan bindings, connector `action_contract_digest`, bounded receipt output digests and
   backend-not-called drift failures without adding domain semantics to RExecOp core.
+- Updated Tecrax integration fixtures for the profile-owned bounded available-update
+  summary action without adding host-update semantics to RExecOp core.
 
 ## [0.2.6a0] - 2026-06-24
 
