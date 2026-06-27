@@ -33,6 +33,9 @@ PyPI alpha line is **`0.2.7a0`**. Entries under [Releases](#releases) are newest
 - Added neutral `target_from` and `catalog_target_from` trigger operation
   bindings so profiles can resolve operation targets from event fields without
   embedding domain semantics in RExecOp core.
+- Bound trigger decisions to GovEngine `TriggerPlanningRequest` admission before
+  creating operation plans; trigger decision artifacts now carry bounded request
+  and admission digests.
 
 ## [0.2.7a0] - 2026-06-27
 

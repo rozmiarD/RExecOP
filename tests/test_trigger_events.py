@@ -159,6 +159,11 @@ def test_trigger_event_plans_operation_and_records_decision_evidence(tmp_path: P
     assert operation.state == OperationState.PLANNED.value
     assert operation.intent == "inspect_fixture_state"
     assert operation.metadata["trigger_decision"]["decision_id"] == decision["decision_id"]
+    assert decision["admission"]["request"]["decision"] == "plan_operation"
+    assert decision["admission"]["request"]["operation_mode"] == "dry_run"
+    assert decision["admission"]["admission"]["allowed"] is True
+    assert decision["admission"]["request_digest"].startswith("sha256:")
+    assert decision["admission"]["admission_digest"].startswith("sha256:")
     assert operation.metadata["trigger_decision"]["payload_digest"] == (
         decision["event"]["payload_digest"]
     )
@@ -198,6 +203,27 @@ def test_trigger_event_plans_catalog_operation_from_event_subject(tmp_path: Path
     assert operation.metadata["catalog_binding"]["target_id"] == "fixture-node-01"
 
 
+def test_trigger_event_rejects_mutating_operation_before_planning(tmp_path: Path) -> None:
+    profile = _profile(tmp_path)
+    rules_path = profile / "triggers" / "trigger_rules.yaml"
+    rules = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    rules["trigger_rules"]["rules"][0]["operation"]["mode"] = "apply"
+    rules_path.write_text(yaml.safe_dump(rules, sort_keys=False), encoding="utf-8")
+    store = FileStore(tmp_path / "runtime")
+    controller = OperationController(store=store)
+
+    with pytest.raises(RExecOpValidationError, match="trigger_planning_unsupported_operation_mode"):
+        TriggerService(controller).process_event(
+            profile_path=profile,
+            environment_path=POLICY_ENV,
+            event_payload=_event(),
+            now=NOW,
+            source="test",
+        )
+
+    assert store.list_operations() == []
+
+
 def test_trigger_event_dedupes_by_event_identity_without_new_operation(tmp_path: Path) -> None:
     profile = _profile(tmp_path)
     store = FileStore(tmp_path / "runtime")
@@ -221,6 +247,8 @@ def test_trigger_event_dedupes_by_event_identity_without_new_operation(tmp_path:
 
     assert first["decision"] == "plan_operation"
     assert second["decision"] == "drop_duplicate"
+    assert second["admission"]["request"]["decision"] == "drop_duplicate"
+    assert second["admission"]["admission"]["outcome"] == "record_only"
     assert [operation.id for operation in store.list_operations()] == [first["operation_id"]]
 
 
@@ -247,6 +275,8 @@ def test_trigger_event_cooldown_blocks_distinct_event_for_same_subject(tmp_path:
 
     assert first["decision"] == "plan_operation"
     assert second["decision"] == "cooldown_blocked"
+    assert second["admission"]["request"]["decision"] == "cooldown_blocked"
+    assert second["admission"]["admission"]["outcome"] == "record_only"
     assert second["event"]["cooldown_key"] == "fixture.degraded.inspect:fixture-target"
     assert [operation.id for operation in store.list_operations()] == [first["operation_id"]]
 

@@ -75,6 +75,13 @@ Trigger rules may bind an operation target literally (`target` or
 `catalog_target_from`, for example `subject`). Profiles own the meaning of those
 fields; RExecOp only resolves the path and fails closed when it is missing or
 ambiguous.
+Before any `plan_operation` decision creates an operation, RExecOp submits a
+bounded GovEngine `TriggerPlanningRequest` built only from event/rule digests,
+the trigger decision, and the requested intent/mode. Mutating modes, missing
+rule digests, raw event data, private target data, and unsupported decisions
+fail closed before operation planning. Record-only decisions such as
+`escalate`, `drop_duplicate`, `cooldown_blocked`, and `ignore` are admitted as
+non-executing records.
 
 ## systemd unit example
 

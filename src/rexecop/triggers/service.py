@@ -9,6 +9,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from govengine import (
+    GovApiError,
+    TriggerPlanningRequest,
+    admit_trigger_planning,
+    trigger_planning_admission_digest,
+    trigger_planning_request_digest,
+)
 
 from rexecop.catalog.digest import canonical_digest
 from rexecop.errors import RExecOpValidationError
@@ -281,6 +288,13 @@ class TriggerService:
         directories = self._directories()
         seen_path = directories["seen"] / f"{_safe_digest(dedupe_key)}.json"
         if seen_path.exists():
+            admission = _admit_trigger_decision(
+                decision_id=decision_id,
+                decision="drop_duplicate",
+                event=event,
+                event_digest=event_digest,
+                rule_set=rule_set,
+            )
             return self._persist_decision(
                 decision_id=decision_id,
                 decision="drop_duplicate",
@@ -293,10 +307,18 @@ class TriggerService:
                 operation_id=None,
                 source=source,
                 decision_time=decision_time,
+                admission=admission,
             )
 
         matched = self._match_rule(rule_set, event)
         if matched is None:
+            admission = _admit_trigger_decision(
+                decision_id=decision_id,
+                decision="ignore",
+                event=event,
+                event_digest=event_digest,
+                rule_set=rule_set,
+            )
             result = self._persist_decision(
                 decision_id=decision_id,
                 decision="ignore",
@@ -309,6 +331,7 @@ class TriggerService:
                 operation_id=None,
                 source=source,
                 decision_time=decision_time,
+                admission=admission,
             )
             self._mark_seen(seen_path, result)
             return result
@@ -322,6 +345,14 @@ class TriggerService:
             last_at = _parse_timestamp(cooldown.get("last_accepted_at"), "last_accepted_at")
             until = last_at + timedelta(seconds=matched.cooldown_seconds)
             if decision_time < until:
+                admission = _admit_trigger_decision(
+                    decision_id=decision_id,
+                    decision="cooldown_blocked",
+                    event=event,
+                    event_digest=event_digest,
+                    rule_set=rule_set,
+                    rule=matched,
+                )
                 result = self._persist_decision(
                     decision_id=decision_id,
                     decision="cooldown_blocked",
@@ -336,12 +367,23 @@ class TriggerService:
                     decision_time=decision_time,
                     rule=matched,
                     cooldown_key=cooldown_key,
+                    admission=admission,
                 )
                 self._mark_seen(seen_path, result)
                 return result
 
         operation_id: str | None = None
+        admission = _admit_trigger_decision(
+            decision_id=decision_id,
+            decision=matched.decision,
+            event=event,
+            event_digest=event_digest,
+            rule_set=rule_set,
+            rule=matched,
+        )
         if matched.decision == "plan_operation":
+            if admission["admission"]["allowed"] is not True:
+                raise RExecOpValidationError("trigger planning admission denied")
             operation_id = self._plan_operation(
                 profile=profile,
                 environment_path=environment_path,
@@ -368,6 +410,7 @@ class TriggerService:
             decision_time=decision_time,
             rule=matched,
             cooldown_key=cooldown_key,
+            admission=admission,
         )
         self._mark_seen(seen_path, result)
         if matched.cooldown_seconds and matched.decision == "plan_operation":
@@ -501,6 +544,7 @@ class TriggerService:
         decision_time: datetime,
         rule: TriggerRule | None = None,
         cooldown_key: str | None = None,
+        admission: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         result: dict[str, Any] = {
             "artifact_type": "trigger_decision",
@@ -530,6 +574,8 @@ class TriggerService:
         }
         if rule is not None:
             result["rule"] = {"id": rule.rule_id, "digest": rule.digest}
+        if admission is not None:
+            result["admission"] = dict(admission)
         _write_json(self.root / "decisions" / f"{decision_id}.json", result)
         return result
 
@@ -556,6 +602,43 @@ def _default_dedupe_key(event: Mapping[str, Any], *, payload_digest: str) -> str
     )
 
 
+def _admit_trigger_decision(
+    *,
+    decision_id: str,
+    decision: str,
+    event: Mapping[str, Any],
+    event_digest: str,
+    rule_set: TriggerRuleSet,
+    rule: TriggerRule | None = None,
+) -> dict[str, Any]:
+    operation = rule.operation if rule is not None else {}
+    request = TriggerPlanningRequest(
+        request_id=decision_id,
+        event_ref=_sha256_ref(event_digest),
+        event_type=str(event["type"]),
+        decision=decision,
+        rule_set_id=rule_set.rule_set_id,
+        rule_set_version=rule_set.version,
+        rule_set_digest=_sha256_ref(rule_set.digest),
+        rule_id=rule.rule_id if rule is not None else "",
+        rule_digest=_sha256_ref(rule.digest) if rule is not None else "",
+        operation_intent=str(operation.get("intent") or "") if decision == "plan_operation" else "",
+        operation_mode=(
+            str(operation.get("mode") or "dry_run") if decision == "plan_operation" else ""
+        ),
+    )
+    try:
+        admission = admit_trigger_planning(request)
+    except GovApiError as exc:
+        raise RExecOpValidationError(exc.reason_code) from exc
+    return {
+        "request": request.as_dict(),
+        "request_digest": trigger_planning_request_digest(request),
+        "admission": admission.as_dict(),
+        "admission_digest": trigger_planning_admission_digest(admission),
+    }
+
+
 def _operation_ref(
     operation: Mapping[str, Any],
     event: Mapping[str, Any],
@@ -577,6 +660,11 @@ def _operation_ref(
     if value is _MISSING or not isinstance(value, str) or not value.strip():
         raise RExecOpValidationError(f"trigger operation path did not resolve: {path_key}")
     return value.strip()
+
+
+def _sha256_ref(value: str) -> str:
+    text = str(value or "").strip()
+    return text if text.startswith("sha256:") else f"sha256:{text}"
 
 
 def _safe_digest(value: str) -> str:
