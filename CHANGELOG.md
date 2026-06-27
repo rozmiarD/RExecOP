@@ -11,6 +11,8 @@ PyPI alpha line is **`0.2.6a0`**. Entries under [Releases](#releases) are newest
 
 ## Unreleased
 
+- Added the PEP 561 `py.typed` marker so downstream stack profiles can type-check
+  against RExecOp's exported modules instead of treating the package as untyped.
 - Added `types-PyYAML` to the development extra so a clean `rexecop[dev]`
   environment can run `mypy src/rexecop` without manual stub installation.
 - Added Tecrax Zabbix and Portainer HTTP action identity regression vectors that verify
