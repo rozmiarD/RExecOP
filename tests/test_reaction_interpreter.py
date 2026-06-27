@@ -10,6 +10,8 @@ from sclite import build_observation_envelope
 
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
+from rexecop.operation.model import Operation, utc_now_iso
+from rexecop.operation.state import OperationState
 from rexecop.profile.loader import load_profile
 from rexecop.reaction.compiler import compile_reaction_pack
 from rexecop.reaction.evaluator import evaluate_reaction
@@ -73,19 +75,45 @@ def _profile(tmp_path: Path, *, pack: dict | None = None, name: str = "runtime_f
 
 
 def _observation(path: Path, profile_root: Path, *, status: str) -> Path:
+    value = _observation_value(profile_root, operation_id="source-op", status=status)
+    path.write_text(json.dumps(value), encoding="utf-8")
+    return path
+
+
+def _observation_value(
+    profile_root: Path,
+    *,
+    operation_id: str,
+    status: str,
+) -> dict:
     profile = load_profile(profile_root)
     pack = compile_reaction_pack(profile)
-    value = build_observation_envelope(
+    return build_observation_envelope(
         observation_id=f"obs-{status}",
         observed_at="2026-06-22T20:00:00+00:00",
         profile_ref={"id": profile.name, "version": profile.version, "digest": pack.profile_digest},
-        operation_id="source-op",
+        operation_id=operation_id,
         intent_id="inspect_state",
         target_id="fixture-target",
         facts={"state": {"status": status}},
     )
-    path.write_text(json.dumps(value), encoding="utf-8")
-    return path
+
+
+def _completed_source_operation(profile_root: Path, *, observation: dict) -> Operation:
+    now = utc_now_iso()
+    return Operation(
+        id="source-op",
+        profile=load_profile(profile_root).name,
+        environment="runtime-fixture",
+        intent="inspect_state",
+        target="fixture-target",
+        mode="dry_run",
+        requested_by="operator",
+        state=OperationState.COMPLETED.value,
+        created_at=now,
+        updated_at=now,
+        metadata={"shared_state": {"reaction_observation": observation}},
+    )
 
 
 def test_evaluator_is_deterministic_and_fail_closed_on_budgets(tmp_path: Path) -> None:
@@ -189,6 +217,92 @@ def test_repeated_reaction_plan_reuses_child_operation(tmp_path: Path) -> None:
     assert second["idempotent_replay"] is True
     assert second["reaction_plan"] == first["reaction_plan"]
     assert len(store.list_operations()) == 1
+
+
+def test_reaction_plan_can_use_profile_observation_from_completed_operation(
+    tmp_path: Path,
+) -> None:
+    profile_root = _profile(tmp_path)
+    environment_path = tmp_path / "environment.yaml"
+    environment_path.write_text(POLICY_ENV.read_text(encoding="utf-8"), encoding="utf-8")
+    store = FileStore(tmp_path / "runtime")
+    observation = _observation_value(profile_root, operation_id="source-op", status="degraded")
+    store.save_operation(_completed_source_operation(profile_root, observation=observation))
+    service = ReactionService(OperationController(store=store))
+
+    result = service.plan(
+        profile_path=profile_root,
+        environment_path=environment_path,
+        source_operation_id="source-op",
+        target="fixture-target",
+    )
+
+    assert result["reaction_plan"]["outcome"] == "run_intent"
+    stored = store.load_operation("source-op")
+    assert stored.metadata["shared_state"]["reaction_observation"] == observation
+
+
+def test_reaction_plan_rejects_missing_or_ambiguous_observation_source(
+    tmp_path: Path,
+) -> None:
+    profile_root = _profile(tmp_path)
+    service = ReactionService(OperationController(store=FileStore(tmp_path / "runtime")))
+    observation_path = _observation(
+        tmp_path / "degraded.json",
+        profile_root,
+        status="degraded",
+    )
+
+    with pytest.raises(RExecOpValidationError, match="exactly one"):
+        service.plan(
+            profile_path=profile_root,
+            environment_path=POLICY_ENV,
+            target="fixture-target",
+        )
+    with pytest.raises(RExecOpValidationError, match="exactly one"):
+        service.plan(
+            profile_path=profile_root,
+            environment_path=POLICY_ENV,
+            observation_path=observation_path,
+            source_operation_id="source-op",
+            target="fixture-target",
+        )
+
+
+def test_reaction_plan_rejects_non_completed_source_operation(tmp_path: Path) -> None:
+    profile_root = _profile(tmp_path)
+    store = FileStore(tmp_path / "runtime")
+    observation = _observation_value(profile_root, operation_id="source-op", status="degraded")
+    operation = _completed_source_operation(profile_root, observation=observation)
+    operation.state = OperationState.RUNNING.value
+    store.save_operation(operation)
+    service = ReactionService(OperationController(store=store))
+
+    with pytest.raises(RExecOpValidationError, match="requires completed operation"):
+        service.plan(
+            profile_path=profile_root,
+            environment_path=POLICY_ENV,
+            source_operation_id="source-op",
+            target="fixture-target",
+        )
+
+
+def test_reaction_plan_rejects_source_operation_observation_mismatch(
+    tmp_path: Path,
+) -> None:
+    profile_root = _profile(tmp_path)
+    store = FileStore(tmp_path / "runtime")
+    observation = _observation_value(profile_root, operation_id="other-op", status="degraded")
+    store.save_operation(_completed_source_operation(profile_root, observation=observation))
+    service = ReactionService(OperationController(store=store))
+
+    with pytest.raises(RExecOpValidationError, match="source operation mismatch"):
+        service.plan(
+            profile_path=profile_root,
+            environment_path=POLICY_ENV,
+            source_operation_id="source-op",
+            target="fixture-target",
+        )
 
 
 def test_two_profile_snapshots_compile_without_core_domain_assumptions(tmp_path: Path) -> None:

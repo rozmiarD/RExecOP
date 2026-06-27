@@ -35,6 +35,12 @@ rexecop reaction-plan \
   --observation observation.json \
   --target monitoring-host-01
 
+rexecop reaction-plan \
+  --profile tecrax \
+  --env /path/outside/repo/environment.yaml \
+  --operation op-source \
+  --target monitoring-host-01
+
 rexecop reaction-start --reaction reaction-...
 rexecop reaction-replay --reaction reaction-...
 rexecop reaction-proposal-validate --profile tecrax --proposal proposal.json
@@ -43,6 +49,18 @@ rexecop reaction-proposal-validate --profile tecrax --proposal proposal.json
 `reaction-plan` never starts the child operation. `reaction-start` can start
 only the already admitted child and uses the ordinary connector, validation,
 evidence, and receipt path. `reaction-replay` performs no execution.
+
+`reaction-plan` accepts exactly one observation source:
+
+- `--observation` points at an already generated SCLite
+  `observation_envelope.v0.1` JSON file.
+- `--operation` loads `metadata.shared_state.reaction_observation` from a
+  completed source operation.
+
+RExecOp does not construct profile facts or domain observations. The selected
+profile must produce the observation envelope. RExecOp only validates the SCLite
+schema, selected profile id/version/digest, source operation binding, and target
+binding before evaluating the profile-owned reaction pack.
 
 ## LLM boundary
 

@@ -160,7 +160,8 @@ def operations_explain_cmd(
 def reaction_plan_cmd(
     profile: str = typer.Option(..., "--profile"),
     env: Path = typer.Option(..., "--env"),
-    observation: Path = typer.Option(..., "--observation"),
+    observation: Path | None = typer.Option(None, "--observation"),
+    source_operation: str | None = typer.Option(None, "--operation"),
     target: str = typer.Option(..., "--target"),
     mode: str = typer.Option("dry_run", "--mode"),
     depth: int = typer.Option(0, "--depth", min=0),
@@ -173,6 +174,7 @@ def reaction_plan_cmd(
             profile_path=profile,
             environment_path=env,
             observation_path=observation,
+            source_operation_id=source_operation,
             target=target,
             mode=mode,
             context=ReactionContext(

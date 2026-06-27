@@ -19,6 +19,7 @@ from sclite.artifacts import artifact_sha256, canonical_artifact_bytes, validate
 from rexecop.environment.loader import load_environment
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
+from rexecop.operation.state import OperationState
 from rexecop.policy.operation import evaluate_operation_policy
 from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import LoadedProfile, load_profile
@@ -83,16 +84,25 @@ class ReactionService:
         *,
         profile_path: str | Path,
         environment_path: Path,
-        observation_path: Path,
+        observation_path: Path | None = None,
+        source_operation_id: str | None = None,
         target: str,
         mode: str = "dry_run",
         context: ReactionContext | None = None,
     ) -> dict[str, Any]:
         if mode not in {"observe", "dry_run", "emergency_readonly"}:
             raise RExecOpValidationError("reaction planning supports read-only modes only")
+        if (observation_path is None) == (source_operation_id is None):
+            raise RExecOpValidationError(
+                "exactly one of observation_path or source_operation_id is required"
+            )
         profile = load_profile(resolve_profile_path(profile_path))
         pack = compile_reaction_pack(profile)
-        observation = _read_json(observation_path)
+        if source_operation_id is not None:
+            observation = self._observation_from_operation(source_operation_id)
+        else:
+            assert observation_path is not None
+            observation = _read_json(observation_path)
         validate_artifact(observation, "schemas/observation_envelope.v0.1.schema.json")
         if len(canonical_artifact_bytes(observation)) > MAX_OBSERVATION_BYTES:
             raise RExecOpValidationError("canonical observation exceeds bounded size")
@@ -299,3 +309,18 @@ class ReactionService:
             "may_execute": False,
             "requires_govengine_admission": True,
         }
+
+    def _observation_from_operation(self, operation_id: str) -> dict[str, Any]:
+        operation = self.controller.store.load_operation(operation_id)
+        if operation.state != OperationState.COMPLETED.value:
+            raise RExecOpValidationError("reaction observation requires completed operation")
+        shared_state = operation.metadata.get("shared_state")
+        if not isinstance(shared_state, Mapping):
+            raise RExecOpValidationError("operation has no reaction observation")
+        observation = shared_state.get("reaction_observation")
+        if not isinstance(observation, dict):
+            raise RExecOpValidationError("operation has no reaction observation")
+        source = observation.get("source")
+        if not isinstance(source, Mapping) or str(source.get("operation_id")) != operation.id:
+            raise RExecOpValidationError("reaction observation source operation mismatch")
+        return dict(observation)
