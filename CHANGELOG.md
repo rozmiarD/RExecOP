@@ -11,6 +11,10 @@ PyPI alpha line is **`0.2.7a0`**. Entries under [Releases](#releases) are newest
 
 ## Unreleased
 
+- Added a cross-repo stack contract compatibility matrix and
+  `scripts/validate_stack_contracts.py` gate for current package ranges,
+  readiness labels and non-claims before later automation phases.
+
 ## [0.2.7a0] - 2026-06-27
 
 - Added the PEP 561 `py.typed` marker so downstream stack profiles can type-check

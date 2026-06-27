@@ -59,6 +59,18 @@ what the software does **not** provide so expectations stay aligned with impleme
 | Source alpha line | `0.2.7a0` is current on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
 | Coordinated dependencies | Requires published `govengine>=0.16.1,<0.17`; the `tecrax` extra requires `tecrax>=0.3.6a0,<0.4` |
 
+## Stack readiness labels
+
+The current public stack baseline is recorded in
+[stack-contract-compatibility.md](stack-contract-compatibility.md). Current active labels are:
+
+- `alpha_readonly`
+- `deterministic_plan_only`
+- `deterministic_execute_readonly`
+
+The labels `advisory_llm` and `mutation_ready` are not active. LLM output remains
+an untrusted proposal shape only, and mutation/apply readiness is explicitly false.
+
 ## What alpha **does** provide (allowed claims)
 
 - GovEngine-bound operations control-plane with default `GovEngineClient` adapter

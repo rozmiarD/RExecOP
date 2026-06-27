@@ -27,6 +27,7 @@ policy engine or a parallel truth layer.
 | Tests | 296 passed, 1 skipped (current local suite; CI reruns the current suite) |
 | Latest PyPI | [`rexecop==0.2.7a0`](https://pypi.org/project/rexecop/0.2.7a0/) |
 | Source dependencies | `govengine>=0.16.1,<0.17`, `sclite-core>=1.0.5,<1.1` (see `pyproject.toml`) |
+| Stack compatibility | [`docs/stack-contract-compatibility.md`](docs/stack-contract-compatibility.md) |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
 
 ## Project sentence
@@ -197,6 +198,7 @@ ruff, mypy, core boundary grep, secret scan, pytest, and a `package-dry-run` job
 | Document | Topic |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Layer boundaries and execution path |
+| [docs/stack-contract-compatibility.md](docs/stack-contract-compatibility.md) | Cross-repo contract matrix and readiness labels |
 | [docs/operation-lifecycle.md](docs/operation-lifecycle.md) | States, CLI orchestration, queue/lock |
 | [docs/operator-scheduler-pattern.md](docs/operator-scheduler-pattern.md) | Host-owned scheduling with worker/systemd |
 | [docs/govengine-integration.md](docs/govengine-integration.md) | Governance port and apply gating |

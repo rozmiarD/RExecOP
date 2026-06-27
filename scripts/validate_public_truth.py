@@ -23,6 +23,7 @@ VERSION_DOCS = (
     "OPERATOR_LAB_RUNBOOK.md",
     "docs/known-limitations.md",
     "docs/distribution.md",
+    "docs/stack-contract-compatibility.md",
 )
 
 STALE_OPERATOR_VERSIONS = (
@@ -166,7 +167,16 @@ def collect_errors() -> list[str]:
     _require(errors, "README.md", EXPECTED_SCLITE)
     _require(errors, "OPERATOR_RUNBOOK.md", "scripts/validate_public_truth.py")
     _require(errors, "OPERATOR_LAB_RUNBOOK.md", "scripts/validate_public_truth.py")
+    _require(errors, "README.md", "docs/stack-contract-compatibility.md")
+    _require(errors, "docs/known-limitations.md", "Stack readiness labels")
+    _require(errors, "docs/stack-contract-compatibility.md", "stack-contract-compatibility")
+    _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_SCLITE)
+    _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_GOVENGINE)
+    _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_TECRAX_EXTRA)
+    _require(errors, "docs/stack-contract-compatibility.md", "`mutation_ready` | false")
+    _require(errors, "scripts/validate_stack_contracts.py", "stack_contracts_ok")
     _require(errors, ".github/workflows/ci.yml", "python scripts/validate_public_truth.py")
+    _require(errors, ".github/workflows/ci.yml", "python scripts/validate_stack_contracts.py")
     _require(errors, ".github/workflows/ci.yml", "rozmiarD/tecrax")
     _require(errors, ".github/workflows/ci.yml", "python -m build")
     _require(errors, ".github/workflows/ci.yml", "twine check")

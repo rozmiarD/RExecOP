@@ -39,6 +39,9 @@ jobs:
       - name: Validate public truth
         run: python scripts/validate_public_truth.py
 
+      - name: Validate stack contracts
+        run: python scripts/validate_stack_contracts.py
+
       - name: Ruff
         run: ruff check . --exclude ci-deps
 
