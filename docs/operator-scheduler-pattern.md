@@ -93,16 +93,26 @@ planning, schedule work, or execute anything.
 The worker can supervise RExecOp's own runtime mechanics:
 
 ```bash
-rexecop worker run --watch-inbox --watchdog --stale-inbox-seconds 3600 --poll-interval 60
+rexecop worker run --watch-inbox --watchdog \
+  --stale-inbox-seconds 3600 \
+  --stale-operation-seconds 3600 \
+  --inbox-retry-budget 3 \
+  --poll-interval 60
 ```
 
 The watchdog is not infrastructure monitoring and does not interpret profile
 domain health. It records bounded worker heartbeats, queue depth, and inbox
 dead-letter decisions under `.rexecop/watchdog/`. When enabled with
 `--watch-inbox`, inbox files older than `--stale-inbox-seconds` are moved to
-`.rexecop/dead_letter/` before execution. Failed inbox files are also moved to
-dead-letter. Watchdog records include file names, reasons and bounded timing
-metadata; they do not copy trigger payloads.
+`.rexecop/dead_letter/` before execution. Failed inbox files consume a bounded
+retry budget and then move to dead-letter. Stale active operations produce a
+`block_autostart` watchdog record; watchdog does not mutate the operation FSM to
+hide the stuck state. Watchdog records include file names, operation ids, reasons
+and bounded timing metadata; they do not copy trigger payloads.
+
+Watchdog records are operational runtime records. RExecOp writes bounded SCLite
+projection metadata for the future `evidence_contract` path, but the projection
+is not itself SCLite authority.
 
 ## systemd unit example
 

@@ -438,6 +438,16 @@ def worker_run_cmd(
             "when watchdog is enabled."
         ),
     ),
+    stale_operation_seconds: float = typer.Option(
+        3600.0,
+        "--stale-operation-seconds",
+        help="Record a block-autostart watchdog decision for active operations older than this.",
+    ),
+    inbox_retry_budget: int = typer.Option(
+        3,
+        "--inbox-retry-budget",
+        help="Maximum failed inbox processing attempts before watchdog dead-lettering.",
+    ),
 ) -> None:
     """Poll the run-now queue and start admitted operations (systemd-friendly)."""
     controller = _controller()
@@ -451,6 +461,8 @@ def worker_run_cmd(
             watchdog=watchdog,
             worker_id=worker_id,
             stale_inbox_seconds=stale_inbox_seconds,
+            stale_operation_seconds=stale_operation_seconds,
+            inbox_retry_budget=inbox_retry_budget,
         )
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)

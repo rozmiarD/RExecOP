@@ -9,7 +9,12 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.operation.controller import OperationController
 from rexecop.operation.model import Operation
-from rexecop.runtime_ops.watchdog import DEFAULT_WORKER_ID, WatchdogService
+from rexecop.runtime_ops.watchdog import (
+    DEFAULT_INBOX_RETRY_BUDGET,
+    DEFAULT_STALE_OPERATION_SECONDS,
+    DEFAULT_WORKER_ID,
+    WatchdogService,
+)
 from rexecop.storage.atomic import secure_directory, secure_file
 from rexecop.triggers.service import TriggerService
 
@@ -29,12 +34,18 @@ def run_worker(
     watchdog: bool = False,
     worker_id: str = DEFAULT_WORKER_ID,
     stale_inbox_seconds: float = 3600.0,
+    stale_operation_seconds: float = DEFAULT_STALE_OPERATION_SECONDS,
+    inbox_retry_budget: int = DEFAULT_INBOX_RETRY_BUDGET,
 ) -> list[str]:
     """Poll queue (and optional inbox) and start admitted operations."""
     if poll_interval <= 0:
         raise RExecOpValidationError("poll_interval must be positive")
     if stale_inbox_seconds <= 0:
         raise RExecOpValidationError("stale_inbox_seconds must be positive")
+    if stale_operation_seconds <= 0:
+        raise RExecOpValidationError("stale_operation_seconds must be positive")
+    if inbox_retry_budget <= 0:
+        raise RExecOpValidationError("inbox_retry_budget must be positive")
 
     started: list[str] = []
     iterations = 0
@@ -46,9 +57,18 @@ def run_worker(
                 watchdog_service.move_stale_inbox_items(
                     max_age_seconds=stale_inbox_seconds
                 )
+            watchdog_service.record_stale_active_operations(
+                max_age_seconds=stale_operation_seconds
+            )
 
         if watch_inbox:
-            started.extend(_process_inbox(controller, watchdog_service=watchdog_service))
+            started.extend(
+                _process_inbox(
+                    controller,
+                    watchdog_service=watchdog_service,
+                    inbox_retry_budget=inbox_retry_budget,
+                )
+            )
 
         started.extend(controller.process_queue())
         if watchdog_service is not None:
@@ -179,6 +199,7 @@ def _process_inbox(
     controller: OperationController,
     *,
     watchdog_service: WatchdogService | None = None,
+    inbox_retry_budget: int = DEFAULT_INBOX_RETRY_BUDGET,
 ) -> list[str]:
     root = controller.store.root
     if root is None:
@@ -220,12 +241,14 @@ def _process_inbox(
                 if parsed["auto_start"]:
                     started.append(operation.id)
             path.unlink(missing_ok=True)
+            if watchdog_service is not None:
+                watchdog_service.clear_inbox_retry_budget(path.name)
         except Exception as exc:
             if watchdog_service is not None:
-                watchdog_service.move_inbox_item_to_dead_letter(
+                watchdog_service.record_inbox_processing_failure(
                     path,
-                    reason="inbox_processing_failed",
-                    details={"error_type": exc.__class__.__name__},
+                    error_type=exc.__class__.__name__,
+                    max_attempts=inbox_retry_budget,
                 )
             else:
                 path.rename(inbox / f"failed-{path.name}")

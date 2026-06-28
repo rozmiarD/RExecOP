@@ -15,6 +15,9 @@ PyPI alpha line is **`0.2.9a0`**. Entries under [Releases](#releases) are newest
   records bounded worker heartbeats and queue depth, moves stale inbox files to
   `.rexecop/dead_letter/` before execution, and dead-letters failed inbox files
   without copying trigger payloads into watchdog records.
+- Extended the watchdog slice with bounded inbox retry budgets, stale active
+  operation `block_autostart` records and non-authoritative SCLite projection
+  metadata for future evidence-contract truth binding.
 
 ## [0.2.9a0] - 2026-06-28
 

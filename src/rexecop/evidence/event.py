@@ -21,3 +21,4 @@ class EvidenceEventType(StrEnum):
     OPERATION_COMPLETED = "operation_completed"
     OPERATION_FAILED = "operation_failed"
     OPERATION_ESCALATED = "operation_escalated"
+    WATCHDOG_DECISION = "watchdog_decision"

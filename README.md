@@ -167,7 +167,7 @@ Runtime artifacts live under `.rexecop/` (gitignored): operations, evidence, SCL
 | `validate` | Re-run declarative profile validation |
 | `escalate` | Build operator escalation package |
 | `queue` | Inspect FIFO run-now backlog; `queue --drain` processes pending starts |
-| `worker run` | Poll queue and start approved operations (`--once`, `--poll-interval`, `--watch-inbox`, `--watchdog`) |
+| `worker run` | Poll queue and start approved operations (`--once`, `--poll-interval`, `--watch-inbox`, `--watchdog`, `--inbox-retry-budget`) |
 | `trigger` | Create operation from JSON stdin or CLI flags (webhook-friendly) |
 | `targets list` / `targets show` | Query bounded descriptors from a private target catalog |
 | `operations list` / `operations explain` | Query profile-owned operations and target applicability |
