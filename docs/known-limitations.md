@@ -1,6 +1,6 @@
 # Known limitations (alpha)
 
-RExecOp `0.2.7a0` is a published alpha line for operator evaluation. This document states
+RExecOp `0.2.8a0` is a published alpha line for operator evaluation. This document states
 what the software does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth
@@ -55,9 +55,9 @@ what the software does **not** provide so expectations stay aligned with impleme
 
 | Limitation | Detail |
 | --- | --- |
-| Public PyPI | `rexecop==0.2.7a0` published for alpha evaluation — not a production-ready claim |
-| Source alpha line | `0.2.7a0` is current on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
-| Coordinated dependencies | Requires published `govengine>=0.16.1,<0.17`; the `tecrax` extra requires `tecrax>=0.3.6a0,<0.4` |
+| Public PyPI | `rexecop==0.2.8a0` published for alpha evaluation — not a production-ready claim |
+| Source alpha line | `0.2.8a0` is current on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
+| Coordinated dependencies | Requires published `govengine>=0.16.2,<0.17`; the `tecrax` extra requires `tecrax>=0.3.6a0,<0.4` |
 
 ## Stack readiness labels
 

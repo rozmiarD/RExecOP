@@ -4,8 +4,8 @@
 
 | Field | Value |
 |-------|-------|
-| RExecOp version (dev line) | `0.2.7a0` |
-| RExecOp version (PyPI published) | `0.2.7a0` |
+| RExecOp version (dev line) | `0.2.8a0` |
+| RExecOp version (PyPI published) | `0.2.8a0` |
 | GovEngine version | `0.16.1` |
 | Tecrax version | `0.3.6a0` |
 | Operator | local operator checkout |
@@ -20,7 +20,7 @@
 | `pytest -q` (full) | [x] | **294** passed, **1** skipped |
 | `pytest -m delivery` | [x] | includes policy + readonly slice + stage_a |
 | GitHub Actions `main` green | [x] | post-`e222dfb` (verify on merge) |
-| PyPI stack install smoke | [x] | `govengine==0.16.1` `rexecop==0.2.7a0` `tecrax==0.3.6a0`; `pip check` clean |
+| PyPI stack install smoke | [x] | `govengine==0.16.2` `rexecop==0.2.8a0` `tecrax==0.3.6a0`; `pip check` clean |
 | Policy lab E2E (fixture) | [x] | env `runtime-fixture.policy.example.yaml`; neutral no-I/O fixture |
 
 ## Human checklist (production-adjacent)
@@ -66,7 +66,7 @@ lab automation — 2026-06-21 UTC
 
 ## Notes
 
-- Etap A contract hardening + execution receipt boundary + PolicyEngine E2E in `0.2.7a0`.
+- Etap A contract hardening + execution receipt boundary + PolicyEngine E2E in `0.2.8a0`.
 - Default fixture env **without** `policy_pack` remains for apply/mutation tests; policy lab uses `*.policy.example.yaml`.
 - Staging template: `runtime-fixture.staging.example.yaml` (+ secrets outside git).
 - Local staging lab: `python scripts/run_staging_http_lab.py` (no external infrastructure required).

@@ -7,9 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Versioning:** pre-1.0 alpha tags use the `0.y.za0` form. Roadmap delivery before the
 public alpha gate used **`0.3.0a0`–`0.11.0a0`** (Phases 2B–9; see [Pre-alpha gate history](#pre-alpha-gate-history)).
 **`0.1.0a0`** (Phase 10) reset the public line and declared the alpha gate. The current
-PyPI alpha line is **`0.2.7a0`**. Entries under [Releases](#releases) are newest first.
+PyPI alpha line is **`0.2.8a0`**. Entries under [Releases](#releases) are newest first.
 
 ## Unreleased
+
+## [0.2.8a0] - 2026-06-28
 
 - Added a cross-repo stack contract compatibility matrix and
   `scripts/validate_stack_contracts.py` gate for current package ranges,
@@ -40,6 +42,9 @@ PyPI alpha line is **`0.2.7a0`**. Entries under [Releases](#releases) are newest
   trigger decisions into the SCLite `trigger_decision.v0.1` artifact
   shape with event/rule/admission digests and optional child-operation refs,
   while keeping trigger matching, policy and execution ownership outside SCLite.
+- Published the trigger/reaction baseline over public `sclite-core==1.0.6`,
+  `govengine==0.16.2`, and `tecrax==0.3.6a0` so clean installs no longer depend
+  on local SCLite source checkouts for trigger-decision truth artifacts.
 
 ## [0.2.7a0] - 2026-06-27
 
@@ -342,6 +347,7 @@ Roadmap versions before the Phase 10 reset (`0.1.0a0`). Listed oldest → newest
 
 - Phases 0–2A: repository bootstrap, operation core, static GovEngine gating
 
+[0.2.8a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.7a0...v0.2.8a0
 [0.2.7a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.6a0...v0.2.7a0
 [0.2.6a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.5a0...v0.2.6a0
 [0.2.5a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.4a0...v0.2.5a0
