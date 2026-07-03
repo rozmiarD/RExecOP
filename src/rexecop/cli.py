@@ -19,6 +19,8 @@ from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
 from rexecop.reaction.model import ReactionContext
 from rexecop.reaction.service import ReactionService
+from rexecop.runtime.init import initialize_runtime_root
+from rexecop.runtime.root import resolve_runtime_root
 from rexecop.runtime_ops.watchdog import WatchdogService
 from rexecop.runtime_ops.worker import (
     drain_queue,
@@ -27,7 +29,7 @@ from rexecop.runtime_ops.worker import (
     trigger_event,
     trigger_operation,
 )
-from rexecop.storage.factory import resolve_storage_backend
+from rexecop.storage.factory import create_store, resolve_storage_backend
 
 app = typer.Typer(
     name="rexecop",
@@ -42,9 +44,17 @@ operations_app = typer.Typer(
 app.add_typer(targets_app, name="targets")
 app.add_typer(operations_app, name="operations")
 
+_runtime_root: Path | None = None
+
 
 @app.callback()
 def main(
+    root: Path | None = typer.Option(
+        None,
+        "--root",
+        envvar="REXECOP_ROOT",
+        help="Runtime root directory. Defaults to ./.rexecop.",
+    ),
     storage: str = typer.Option(
         "file",
         "--storage",
@@ -53,11 +63,13 @@ def main(
     ),
 ) -> None:
     """RExecOp operations control-plane."""
+    global _runtime_root
+    _runtime_root = resolve_runtime_root(root)
     os.environ["REXECOP_STORAGE"] = resolve_storage_backend(storage)
 
 
 def _controller() -> OperationController:
-    return OperationController()
+    return OperationController(store=create_store(_runtime_root))
 
 
 def _reaction_service() -> ReactionService:
@@ -68,6 +80,20 @@ def _reaction_service() -> ReactionService:
 def version_cmd() -> None:
     """Print the package version."""
     typer.echo(__version__)
+
+
+@app.command("init")
+def init_cmd() -> None:
+    """Create the runtime root layout without secrets or backend IO."""
+    try:
+        result = initialize_runtime_root(
+            _runtime_root or resolve_runtime_root(),
+            backend=os.environ.get("REXECOP_STORAGE"),
+        )
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
 
 
 @targets_app.command("list")

@@ -16,7 +16,7 @@ This document states what the current published alpha line does **not** provide 
 | Limitation | Detail |
 | --- | --- |
 | Host-owned worker only | `rexecop worker run` polls the file queue; no built-in cron/recurrence DSL |
-| Runtime root is cwd | `.rexecop/` is created in the current working directory — no global `--root` flag |
+| Runtime root is explicit but minimal | CLI supports global `--root`, `REXECOP_ROOT` and `init`; `doctor` and named runtime instances are still planned |
 | File storage default | `FileStore` is default; optional `SqliteStore` via `REXECOP_STORAGE=sqlite` |
 | No web UI | CLI (`rexecop`) only |
 | No multi-tenant RBAC | Single-operator storage model |

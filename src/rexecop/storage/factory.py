@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from rexecop.errors import RExecOpValidationError
+from rexecop.runtime.root import resolve_runtime_root
 from rexecop.storage.file_store import FileStore
 from rexecop.storage.port import RuntimeStore
 from rexecop.storage.sqlite_store import SqliteStore
@@ -22,6 +23,7 @@ def resolve_storage_backend(explicit: str | None = None) -> str:
 
 def create_store(root: Path | None = None, *, backend: str | None = None) -> RuntimeStore:
     resolved = resolve_storage_backend(backend)
+    runtime_root = root or resolve_runtime_root()
     if resolved == "sqlite":
-        return SqliteStore(root=root)
-    return FileStore(root=root)
+        return SqliteStore(root=runtime_root)
+    return FileStore(root=runtime_root)
