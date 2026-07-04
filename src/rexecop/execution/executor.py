@@ -13,6 +13,7 @@ from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
+from rexecop.execution.govengine_governance import enforce_typed_execution_governance
 from rexecop.execution.internal_registry import InternalHandler, load_internal_handlers
 from rexecop.execution.typed_spec import bind_step_execution_spec, compile_step_execution_spec
 from rexecop.profile.loader import load_profile
@@ -69,7 +70,7 @@ class StepExecutor:
     ) -> StepExecutionResult:
         connector = str(context.step.get("connector") or "")
         try:
-            self._bind_typed_execution_spec(context, step_id=step_id)
+            spec = self._bind_typed_execution_spec(context, step_id=step_id)
         except RExecOpValidationError as exc:
             return StepExecutionResult(
                 step_id=step_id,
@@ -79,6 +80,28 @@ class StepExecutor:
                 },
                 error=redact_text(str(exc)),
             )
+        if spec is not None:
+            admission = enforce_typed_execution_governance(
+                spec=spec,
+                operation_id=context.operation_id,
+                mode=context.mode,
+                shared_state=context.shared_state,
+            )
+            if not admission["allowed"]:
+                return StepExecutionResult(
+                    step_id=step_id,
+                    success=False,
+                    output={
+                        "error_class": connector_errors.POLICY_DENIED,
+                        "policy_reason_code": admission["reason_code"],
+                        "policy_blockers": list(admission.get("blockers") or []),
+                        "typed_execution_admission": dict(admission),
+                    },
+                    error=redact_text(
+                        "typed execution governance denied: "
+                        + str(admission.get("reason_code") or "denied")
+                    ),
+                )
         response = self.connector_dispatcher.invoke(
             ConnectorRequest(
                 connector=connector,
@@ -199,15 +222,15 @@ class StepExecutor:
         context: StepExecutionContext,
         *,
         step_id: str,
-    ) -> None:
+    ) -> dict[str, Any] | None:
         execution_context = context.shared_state.get("execution_context")
         if not isinstance(execution_context, dict):
-            return
+            return None
         profile_root = str(execution_context.get("profile_root") or "").strip()
         connectors = execution_context.get("connectors")
         connector = str(context.step.get("connector") or "").strip()
         if not profile_root or not isinstance(connectors, dict):
-            return
+            return None
         connector_config = connectors.get(connector)
         if not isinstance(connector_config, dict):
             raise RExecOpValidationError(f"connector not configured: {connector}")
@@ -222,6 +245,7 @@ class StepExecutor:
             spec=spec,
             shared_state=context.shared_state,
         )
+        return spec
 
     def _store_bounded_result(
         self,

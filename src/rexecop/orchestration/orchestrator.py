@@ -17,6 +17,7 @@ from rexecop.evidence.event import EvidenceEventType
 from rexecop.evidence.manager import EvidenceManager
 from rexecop.execution.backend import StepExecutionResult
 from rexecop.execution.executor import StepExecutor
+from rexecop.execution.govengine_governance import typed_execution_governance_overlay
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState
@@ -372,6 +373,9 @@ class OperationOrchestrator:
                     "profile_root": profile_root,
                     "connectors": dict(connectors),
                 }
+                shared_state["typed_execution_governance"] = (
+                    typed_execution_governance_overlay(operation.as_dict())
+                )
             sink = _WorkflowEvidenceSink(self, operation)
             policy_enforcement = self._policy_enforcement_for_operation(
                 operation,

@@ -11,6 +11,13 @@ PyPI alpha line is **`0.2.12a0`**. Entries under [Releases](#releases) are newes
 
 ## Unreleased
 
+- Added M6 typed execution governance bridge to GovEngine G5:
+  `build_typed_execution_governance_request()`, `evaluate_typed_execution_governance()`
+  and `enforce_typed_execution_governance()` project digest-bound typed specs into
+  `admit_typed_execution()` before connector backend IO. Connector steps store
+  `typed_execution_admissions` and fail closed with `policy_denied` when
+  governance blocks raw shell, unsupported backends, missing output digest refs,
+  network boundary mismatch or mutation without approval evidence.
 - Bound typed execution digests into runtime `ExecutionReceipt`: per-step
   `execution_spec_digest` / `capability_descriptor_digest`, aggregate
   `typed_execution_binding` (`rexecop.typed_execution_binding.v0.1`) and
