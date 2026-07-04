@@ -20,6 +20,7 @@ from rexecop.action.surface import (
 from rexecop.action.templates import list_action_templates
 from rexecop.catalog.service import CatalogService, compile_profile_operations
 from rexecop.cli_contracts import cli_contract_registry
+from rexecop.cli_errors import cli_error_json, cli_error_payload, validation_cli_error
 from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
@@ -190,6 +191,11 @@ def _controller() -> OperationController:
 
 def _reaction_service() -> ReactionService:
     return ReactionService(_controller())
+
+
+def _emit_cli_error(payload: dict[str, object]) -> None:
+    typer.echo(cli_error_json(payload))
+    raise typer.Exit(code=1)
 
 
 @app.command("version")
@@ -627,11 +633,26 @@ def profile_lint_cmd(
             track=track,
         )
     except RExecOpError as exc:
-        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
-    typer.echo(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+        _emit_cli_error(
+            validation_cli_error(
+                command=("profile", "lint"),
+                reason_code="profile_conformance_unavailable",
+                message=str(exc),
+                safe_next_actions=("Check the profile path or registered profile name.",),
+            )
+        )
     if result.status != "passed":
-        raise typer.Exit(code=1)
+        _emit_cli_error(
+            cli_error_payload(
+                error_class="validation_error",
+                reason_code="profile_conformance_failed",
+                message=f"profile conformance failed for {result.profile}",
+                command=("profile", "lint"),
+                safe_next_actions=("Fix reported profile conformance errors.",),
+                details=result.as_dict(),
+            )
+        )
+    typer.echo(json.dumps(result.as_dict(), indent=2, sort_keys=True))
 
 
 @policy_app.command("explain")
@@ -684,8 +705,17 @@ def operation_explain_cmd(
         plan = controller.store.load_plan(operation)
         result = explain_operation(item, plan)
     except RExecOpError as exc:
-        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        _emit_cli_error(
+            validation_cli_error(
+                command=("operation", "explain"),
+                reason_code="operation_lookup_failed",
+                message=str(exc),
+                safe_next_actions=(
+                    "Check the operation id.",
+                    "Run rexecop status --operation <id> from the same runtime root.",
+                ),
+            )
+        )
     typer.echo(json.dumps(result, indent=2, sort_keys=True))
 
 
@@ -764,11 +794,32 @@ def receipt_show_cmd(
         plan = controller.store.load_plan(operation)
         result = show_receipt(item, plan, controller.store)
     except RExecOpError as exc:
-        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
-    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        _emit_cli_error(
+            validation_cli_error(
+                command=("receipt", "show"),
+                reason_code="receipt_lookup_failed",
+                message=str(exc),
+                safe_next_actions=(
+                    "Check the operation id.",
+                    "Run rexecop history --operation <id> from the same runtime root.",
+                ),
+            )
+        )
     if result["status"] == "broken":
-        raise typer.Exit(code=1)
+        _emit_cli_error(
+            cli_error_payload(
+                error_class="missing_artifact",
+                reason_code="receipt_broken_digest",
+                message=f"receipt artifacts failed digest verification for {operation}",
+                command=("receipt", "show"),
+                safe_next_actions=(
+                    "Inspect SCLite bundle files before trusting this runtime root.",
+                    f"Run rexecop support bundle {operation} --redacted",
+                ),
+                details=result,
+            )
+        )
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
 
 
 @evidence_app.command("show")
@@ -818,8 +869,14 @@ def support_bundle_cmd(
         plan = controller.store.load_plan(operation)
         result = build_support_bundle(item, plan, controller.store, redacted=redacted)
     except RExecOpError as exc:
-        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        _emit_cli_error(
+            validation_cli_error(
+                command=("support", "bundle"),
+                reason_code="support_bundle_unavailable",
+                message=str(exc),
+                safe_next_actions=("Run support bundle with --redacted for diagnostic output.",),
+            )
+        )
     typer.echo(json.dumps(result, indent=2, sort_keys=True))
     if result["status"] == "action_required":
         raise typer.Exit(code=1)
@@ -1269,11 +1326,26 @@ def ops_cmd() -> None:
     try:
         result = collect_ops_snapshot(_controller().store)
     except RExecOpError as exc:
-        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
-    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        _emit_cli_error(
+            validation_cli_error(
+                command=("ops",),
+                reason_code="ops_unavailable",
+                message=str(exc),
+                safe_next_actions=("Run rexecop runtime status --json.",),
+            )
+        )
     if result.get("blockers"):
-        raise typer.Exit(code=1)
+        _emit_cli_error(
+            cli_error_payload(
+                error_class="runtime_failure",
+                reason_code="runtime_blockers_present",
+                message="runtime blockers require operator action",
+                command=("ops",),
+                safe_next_actions=("Inspect details.blockers and action_required.",),
+                details=result,
+            )
+        )
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
 
 
 @app.command("explain-error")

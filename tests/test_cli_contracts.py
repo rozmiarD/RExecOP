@@ -10,6 +10,7 @@ from rexecop.cli_contracts import (
     cli_contract_registry,
     validate_cli_contract_registry,
 )
+from rexecop.cli_errors import CLI_ERROR_SCHEMA
 
 runner = CliRunner()
 
@@ -46,6 +47,7 @@ def test_cli_contract_registry_is_valid_and_snapshot_stable() -> None:
         assert item["authority"]
         assert item["redacted"] is True
         assert item["bounded_output"] is True
+        assert item["error_schema"] == CLI_ERROR_SCHEMA
         assert any(code["code"] == 0 for code in item["exit_codes"])
 
 

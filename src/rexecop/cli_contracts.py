@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from rexecop.cli_errors import CLI_ERROR_SCHEMA
+
 CLI_CONTRACT_REGISTRY_SCHEMA = "rexecop.cli_contract_registry.v0.1"
 
 
@@ -29,6 +31,7 @@ class CliContract:
     redacted: bool = True
     bounded_output: bool = True
     authority: str = "projection"
+    error_schema: str = CLI_ERROR_SCHEMA
     notes: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
@@ -43,6 +46,7 @@ class CliContract:
             "redacted": self.redacted,
             "bounded_output": self.bounded_output,
             "authority": self.authority,
+            "error_schema": self.error_schema,
             "notes": list(self.notes),
         }
 
@@ -191,6 +195,8 @@ def validate_cli_contract_registry(payload: dict[str, Any] | None = None) -> lis
         seen.add(command)
         if not str(item.get("schema") or "").startswith("rexecop."):
             errors.append(f"{command}:schema")
+        if item.get("error_schema") != CLI_ERROR_SCHEMA:
+            errors.append(f"{command}:error_schema")
         exit_codes = item.get("exit_codes")
         if not isinstance(exit_codes, list) or not exit_codes:
             errors.append(f"{command}:exit_codes")

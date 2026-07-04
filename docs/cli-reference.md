@@ -113,6 +113,24 @@ bounded-output claims, and the authority boundary for each output.
 The registry does not execute commands and does not replace command-specific
 tests. It is the M8 anti-drift surface for release-closure checks.
 
+## CLI Error Envelope
+
+Selected M8 failure paths emit `rexecop.cli_error.v0.1` on exit code `1`.
+The envelope contains:
+
+- `error_class`: normalized class such as `validation_error`, `missing_artifact`
+  or `runtime_failure`;
+- `reason_code`: stable machine-readable reason;
+- `message`: short redacted human-readable message;
+- `command` / `argv`: the command surface that failed;
+- `safe_next_actions`: bounded operator next steps;
+- `details`: redacted diagnostic projection from the failing command when useful.
+
+Initial covered paths: missing `operation explain`, failed `profile lint`, `ops`
+with blockers, broken `receipt show` digest, and unredacted `support bundle`
+requests. Other commands still use their existing error surface until M8
+normalization expands.
+
 ## Runtime triage and recovery
 
 | Command | Purpose |

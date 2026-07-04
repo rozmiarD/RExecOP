@@ -72,8 +72,11 @@ def test_receipt_show_fails_closed_on_broken_digest(tmp_path: Path) -> None:
     result = _invoke(root, "receipt", "show", operation.id)
     assert result.exit_code == 1
     payload = json.loads(result.stdout)
-    assert payload["status"] == "broken"
-    assert "intent_contract" in payload["broken_artifacts"]
+    assert payload["schema"] == "rexecop.cli_error.v0.1"
+    assert payload["error_class"] == "missing_artifact"
+    assert payload["reason_code"] == "receipt_broken_digest"
+    assert payload["details"]["status"] == "broken"
+    assert "intent_contract" in payload["details"]["broken_artifacts"]
 
 
 def test_receipt_show_reports_missing_artifact_without_crashing(tmp_path: Path) -> None:
@@ -128,7 +131,10 @@ def test_support_bundle_requires_redacted_and_includes_audit_sections(tmp_path: 
 
     unredacted = _invoke(root, "support", "bundle", operation.id)
     assert unredacted.exit_code == 1
-    assert "requires --redacted" in unredacted.output
+    unredacted_payload = json.loads(unredacted.stdout)
+    assert unredacted_payload["schema"] == "rexecop.cli_error.v0.1"
+    assert unredacted_payload["reason_code"] == "support_bundle_unavailable"
+    assert "requires --redacted" in unredacted_payload["message"]
 
     result = _invoke(root, "support", "bundle", operation.id, "--redacted")
     payload = _json_output(result)

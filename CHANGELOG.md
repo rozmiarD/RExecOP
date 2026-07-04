@@ -19,6 +19,10 @@ PyPI alpha line is **`0.2.14a0`**. Entries under [Releases](#releases) are newes
   and `rexecop contracts cli`, a read-only machine-readable registry of
   operator-facing command schemas, formats, exit-code policy, redaction claims
   and authority boundaries.
+- Added the initial `rexecop.cli_error.v0.1` envelope for selected
+  operator-facing failure paths: missing operation explain, failed profile
+  conformance, runtime blockers in `ops`, broken receipt digest, and
+  unredacted support-bundle requests.
 
 ## [0.2.14a0] - 2026-07-04
 
