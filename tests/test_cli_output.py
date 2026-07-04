@@ -29,13 +29,12 @@ def test_global_json_flag_on_init_emits_runtime_init_schema(tmp_path) -> None:
 
 
 def test_global_format_table_on_doctor_renders_human_summary(tmp_path) -> None:
-    root = tmp_path / 'runtime'
-    runner.invoke(app, ['--root', str(root), 'init'])
+    root = tmp_path / 'missing-runtime'
     result = runner.invoke(app, ['--root', str(root), '--format', 'table', 'doctor'])
 
     assert result.exit_code == 1
     assert 'doctor status=blocker' in result.stdout
-    assert 'runtime_root' not in result.stdout
+    assert 'blockers=runtime_root' in result.stdout
 
 
 def test_global_format_markdown_on_init_renders_heading(tmp_path) -> None:

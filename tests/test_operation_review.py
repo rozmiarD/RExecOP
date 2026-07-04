@@ -96,8 +96,8 @@ def test_review_operation_reports_decision_screen_fields() -> None:
     assert payload["status"] == "proceed"
     screen = payload["decision_screen"]
     assert screen["operation_id"] == "op-review-1"
-    assert screen["side_effect_class"] == ""
-    assert screen["runbook_ref"] == ""
+    assert screen["side_effect_class"] == "none"
+    assert screen["runbook_ref"] == "workflows/inspect_fixture_state.yaml"
     assert screen["backends"] == [
         {"connector": "fixture_source", "backend": "static_fixture"}
     ]
