@@ -54,6 +54,7 @@ M3_M4_CLI_MARKERS = (
     "secrets doctor",
     "profiles list",
     "profile manifest",
+    "profile harness",
     "connectors list",
     "capabilities list",
     "operations unavailable",
@@ -214,6 +215,10 @@ def collect_errors() -> list[str]:
     _require(errors, "docs/profile-developer-surface.md", "govengine_governance")
     _require(errors, "docs/profile-developer-surface.md", "operator_metadata.yaml")
     _require(errors, "docs/profile-developer-surface.md", "rexecop.operation_profile_explain.v0.1")
+    _require(errors, "docs/profile-developer-surface.md", "rexecop.profile_workflow_harness.v0.1")
+    _require(errors, "docs/profile-developer-surface.md", "profile harness")
+    _require(errors, "CHANGELOG.md", "rexecop.profile_workflow_harness.v0.1")
+    _require(errors, "CHANGELOG.md", "profile harness")
     _require(errors, "docs/govengine-integration.md", "profile-governance")
     _require(errors, "CHANGELOG.md", "operator_metadata.yaml")
     _require(errors, "CHANGELOG.md", "rexecop.operation_profile_explain.v0.1")

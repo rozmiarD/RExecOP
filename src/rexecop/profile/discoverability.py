@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,10 @@ from rexecop.profile.govengine_governance import evaluate_profile_governance
 from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.profile.operator_metadata import evaluate_operator_metadata_coverage
 from rexecop.profile.resolver import list_registered_profiles, resolve_profile_path
+from rexecop.profile.workflow_harness import (
+    HarnessFixture,
+    run_profile_workflow_harness,
+)
 
 PROFILE_LIST_SCHEMA = "rexecop.profile_list.v0.1"
 PROFILE_SHOW_SCHEMA = "rexecop.profile_show.v0.1"
@@ -95,12 +100,14 @@ def run_profile_developer_check(
     govengine_governance = evaluate_profile_governance(profile, track=track)
     loaded = load_profile(resolve_profile_path(profile))
     operator_metadata = evaluate_operator_metadata_coverage(loaded)
+    workflow_harness = _run_workflow_harness_for_profile(profile)
     status = "passed"
     if (
         conformance.status != "passed"
         or plugins["status"] != "passed"
         or govengine_governance["status"] != "passed"
         or operator_metadata.status == "failed"
+        or workflow_harness["status"] == "failed"
     ):
         status = "failed"
     return {
@@ -112,8 +119,29 @@ def run_profile_developer_check(
         "plugin_compatibility": plugins,
         "govengine_governance": govengine_governance,
         "operator_metadata": operator_metadata.as_dict(),
+        "workflow_harness": workflow_harness,
         "requires_runtime_store": False,
     }
+
+
+def run_profile_workflow_harness_report(
+    profile: str | Path,
+    *,
+    fixture: HarnessFixture | None = None,
+    store_root: Path | None = None,
+) -> dict[str, Any]:
+    if store_root is not None:
+        return run_profile_workflow_harness(profile, fixture=fixture, store_root=store_root)
+    with tempfile.TemporaryDirectory(prefix="rexecop-harness-") as tmp:
+        return run_profile_workflow_harness(
+            profile,
+            fixture=fixture,
+            store_root=Path(tmp),
+        )
+
+
+def _run_workflow_harness_for_profile(profile: str | Path) -> dict[str, Any]:
+    return run_profile_workflow_harness_report(profile)
 
 
 def list_connectors_manifest() -> dict[str, Any]:

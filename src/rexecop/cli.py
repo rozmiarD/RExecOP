@@ -25,6 +25,7 @@ from rexecop.profile.discoverability import (
     list_capabilities_manifest,
     list_connectors_manifest,
     list_profiles_manifest,
+    run_profile_workflow_harness_report,
     show_connector_manifest,
     show_profile_manifest,
 )
@@ -323,6 +324,49 @@ def connectors_show_cmd(
 def capabilities_list_cmd() -> None:
     """List neutral capabilities known to the runtime and their source."""
     typer.echo(json.dumps(list_capabilities_manifest(), indent=2, sort_keys=True))
+
+
+@profile_app.command("harness")
+def profile_harness_cmd(
+    profile: str = typer.Option(..., "--profile", help="Registered profile or profile path."),
+    env: Path | None = typer.Option(
+        None,
+        "--env",
+        help="Optional fixture environment override for harness execution.",
+    ),
+) -> None:
+    """Run the profile workflow test harness against a fixture environment."""
+    from rexecop.profile.workflow_harness import HarnessFixture, resolve_harness_fixture
+
+    fixture = resolve_harness_fixture(profile)
+    if env is not None:
+        if fixture is None:
+            from rexecop.profile.resolver import resolve_profile_path
+
+            fixture = HarnessFixture(
+                profile_path=resolve_profile_path(profile),
+                environment_path=env.expanduser().resolve(),
+                readonly_intent="inspect_fixture_state",
+                blocked_intent="apply_fixture_change",
+                target="fixture-target",
+            )
+        else:
+            fixture = HarnessFixture(
+                profile_path=fixture.profile_path,
+                environment_path=env.expanduser().resolve(),
+                readonly_intent=fixture.readonly_intent,
+                blocked_intent=fixture.blocked_intent,
+                target=fixture.target,
+                blocked_mode=fixture.blocked_mode,
+            )
+    try:
+        result = run_profile_workflow_harness_report(profile, fixture=fixture)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+    if result["status"] == "failed":
+        raise typer.Exit(code=1)
 
 
 @profile_app.command("lint")

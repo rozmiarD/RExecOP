@@ -176,6 +176,7 @@ SCLite bundles, receipt exports, queue, locks and trigger inbox.
 | `secrets doctor` | Check secret refs, file permissions, duplicates and redaction (no values printed) |
 | `profile lint` | Validate profile conformance for `readonly`, `mutation` or `all` tracks |
 | `profile manifest` | Emit extension manifest `v0.1` for profiles, plugins and resolvers |
+| `profile harness` | Run workflow test harness (dry-run fixture, evidence, bundle, policy-blocked path) |
 | `profiles list` / `profiles show` | Discover registered profiles, intents, tracks and developer-check metadata |
 | `connectors list` / `connectors show` | Discover connector backends, modes and certification tier |
 | `capabilities list` | List neutral runtime capabilities and their source |

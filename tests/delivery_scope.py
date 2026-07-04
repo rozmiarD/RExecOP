@@ -29,6 +29,7 @@ DELIVERY_TEST_MODULES: tuple[str, ...] = (
     "test_staging_connectors_e2e",
     "test_storage_backends",
     "test_worker_runtime",
+    "test_workflow_harness",
 )
 
 # Documented themes mapped to delivery modules (values must stay in DELIVERY_TEST_MODULES).
@@ -56,6 +57,7 @@ DELIVERY_THEMES: dict[str, str] = {
     "staging_connectors": "test_staging_connectors_e2e",
     "storage_backends": "test_storage_backends",
     "worker_runtime": "test_worker_runtime",
+    "workflow_harness": "test_workflow_harness",
 }
 
 SIGNOFF_SCRIPT_REL = "scripts/run_alpha_signoff_checks.sh"

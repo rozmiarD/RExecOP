@@ -11,6 +11,10 @@ PyPI alpha line is **`0.2.11a0`**. Entries under [Releases](#releases) are newes
 
 ## Unreleased
 
+- Added M4 profile workflow test harness: `rexecop profile harness`, `run_profile_workflow_harness()`
+  and `workflow_harness` output in `profiles show` / `developer_check`
+  (`rexecop.profile_workflow_harness.v0.1`). Checks cover dry-run fixture execution,
+  no-secret evidence, SCLite bundle shape and policy-blocked mutation paths.
 - Added profile-owned `operator_metadata.yaml` projection with user-facing labels,
   runbook hints, safe next options and failure mapping. RExecOp loads and validates
   the document, surfaces it in `operations explain` (`rexecop.operation_profile_explain.v0.1`),

@@ -12,14 +12,16 @@ Typical profile-author flow before operator runs:
 ```text
 profile lint --track readonly
   -> profiles show (intents, tracks, developer_check)
+  -> profile harness --profile <profile>   # when a fixture environment is available
   -> secrets doctor --env <environment.yaml>
   -> operations unavailable --catalog <targets.yaml> --target <id>   # when using a catalog
   -> plan / operation review
 ```
 
 `run_profile_developer_check()` (surfaced in `profiles show`) runs conformance,
-plugin compatibility and GovEngine G3 `govengine_governance` compatibility
-**without** a runtime store.
+plugin compatibility, GovEngine G3 `govengine_governance` compatibility and
+the profile workflow test harness when a fixture environment is configured
+**without** requiring a pre-initialized operator runtime store.
 
 ## Profile discoverability
 
@@ -35,11 +37,33 @@ readonly/mutation compatibility status.
 `profiles show` returns:
 
 - profile summary: version, intents, required capabilities, per-track conformance;
-- `developer_check`: conformance + `plugin_compatibility` + `govengine_governance`;
+- `developer_check`: conformance + `plugin_compatibility` + `govengine_governance` + `workflow_harness`;
 - `operator_metadata`: coverage status for profile-owned `operator_metadata.yaml`;
 - bounded `extension_manifest` slice (`required_contracts`, `supported_tracks`).
 
 JSON schema: `rexecop.profile_show.v0.1`.
+
+## Profile workflow test harness
+
+Profiles that ship the domain-neutral `runtime_fixture` example can run the M4
+workflow test harness without backend IO:
+
+```bash
+rexecop profile harness --profile examples/profiles/runtime-fixture/profile.yaml
+```
+
+`run_profile_workflow_harness()` returns `rexecop.profile_workflow_harness.v0.1`
+with four checks:
+
+| Check | Meaning |
+| --- | --- |
+| `dry_run_fixture` | Read-only workflow completes in `dry_run` against `static_fixture` |
+| `no_secret_evidence` | Evidence events stay redacted and free of strong secret patterns |
+| `sclite_bundle_shape` | Exported receipt bundle passes `review_bundle` and required sidecars |
+| `policy_blocked_path` | Mutating plan is fail-closed when policy denies the workflow |
+
+Registered profiles without a bundled fixture environment report
+`workflow_harness.status=skipped` in `profiles show` / `developer_check`.
 
 ## Profile-owned operator metadata
 
