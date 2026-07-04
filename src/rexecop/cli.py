@@ -25,6 +25,14 @@ from rexecop.operation.explain import explain_operation
 from rexecop.operation.review import render_operation_review, review_operation
 from rexecop.policy.explain import explain_operation_policy
 from rexecop.profile.conformance import validate_profile_conformance
+from rexecop.profile.discoverability import (
+    list_capabilities_manifest,
+    list_connectors_manifest,
+    list_profiles_manifest,
+    show_connector_manifest,
+    show_profile_manifest,
+)
+from rexecop.profile.extension_manifest import build_extension_manifest
 from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
 from rexecop.profile.runbook import render_runbook_show, show_profile_runbook
@@ -61,6 +69,18 @@ app = typer.Typer(
 targets_app = typer.Typer(help="Query an operator-owned target catalog.", no_args_is_help=True)
 env_app = typer.Typer(help="Validate operator environment files.", no_args_is_help=True)
 profile_app = typer.Typer(help="Validate profile contracts.", no_args_is_help=True)
+profiles_app = typer.Typer(
+    help="Discover registered profiles and compatibility metadata.",
+    no_args_is_help=True,
+)
+connectors_app = typer.Typer(
+    help="Discover connector backends and certification metadata.",
+    no_args_is_help=True,
+)
+capabilities_app = typer.Typer(
+    help="List neutral runtime capabilities and their sources.",
+    no_args_is_help=True,
+)
 policy_app = typer.Typer(help="Inspect GovEngine policy decisions.", no_args_is_help=True)
 operation_app = typer.Typer(help="Inspect stored operation plans.", no_args_is_help=True)
 runbook_app = typer.Typer(help="Show profile-owned runbooks.", no_args_is_help=True)
@@ -74,6 +94,9 @@ locks_app = typer.Typer(help="Inspect advisory target locks.", no_args_is_help=T
 app.add_typer(targets_app, name="targets")
 app.add_typer(env_app, name="env")
 app.add_typer(profile_app, name="profile")
+app.add_typer(profiles_app, name="profiles")
+app.add_typer(connectors_app, name="connectors")
+app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(policy_app, name="policy")
 app.add_typer(operation_app, name="operation")
 app.add_typer(runbook_app, name="runbook")
@@ -209,6 +232,63 @@ def env_lint_cmd(
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@profiles_app.command("list")
+def profiles_list_cmd() -> None:
+    """List registered profiles with compatibility summaries."""
+    typer.echo(json.dumps(list_profiles_manifest(), indent=2, sort_keys=True))
+
+
+@profiles_app.command("show")
+def profiles_show_cmd(
+    profile: str = typer.Argument(..., help="Registered profile name or profile path."),
+    track: str = typer.Option(
+        "readonly",
+        "--track",
+        help="Developer-check conformance track: readonly, mutation or all.",
+    ),
+) -> None:
+    """Show one profile with intents, tracks and developer-check metadata."""
+    try:
+        result = show_profile_manifest(profile, track=track)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+    if result["compatibility"]["readonly"] != "passed":
+        raise typer.Exit(code=1)
+
+
+@profile_app.command("manifest")
+def profile_manifest_cmd() -> None:
+    """Emit the stack extension manifest for profiles, plugins and resolvers."""
+    typer.echo(json.dumps(build_extension_manifest(), indent=2, sort_keys=True))
+
+
+@connectors_app.command("list")
+def connectors_list_cmd() -> None:
+    """List built-in and plugin connector backends."""
+    typer.echo(json.dumps(list_connectors_manifest(), indent=2, sort_keys=True))
+
+
+@connectors_app.command("show")
+def connectors_show_cmd(
+    backend: str = typer.Argument(..., help="Connector backend class or plugin name."),
+) -> None:
+    """Show one connector backend descriptor and plugin compatibility status."""
+    try:
+        result = show_connector_manifest(backend)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@capabilities_app.command("list")
+def capabilities_list_cmd() -> None:
+    """List neutral capabilities known to the runtime and their source."""
+    typer.echo(json.dumps(list_capabilities_manifest(), indent=2, sort_keys=True))
 
 
 @profile_app.command("lint")
