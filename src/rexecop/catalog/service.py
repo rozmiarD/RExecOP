@@ -17,6 +17,7 @@ from rexecop.catalog.model import (
     OperationDescriptor,
     TargetDescriptor,
 )
+from rexecop.catalog.unavailable import build_unavailable_operations_report
 from rexecop.errors import RExecOpValidationError
 from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.profile.resolver import resolve_profile_path
@@ -95,6 +96,14 @@ class CatalogService:
                 }
             )
         return results
+
+    def list_unavailable_operations_for_target(
+        self,
+        target_id: str,
+        *,
+        intent: str | None = None,
+    ) -> dict[str, Any]:
+        return build_unavailable_operations_report(self, target_id, intent=intent)
 
     def resolve_operation(
         self,

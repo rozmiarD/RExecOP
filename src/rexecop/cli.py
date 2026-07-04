@@ -549,6 +549,28 @@ def operations_list_cmd(
     typer.echo(json.dumps(result, indent=2, sort_keys=True))
 
 
+@operations_app.command("unavailable")
+def operations_unavailable_cmd(
+    target: str = typer.Option(..., "--target", help="Target id from the private catalog."),
+    catalog: Path = typer.Option(..., "--catalog", help="Private target catalog YAML."),
+    intent: str | None = typer.Option(
+        None,
+        "--intent",
+        help="Optional profile intent id; defaults to all profile operations.",
+    ),
+) -> None:
+    """List operations that are not technically applicable to one catalog target."""
+    try:
+        result = CatalogService(catalog).list_unavailable_operations_for_target(
+            target,
+            intent=intent,
+        )
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
 @operations_app.command("explain")
 def operations_explain_cmd(
     intent: str = typer.Argument(..., help="Profile intent id."),

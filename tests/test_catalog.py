@@ -294,6 +294,49 @@ def test_catalog_drift_blocks_start_before_backend(
     assert backend_called is False
 
 
+def test_operations_unavailable_reports_missing_capability(tmp_path: Path) -> None:
+    _, _, catalog = _write_fixture(tmp_path, capabilities=["different_capability"])
+    service = CatalogService(catalog)
+
+    result = service.list_unavailable_operations_for_target("node-01")
+
+    assert result["schema"] == "rexecop.operations_unavailable.v0.1"
+    assert result["summary"]["unavailable_count"] == 1
+    assert result["summary"]["available_count"] == 0
+    entry = result["unavailable"][0]
+    assert entry["operation_id"] == "observe_status"
+    assert entry["status"] == "missing_capability"
+    assert "fixture_readonly" in entry["why_unavailable"]
+    assert any("capabilities" in option for option in entry["safe_next_options"])
+    assert "allowed" not in json.dumps(result)
+
+
+def test_operations_unavailable_is_empty_when_target_matches(tmp_path: Path) -> None:
+    _, _, catalog = _write_fixture(tmp_path)
+
+    result = CatalogService(catalog).list_unavailable_operations_for_target("node-01")
+
+    assert result["unavailable"] == []
+    assert result["summary"]["available_count"] == 1
+
+
+def test_operations_unavailable_filters_by_intent(tmp_path: Path) -> None:
+    _, _, catalog = _write_fixture(tmp_path, capabilities=["different_capability"])
+
+    result = CatalogService(catalog).list_unavailable_operations_for_target(
+        "node-01",
+        intent="observe_status",
+    )
+
+    assert len(result["unavailable"]) == 1
+
+    with pytest.raises(RExecOpValidationError, match="unknown profile intent"):
+        CatalogService(catalog).list_unavailable_operations_for_target(
+            "node-01",
+            intent="missing_intent",
+        )
+
+
 def test_catalog_cli_lists_targets_and_applicable_operations(tmp_path: Path) -> None:
     _, _, catalog = _write_fixture(tmp_path)
     runner = CliRunner()
@@ -309,6 +352,29 @@ def test_catalog_cli_lists_targets_and_applicable_operations(tmp_path: Path) -> 
     assert "192.0.2.67" not in targets.output
     assert str(tmp_path) not in targets.output
     assert '"status": "admission_required"' in operations.output
+
+
+def test_catalog_cli_lists_unavailable_operations(tmp_path: Path) -> None:
+    _, _, catalog = _write_fixture(tmp_path, capabilities=["different_capability"])
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "operations",
+            "unavailable",
+            "--catalog",
+            str(catalog),
+            "--target",
+            "node-01",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["summary"]["unavailable_count"] == 1
+    assert payload["unavailable"][0]["status"] == "missing_capability"
+    assert "192.0.2.67" not in result.stdout
 
 
 def test_catalog_unknown_target_fails_closed(tmp_path: Path) -> None:
