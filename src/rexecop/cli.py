@@ -20,10 +20,10 @@ from rexecop.operation.controller import OperationController
 from rexecop.operation.explain import explain_operation
 from rexecop.operation.review import render_operation_review, review_operation
 from rexecop.policy.explain import explain_operation_policy
-from rexecop.profile.runbook import render_runbook_show, show_profile_runbook
 from rexecop.profile.conformance import validate_profile_conformance
 from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
+from rexecop.profile.runbook import render_runbook_show, show_profile_runbook
 from rexecop.reaction.model import ReactionContext
 from rexecop.reaction.service import ReactionService
 from rexecop.runtime.doctor import CHECK_BLOCKER, count_secret_refs, run_runtime_doctor
