@@ -1,6 +1,6 @@
 # Stack contract compatibility
 
-This matrix records the source contract baseline that RExecOp `0.2.11a0`
+This matrix records the source contract baseline that RExecOp `0.2.12a0`
 consumes. It is a compatibility guard, not a new source of truth.
 Document id: `stack-contract-compatibility`.
 
@@ -19,7 +19,7 @@ Document id: `stack-contract-compatibility`.
 | --- | --- | --- | --- |
 | `sclite-core` | `1.0.8` | `sclite-core==1.0.8` | SCLite truth, reaction, trigger-decision and watchdog-decision artifact schemas. |
 | `govengine` | `0.16.6` | `govengine==0.16.6` | PolicyEngine MVP, B2 enforcement-plan contracts, trigger-planning admission, supervisor-action admission and supervisor explanations. |
-| `rexecop` | `0.2.11a0` | current package | Neutral runner, connectors, catalog and reaction mechanics. |
+| `rexecop` | `0.2.12a0` | current package | Neutral runner, connectors, catalog and reaction mechanics. |
 | `tecrax` | `0.3.9a0` | `tecrax==0.3.9a0` via optional extra | Domain infrastructure profile. |
 
 ## Contract matrix

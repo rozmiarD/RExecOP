@@ -1,6 +1,6 @@
 # Alpha sign-off
 
-RExecOp `0.2.11a0` source line — formal operator acceptance before production-adjacent use.
+RExecOp `0.2.12a0` source line — formal operator acceptance before production-adjacent use.
 
 This document separates **automated checks** (CI / script) from **human acceptance** (operator).
 

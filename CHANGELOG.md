@@ -7,9 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Versioning:** pre-1.0 alpha tags use the `0.y.za0` form. Roadmap delivery before the
 public alpha gate used **`0.3.0a0`–`0.11.0a0`** (Phases 2B–9; see [Pre-alpha gate history](#pre-alpha-gate-history)).
 **`0.1.0a0`** (Phase 10) reset the public line and declared the alpha gate. The current
-PyPI alpha line is **`0.2.11a0`**. Entries under [Releases](#releases) are newest first.
+PyPI alpha line is **`0.2.12a0`**. Entries under [Releases](#releases) are newest first.
 
 ## Unreleased
+
+_No unreleased changes._
+
+## [0.2.12a0] - 2026-07-04
 
 - Refreshed README for current M1–M5 CLI surface: grouped overview, accurate capability
   list, and link to new [docs/cli-reference.md](docs/cli-reference.md); moved the full
@@ -90,6 +94,7 @@ PyPI alpha line is **`0.2.11a0`**. Entries under [Releases](#releases) are newes
 - Added [docs/first-run.md](docs/first-run.md) and updated runtime-root docs so
   onboarding starts from explicit root initialization and diagnostics before
   profile execution.
+- Published `rexecop==0.2.12a0` on PyPI.
 
 ## [0.2.11a0] - 2026-06-28
 
@@ -451,7 +456,8 @@ Roadmap versions before the Phase 10 reset (`0.1.0a0`). Listed oldest → newest
 
 - Phases 0–2A: repository bootstrap, operation core, static GovEngine gating
 
-[0.2.11a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.10a0...HEAD
+[0.2.12a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.11a0...HEAD
+[0.2.11a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.10a0...v0.2.11a0
 [0.2.10a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.9a0...3372bb3
 [0.2.9a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.8a0...v0.2.9a0
 [0.2.8a0]: https://github.com/rozmiarD/RExecOP/compare/v0.2.7a0...v0.2.8a0
