@@ -18,7 +18,7 @@ The published wheel contains full B2, R4c, watchdog decision truth, and manual r
 
 - Python **3.11+**
 - Network access to install pinned dependencies:
-  - `govengine==0.16.5`
+  - `govengine==0.16.6`
   - `sclite-core==1.0.8`
 - Optional domain profile: [`tecrax`](https://pypi.org/project/tecrax/) or Git
 
@@ -76,7 +76,7 @@ python -m pip install "govengine @ git+https://github.com/rozmiarD/GovEngine.git
 python -m pip install "rexecop @ git+https://github.com/rozmiarD/RExecOP.git@main"
 ```
 
-The current RExecOp source line and the published `0.2.11a0` wheel require GovEngine `0.16.5` and SCLite `1.0.8`.
+The current RExecOp source line and the published `0.2.11a0` wheel require GovEngine `0.16.6` and SCLite `1.0.8`.
 
 ## Private index / GitHub Packages (operator-owned)
 

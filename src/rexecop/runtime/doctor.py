@@ -13,7 +13,7 @@ from rexecop.profile.conformance import validate_profile_conformance
 from rexecop.runtime.init import RUNTIME_DIRECTORIES, RUNTIME_MANIFEST
 from rexecop.storage.factory import resolve_storage_backend
 
-EXPECTED_GOVENGINE = "0.16.5"
+EXPECTED_GOVENGINE = "0.16.6"
 EXPECTED_SCLITE = "1.0.8"
 
 CHECK_PASSED = "passed"

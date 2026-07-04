@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -164,6 +164,41 @@ def test_explain_error_for_operation_and_dead_letter(tmp_path: Path) -> None:
 
     assert dead_letter_explained["failure_class"] == "runtime"
     assert "never-show-this-token" not in json.dumps(dead_letter_explained)
+
+
+def test_explain_error_watchdog_record_includes_govengine_supervisor_explanation(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path)
+    store = controller.store
+    now = datetime(2026, 7, 4, 12, 0, 0, tzinfo=UTC)
+    operation = Operation(
+        id="op-stale-1",
+        profile="runtime-fixture",
+        environment="runtime-fixture",
+        intent="inspect_fixture_state",
+        target="fixture-target",
+        mode="dry_run",
+        requested_by="operator",
+        state=OperationState.RUNNING.value,
+        created_at=(now - timedelta(hours=2)).isoformat(),
+        updated_at=(now - timedelta(hours=2)).isoformat(),
+        correlation_id="corr-stale-1",
+    )
+    _save_operation(store, operation)
+    record = WatchdogService(store).record_stale_active_operations(
+        max_age_seconds=60,
+        now=now,
+    )
+    assert record
+    record_id = record[0]["record_id"]
+    explained = explain_error(store, record_id)
+
+    assert explained["ref_kind"] == "watchdog_record"
+    assert explained["govengine_supervisor_explanation"]["schema_version"] == "v0.1"
+    assert explained["watchdog"]["recovery_class"] == "block_autostart"
+    assert explained["reason_code"] == "supervisor_action_allowed"
+    assert "rexecop ops" in explained["safe_next_actions"]
 
 
 def test_cli_runtime_ops_and_explain_error(tmp_path: Path) -> None:

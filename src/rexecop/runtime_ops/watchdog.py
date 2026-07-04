@@ -374,28 +374,7 @@ class WatchdogService:
         )
 
     def _admit_record(self, record: dict[str, Any]) -> dict[str, Any]:
-        record_ref = _record_digest_ref(record)
-        payload = _payload(record)
-        details = _details(payload)
-        request = SupervisorActionRequest(
-            request_id=str(record["record_id"]),
-            action=str(record["decision"]),
-            reason=str(payload.get("reason") or record["decision"]),
-            watchdog_record_ref=record_ref,
-            observation=str(record["observation"]),
-            affected_kind=_affected_kind(record),
-            operation_id=str(payload.get("operation_id") or ""),
-            event_ref=_sha256_ref_or_empty(payload.get("event_ref")),
-            trigger_ref=_sha256_ref_or_empty(payload.get("trigger_ref")),
-            inbox_item_name=str(payload.get("source_name") or ""),
-            actor_ref=str(payload.get("actor_ref") or ""),
-            scope=str(payload.get("scope") or ""),
-            attempt_count=_int(details.get("attempts")),
-            max_attempts=_int(details.get("max_attempts")),
-            age_seconds=_float(details.get("age_seconds")),
-            max_age_seconds=_float(details.get("max_age_seconds")),
-            human_signoff=bool(payload.get("human_signoff", False)),
-        )
+        request = supervisor_request_from_record(record)
         admission = admit_supervisor_action(request)
         if not admission.allowed and record["decision"] in {
             "move_to_dead_letter",
@@ -472,6 +451,31 @@ def _parse_time(value: str) -> datetime:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def supervisor_request_from_record(record: dict[str, Any]) -> SupervisorActionRequest:
+    record_ref = _record_digest_ref(record)
+    payload = _payload(record)
+    details = _details(payload)
+    return SupervisorActionRequest(
+        request_id=str(record["record_id"]),
+        action=str(record["decision"]),
+        reason=str(payload.get("reason") or record["decision"]),
+        watchdog_record_ref=record_ref,
+        observation=str(record["observation"]),
+        affected_kind=_affected_kind(record),
+        operation_id=str(payload.get("operation_id") or ""),
+        event_ref=_sha256_ref_or_empty(payload.get("event_ref")),
+        trigger_ref=_sha256_ref_or_empty(payload.get("trigger_ref")),
+        inbox_item_name=str(payload.get("source_name") or ""),
+        actor_ref=str(payload.get("actor_ref") or ""),
+        scope=str(payload.get("scope") or ""),
+        attempt_count=_int(details.get("attempts")),
+        max_attempts=_int(details.get("max_attempts")),
+        age_seconds=_float(details.get("age_seconds")),
+        max_age_seconds=_float(details.get("max_age_seconds")),
+        human_signoff=bool(payload.get("human_signoff", False)),
+    )
 
 
 def _record_digest_ref(record: dict[str, Any]) -> str:

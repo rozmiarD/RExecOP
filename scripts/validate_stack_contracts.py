@@ -13,7 +13,7 @@ if str(SRC) not in sys.path:
 import rexecop  # noqa: E402
 
 EXPECTED_REXECOP = "0.2.11a0"
-EXPECTED_GOVENGINE = "govengine==0.16.5"
+EXPECTED_GOVENGINE = "govengine==0.16.6"
 EXPECTED_SCLITE = "sclite-core==1.0.8"
 EXPECTED_TECRAX = "tecrax==0.3.9a0"
 
@@ -29,7 +29,7 @@ NON_ACTIVE_READINESS = (
 
 REQUIRED_DOC_MARKERS = (
     "sclite-core==1.0.8",
-    "govengine==0.16.5",
+    "govengine==0.16.6",
     "rexecop` | `0.2.11a0`",
     "tecrax==0.3.9a0",
     "observation_envelope.v0.1",

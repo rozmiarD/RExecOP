@@ -26,7 +26,7 @@ policy engine or a parallel truth layer.
 | Delivery | Published single supported alpha line; older PyPI releases are archived only |
 | Tests | CI reruns the current suite |
 | Latest PyPI | [`rexecop==0.2.11a0`](https://pypi.org/project/rexecop/0.2.11a0/) |
-| Source dependencies | `govengine==0.16.5`, `sclite-core==1.0.8` (see `pyproject.toml`) |
+| Source dependencies | `govengine==0.16.6`, `sclite-core==1.0.8` (see `pyproject.toml`) |
 | Stack compatibility | [`docs/stack-contract-compatibility.md`](docs/stack-contract-compatibility.md) |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
 

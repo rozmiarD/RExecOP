@@ -5,12 +5,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from govengine import explain_supervisor_action
+
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import redact_payload
 from rexecop.operation.model import Operation
 from rexecop.operation.state import OperationState
 from rexecop.runtime_ops.coordinator import ACTIVE_RUNTIME_STATES, RuntimeCoordinator
 from rexecop.runtime_ops.target_lock import TargetLockManager
+from rexecop.runtime_ops.watchdog import supervisor_request_from_record
 from rexecop.storage.port import RuntimeStore
 
 RUNTIME_STATUS_SCHEMA = "rexecop.runtime_status.v0.1"
@@ -290,30 +293,43 @@ def _explain_watchdog_record_error(store: RuntimeStore, record_id: str) -> dict[
     if not isinstance(payload, dict):
         payload = {}
     reason = str(payload.get("reason") or decision or observation)
-    failure_class = "runtime"
-    if observation == "stuck_operation":
-        failure_class = "runtime"
-    elif observation == "inbox_item":
-        failure_class = "runtime"
     operation_id = str(payload.get("operation_id") or "")
-    safe_next = ["rexecop ops"]
-    if operation_id:
-        safe_next.append(f"rexecop explain-error {operation_id}")
+    gov_explanation = explain_supervisor_action(
+        supervisor_request_from_record(record)
+    ).as_dict()
+    failure_class = "runtime"
+    safe_next = list(gov_explanation.get("safe_next_actions") or ["rexecop ops"])
     return {
         "schema": EXPLAIN_ERROR_SCHEMA,
         "ref": record_id,
         "ref_kind": "watchdog_record",
         "failure_class": failure_class,
-        "reason_code": reason,
-        "summary": f"Watchdog recorded {observation} -> {decision}.",
+        "reason_code": str(gov_explanation.get("reason_code") or reason),
+        "summary": str(
+            gov_explanation.get("operator_summary")
+            or f"Watchdog recorded {observation} -> {decision}."
+        ),
         "watchdog": {
             "record_id": record_id,
             "observation": observation,
             "decision": decision,
             "operation_id": operation_id,
+            "recovery_class": gov_explanation.get("recovery_class"),
+            "evaluation_path": gov_explanation.get("evaluation_path"),
+            "request_digest": gov_explanation.get("request_digest"),
+            "admission_digest": gov_explanation.get("admission_digest"),
+        },
+        "govengine_supervisor_explanation": {
+            "schema_version": gov_explanation.get("schema_version"),
+            "status": gov_explanation.get("status"),
+            "outcome": gov_explanation.get("outcome"),
+            "allowed": gov_explanation.get("allowed"),
+            "blockers": gov_explanation.get("blockers"),
+            "gates_checked": gov_explanation.get("gates_checked"),
         },
         "safe_next_actions": safe_next,
-        "non_claims": [
+        "non_claims": list(gov_explanation.get("non_claims") or [])
+        + [
             "Watchdog records are runtime projections; SCLite owns review semantics.",
         ],
     }
