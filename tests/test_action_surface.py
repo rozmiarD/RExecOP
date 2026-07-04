@@ -7,6 +7,7 @@ from unittest.mock import patch
 import yaml
 from typer.testing import CliRunner
 
+from rexecop.action.configure import ACTION_CONFIGURE_SCHEMA, configure_action
 from rexecop.action.surface import (
     ACTION_LIST_SCHEMA,
     ACTION_PREVIEW_SCHEMA,
@@ -259,6 +260,59 @@ def test_action_preview_renders_readonly_command_shapes_without_endpoint_data(
         assert "identity_key" not in rendered
 
 
+def test_action_configure_dry_run_generates_bounded_patch_without_mutating_env(
+    tmp_path: Path,
+) -> None:
+    profile, env_path = _write_http_configure_fixture(tmp_path)
+    before = env_path.read_text(encoding="utf-8")
+    patch_path = tmp_path / "patch.json"
+
+    payload = configure_action(
+        "inspect",
+        profile=profile,
+        env=env_path,
+        write_patch=patch_path,
+    )
+
+    assert payload["schema"] == ACTION_CONFIGURE_SCHEMA
+    assert payload["status"] == "patch_available"
+    assert env_path.read_text(encoding="utf-8") == before
+    operation = payload["patch"]["operations"][-1]
+    assert operation["op"] == "add"
+    assert operation["path"] == "/environment/connectors/api/actions/read_state"
+    assert operation["value"] == {
+        "method": "GET",
+        "path": "/state",
+        "unwrap": "state",
+        "max_response_bytes": 2048,
+    }
+    assert patch_path.exists()
+    rendered = patch_path.read_text(encoding="utf-8")
+    assert "rexecop.action_configure_patch.v0.1" in rendered
+    assert "secret_ref" not in rendered
+
+
+def test_cli_action_configure_rejects_non_dry_run(tmp_path: Path) -> None:
+    profile, env_path = _write_http_configure_fixture(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "action",
+            "configure",
+            "inspect",
+            "--profile",
+            str(profile),
+            "--env",
+            str(env_path),
+            "--no-dry-run",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "only supports --dry-run" in result.stderr
+
+
 def test_action_list_can_resolve_profile_and_env_from_catalog() -> None:
     payload = list_actions(catalog=CATALOG, target="fixture-target")
 
@@ -454,6 +508,117 @@ def _write_command_preview_fixture(root: Path, backend: str) -> tuple[Path, Path
                     "profile": f"{backend}_preview",
                     "targets": {"host-01": {"type": "host"}},
                     "connectors": {"host": config},
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return profile / "profile.yaml", env_path
+
+
+def _write_http_configure_fixture(root: Path) -> tuple[Path, Path]:
+    profile = root / "profile"
+    (profile / "connectors").mkdir(parents=True)
+    (profile / "intents").mkdir()
+    (profile / "workflows").mkdir()
+    (profile / "validation_rules").mkdir()
+    (profile / "profile.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "profile_contract": {
+                    "name": "http_configure",
+                    "version": "0.1.0",
+                    "intents": {"required": True},
+                    "workflows": {"required": True},
+                    "connector_requirements": {"required": True},
+                    "risk_classes": {"required": True},
+                    "evidence_requirements": {"required": True},
+                    "governance_expectations": {"required": True},
+                    "validation_rules": {"required": True},
+                    "escalation_rules": {"required": True},
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (profile / "connectors" / "api.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "connector": {
+                    "name": "api",
+                    "backend": "http_api",
+                    "capabilities": ["read_state"],
+                    "action_shapes": {
+                        "read_state": {
+                            "method": "GET",
+                            "path": "/state",
+                            "unwrap": "state",
+                            "max_response_bytes": 2048,
+                        }
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (profile / "intents" / "inspect.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "intent": {
+                    "id": "inspect",
+                    "workflow": "workflows/inspect.yaml",
+                    "risk": "low",
+                    "modes": ["dry_run"],
+                    "catalog": {
+                        "title": "Inspect",
+                        "summary": "Inspect HTTP configure target.",
+                        "target_kinds": ["fixture"],
+                        "required_capabilities": ["readonly_api"],
+                        "side_effect_class": "none",
+                        "validation_ref": "validation_rules/inspect.yaml",
+                        "runbook_ref": "docs/inspect.md",
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (profile / "workflows" / "inspect.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "workflow": {
+                    "id": "http_configure.inspect",
+                    "intent": "inspect",
+                    "mode": "read_only",
+                    "risk": "low",
+                    "steps": [
+                        {
+                            "id": "read",
+                            "type": "connector",
+                            "connector": "api",
+                            "action": "read_state",
+                        }
+                    ],
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (profile / "validation_rules" / "inspect.yaml").write_text("rules: []\n", encoding="utf-8")
+    env_path = root / "env.yaml"
+    env_path.write_text(
+        yaml.safe_dump(
+            {
+                "environment": {
+                    "id": "http-configure",
+                    "profile": "http_configure",
+                    "targets": {"fixture-target": {"type": "fixture"}},
+                    "connectors": {"api": {"enabled": True, "backend": "http_api"}},
                 }
             },
             sort_keys=False,

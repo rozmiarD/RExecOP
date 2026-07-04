@@ -13,10 +13,12 @@ PyPI alpha line is **`0.2.11a0`**. Entries under [Releases](#releases) are newes
 
 - Added M5 read-only action metadata UX: `rexecop action list`,
   `rexecop action show <intent>`, `rexecop action preview <intent>`, and
-  `rexecop action validate --all|--intent`. The commands expose profile/env/catalog
-  action descriptors, source contract digests, required secret refs, backend
-  constraints and redacted effective-call previews without backend IO, GovEngine
-  admission claims, SCLite truth emission or connector config values.
+  `rexecop action validate --all|--intent`, plus `rexecop secrets suggest-ref`
+  and dry-run `rexecop action configure <intent>`. The commands expose
+  profile/env/catalog action descriptors, source contract digests, required
+  secret refs, backend constraints, redacted effective-call previews and bounded
+  patch operations without backend IO, GovEngine admission claims, SCLite truth
+  emission or connector config values.
 - Added M4 profile workflow test harness: `rexecop profile harness`, `run_profile_workflow_harness()`
   and `workflow_harness` output in `profiles show` / `developer_check`
   (`rexecop.profile_workflow_harness.v0.1`). Checks cover dry-run fixture execution,

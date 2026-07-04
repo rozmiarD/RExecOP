@@ -20,8 +20,12 @@ See [connector-contract.md](connector-contract.md#secrets-port) for connector
 | --- | --- | --- |
 | `env lint` | Before planning with a new/edited environment | Inline secret hygiene, optional profile match, `secret_ref` counts |
 | `secrets doctor` | Before staging/real connector runs | Ref resolution, file policy, duplicates, redaction self-test |
+| `secrets suggest-ref` | While drafting connector config | Reference names/paths only; no value lookup |
 
 `env lint` does **not** verify that secret values exist. `secrets doctor` does.
+`secrets suggest-ref` does not verify resolution; it only suggests bounded ref
+names such as `<connector>_base_url`, `<connector>_api_token` or
+`<connector>_identity_file` from connector backend shape.
 
 ## secrets doctor
 
@@ -50,9 +54,22 @@ JSON schema: `rexecop.secrets_doctor.v0.1`.
 Secret **values** are never printed. Error messages from malformed secrets files
 avoid echoing file content.
 
+## secrets suggest-ref
+
+```bash
+rexecop secrets suggest-ref --env /operator/private/environment.yaml
+rexecop secrets suggest-ref --env ./env.yaml --connector zabbix
+```
+
+Returns `rexecop.secrets_suggest_ref.v0.1` with existing refs and suggested
+reference names for `http_api` and `ssh_readonly` connectors. It does not read
+`REXECOP_SECRETS_FILE`, does not read `REXECOP_SECRET_*`, does not validate
+resolution and does not print values.
+
 ### Safe operator posture
 
 - Keep `REXECOP_SECRETS_FILE` mode `0600`, owned by the runtime user, outside git.
 - Prefer `secret_ref` over inline values in every environment and catalog document.
+- Use `secrets suggest-ref` for reference naming, then store values out of band.
 - Run `secrets doctor` after editing environment YAML or the secrets file, before
   `plan` or staging connector tests.

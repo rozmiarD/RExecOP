@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from rexecop.cli import app
 from rexecop.secrets.doctor import REDACTION_PROBE, run_secrets_doctor
+from rexecop.secrets.suggest import SECRETS_SUGGEST_REF_SCHEMA, suggest_secret_refs
 
 ROOT = Path(__file__).resolve().parents[1]
 STAGING_ENV = ROOT / "examples/environments/runtime-fixture.staging.example.yaml"
@@ -157,3 +158,66 @@ def test_cli_secrets_doctor_passes_with_env_vars(
     assert payload["schema"] == "rexecop.secrets_doctor.v0.1"
     assert payload["status"] == "passed"
     assert "hidden-token-value" not in result.stdout
+
+
+def test_secrets_suggest_ref_returns_names_without_reading_values(tmp_path: Path) -> None:
+    env_path = tmp_path / "env.yaml"
+    env_path.write_text(
+        yaml.safe_dump(
+            {
+                "environment": {
+                    "id": "suggest-ref",
+                    "profile": "runtime_fixture",
+                    "targets": {"host": {"type": "host"}},
+                    "connectors": {
+                        "api": {"enabled": True, "backend": "http_api", "actions": {}},
+                        "ssh": {"enabled": True, "backend": "ssh_readonly", "allowlist": []},
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = suggest_secret_refs(env_path=env_path)
+
+    assert payload["schema"] == SECRETS_SUGGEST_REF_SCHEMA
+    refs = {item["suggested_ref"] for item in payload["suggestions"]}
+    assert refs == {"api_api_token", "api_base_url", "ssh_identity_file"}
+    rendered = json.dumps(payload, sort_keys=True)
+    assert "hidden" not in rendered
+    assert "hidden-token-value" not in rendered
+    assert "Does not read REXECOP_SECRETS_FILE." in payload["non_claims"]
+
+
+def test_cli_secrets_suggest_ref_filters_connector(tmp_path: Path) -> None:
+    env_path = tmp_path / "env.yaml"
+    env_path.write_text(
+        yaml.safe_dump(
+            {
+                "environment": {
+                    "id": "suggest-ref",
+                    "profile": "runtime_fixture",
+                    "targets": {"host": {"type": "host"}},
+                    "connectors": {
+                        "api": {"enabled": True, "backend": "http_api", "actions": {}},
+                        "ssh": {"enabled": True, "backend": "ssh_readonly", "allowlist": []},
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["secrets", "suggest-ref", "--env", str(env_path), "--connector", "ssh"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert [item["suggested_ref"] for item in payload["suggestions"]] == [
+        "ssh_identity_file"
+    ]

@@ -8,6 +8,7 @@ from pathlib import Path
 import typer
 
 from rexecop import __version__
+from rexecop.action.configure import configure_action
 from rexecop.action.surface import (
     list_actions,
     preview_action,
@@ -63,6 +64,7 @@ from rexecop.runtime_ops.worker import (
     trigger_operation,
 )
 from rexecop.secrets.doctor import run_secrets_doctor
+from rexecop.secrets.suggest import suggest_secret_refs
 from rexecop.storage.factory import create_store, resolve_storage_backend
 
 app = typer.Typer(
@@ -244,6 +246,20 @@ def secrets_doctor_cmd(
         raise typer.Exit(code=1)
 
 
+@secrets_app.command("suggest-ref")
+def secrets_suggest_ref_cmd(
+    env: Path = typer.Option(..., "--env", help="Environment YAML to inspect."),
+    connector: str | None = typer.Option(None, "--connector", help="Optional connector name."),
+) -> None:
+    """Suggest secret reference names without reading secret stores."""
+    try:
+        result = suggest_secret_refs(env_path=env, connector=connector)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
 @env_app.command("lint")
 def env_lint_cmd(
     env: Path = typer.Option(..., "--env", help="Environment YAML to validate."),
@@ -412,6 +428,43 @@ def action_preview_cmd(
     """Preview redacted effective call shapes without backend IO."""
     try:
         result = preview_action(intent, profile=profile, env=env, catalog=catalog, target=target)
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@action_app.command("configure")
+def action_configure_cmd(
+    intent: str = typer.Argument(..., help="Profile intent/action id."),
+    profile: str | None = typer.Option(None, "--profile", help="Registered profile or path."),
+    env: Path = typer.Option(..., "--env", help="Environment YAML to inspect."),
+    catalog: Path | None = typer.Option(None, "--catalog", help="Private target catalog YAML."),
+    target: str | None = typer.Option(None, "--target", help="Catalog target id."),
+    dry_run: bool = typer.Option(True, "--dry-run/--no-dry-run", help="Always dry-run in M5."),
+    write_patch: Path | None = typer.Option(
+        None,
+        "--write-patch",
+        help="Write bounded patch operations to this file; never modifies --env.",
+    ),
+) -> None:
+    """Generate a bounded env patch for one action without mutating env YAML."""
+    if not dry_run:
+        typer.secho(
+            "error: action configure only supports --dry-run in M5",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    try:
+        result = configure_action(
+            intent,
+            profile=profile,
+            env=env,
+            catalog=catalog,
+            target=target,
+            write_patch=write_patch,
+        )
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc

@@ -96,6 +96,8 @@ rexecop action show inspect --profile examples/first-run-demo/profile/profile.ya
   --env examples/first-run-demo/environment.yaml
 rexecop action preview inspect --profile examples/first-run-demo/profile/profile.yaml \
   --env examples/first-run-demo/environment.yaml
+rexecop action configure inspect --profile examples/first-run-demo/profile/profile.yaml \
+  --env examples/first-run-demo/environment.yaml --dry-run
 rexecop action validate --all --profile examples/first-run-demo/profile/profile.yaml \
   --env examples/first-run-demo/environment.yaml
 ```
@@ -107,6 +109,11 @@ and auth material; shell/SSH previews omit private endpoint and identity
 configuration; fixture previews expose only data digests. They intentionally do
 not print resolved secret values or connector configuration, do not perform
 backend IO, and do not replace GovEngine admission or SCLite truth artifacts.
+
+`action configure --dry-run` emits bounded patch operations for missing
+profile-declared HTTP action entries or read-only shell/SSH allowlist entries.
+It does not modify the environment file. `--write-patch <path>` writes only the
+patch document for operator review; it is still not an apply operation.
 
 ## Safety block
 

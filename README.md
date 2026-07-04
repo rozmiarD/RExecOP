@@ -88,9 +88,10 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - Operator target catalog and profile-derived operation catalog with deterministic applicability
   and start-time drift rejection; catalog compatibility never replaces GovEngine admission
 - Read-only action metadata UX: `action list`, `action show`, `action preview`,
-  and `action validate` expose profile/env/catalog action contracts and redacted
-  effective-call previews without backend IO, connector config values, GovEngine
-  admission claims, or SCLite truth emission
+  `action configure --dry-run`, `action validate`, and `secrets suggest-ref`
+  expose profile/env/catalog action contracts, redacted effective-call previews,
+  secret-ref name suggestions and bounded patch operations without backend IO,
+  connector config values, GovEngine admission claims, or SCLite truth emission
 - Storage: `FileStore` (default) or optional `SqliteStore` (`REXECOP_STORAGE` / `--storage`)
 - Secrets port: `REXECOP_SECRET_*` and `REXECOP_SECRETS_FILE` (no plaintext secrets in git or `.rexecop/`)
 - Operator CLI (`rexecop`); runtime data under an explicit root, named local
@@ -178,6 +179,7 @@ SCLite bundles, receipt exports, queue, locks and trigger inbox.
 | `doctor` | Check runtime root, storage, package compatibility, profile, env, catalog and secret refs |
 | `env lint` | Validate environment YAML and inline secret hygiene |
 | `secrets doctor` | Check secret refs, file permissions, duplicates and redaction (no values printed) |
+| `secrets suggest-ref` | Suggest secret reference names from env connector shape without reading values |
 | `profile lint` | Validate profile conformance for `readonly`, `mutation` or `all` tracks |
 | `profile manifest` | Emit extension manifest `v0.1` for profiles, plugins and resolvers |
 | `profile harness` | Run workflow test harness (dry-run fixture, evidence, bundle, policy-blocked path) |
@@ -186,6 +188,7 @@ SCLite bundles, receipt exports, queue, locks and trigger inbox.
 | `capabilities list` | List neutral runtime capabilities and their source |
 | `action list` / `action show` | Inspect profile/env/catalog action metadata, refs and backend constraints without backend IO |
 | `action preview` | Show redacted HTTP/shell/SSH effective-call previews and bounded-output policy without backend IO |
+| `action configure` | Generate bounded dry-run patch operations for action config; `--write-patch` writes the patch file only |
 | `action validate` | Validate profile/env action bindings and catalog applicability without backend IO |
 | `policy explain` | Show GovEngine policy reasoning for one operation-shaped request without execution |
 | `operation explain` | Explain a stored operation plan, expected artifacts, bindings and safe next actions |
