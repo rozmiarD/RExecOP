@@ -6,6 +6,7 @@ from typing import Any
 from govengine import (
     admit_typed_execution,
     explain_typed_execution_governance,
+    project_typed_execution_policy_overlay,
     typed_execution_control_catalog,
 )
 from govengine.typed_execution_governance import (
@@ -83,13 +84,20 @@ def typed_execution_governance_overlay(operation: Mapping[str, Any]) -> dict[str
     metadata = operation.get("metadata")
     if not isinstance(metadata, Mapping):
         metadata = operation if isinstance(operation, Mapping) else {}
-    evidence: dict[str, Any] = {"receipt_required": True}
+    overlay: dict[str, Any] = {"evidence_requirements": {"receipt_required": True}}
     record = metadata.get("policy_enforcement")
     if isinstance(record, Mapping):
         digest = str(record.get("admission_digest") or "").strip()
         if digest.startswith("sha256:"):
-            evidence["approval_evidence_ref"] = digest
+            overlay["evidence_requirements"]["approval_evidence_ref"] = digest
+        plan = record.get("plan")
+        if isinstance(plan, Mapping):
+            controls = plan.get("controls")
+            if isinstance(controls, Mapping):
+                policy_overlay = project_typed_execution_policy_overlay(controls)
+                _merge_typed_execution_policy_overlay(overlay, policy_overlay)
     manual = metadata.get("manual_approval")
+    evidence = overlay["evidence_requirements"]
     if isinstance(manual, Mapping) and not evidence.get("approval_evidence_ref"):
         evidence["approval_evidence_ref"] = "sha256:" + canonical_digest(dict(manual))
     if not evidence.get("approval_evidence_ref"):
@@ -102,7 +110,7 @@ def typed_execution_governance_overlay(operation: Mapping[str, Any]) -> dict[str
                     "summary": str(admission.get("summary") or ""),
                 }
             )
-    return {"evidence_requirements": evidence}
+    return overlay
 
 
 def build_typed_execution_governance_request(
@@ -136,6 +144,10 @@ def build_typed_execution_governance_request(
     if not egress:
         egress = [_default_allowed_egress(capability)]
     required = required_capability_descriptors or overlay.get("required_capability_descriptors")
+    request_metadata: dict[str, Any] = {}
+    allowed_backends = overlay.get("allowed_backend_classes")
+    if isinstance(allowed_backends, list) and allowed_backends:
+        request_metadata["allowed_backend_classes"] = list(allowed_backends)
     if not required:
         declared = capability.get("declared_capability_descriptors")
         required = list(declared) if isinstance(declared, list) else []
@@ -161,6 +173,7 @@ def build_typed_execution_governance_request(
         "evidence_requirements": evidence,
         "allowed_network_egress": list(egress),
         "required_capability_descriptors": list(required),
+        "metadata": request_metadata,
     }
 
 
@@ -310,6 +323,27 @@ def _side_effect_class(spec: Mapping[str, Any]) -> str:
     if str(spec.get("mode") or "") not in READ_ONLY_MODES and not bool(spec.get("read_only")):
         return "mutation"
     return "read_only"
+
+
+def _merge_typed_execution_policy_overlay(
+    overlay: dict[str, Any],
+    policy_overlay: Mapping[str, Any],
+) -> None:
+    evidence = overlay.setdefault("evidence_requirements", {})
+    policy_evidence = policy_overlay.get("evidence_requirements")
+    if isinstance(policy_evidence, Mapping):
+        evidence.update(dict(policy_evidence))
+    for key in (
+        "allowed_network_egress",
+        "allowed_backend_classes",
+        "policy_control_ids",
+        "typed_execution_control_ids",
+        "read_only_required",
+        "no_raw_shell",
+    ):
+        value = policy_overlay.get(key)
+        if value:
+            overlay[key] = value
 
 
 def _default_allowed_egress(descriptor: Mapping[str, Any]) -> str:

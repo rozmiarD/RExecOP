@@ -20,6 +20,7 @@ from rexecop.execution.govengine_governance import (
     enforce_typed_execution_governance,
     evaluate_typed_execution_governance,
     evaluate_typed_execution_stack_compatibility,
+    typed_execution_governance_overlay,
 )
 from rexecop.execution.typed_spec import compile_step_execution_spec
 from rexecop.profile.loader import load_profile
@@ -318,6 +319,64 @@ def test_runtime_doctor_includes_typed_execution_stack_compatibility(tmp_path: P
         if item["id"] == "typed_execution_stack_compatibility"
     )
     assert check["status"] == "passed"
+
+
+def test_policy_enforcement_controls_flow_into_typed_execution_overlay() -> None:
+    operation = {
+        "id": "op-policy-overlay",
+        "metadata": {
+            "policy_enforcement": {
+                "admission_digest": "sha256:" + "a" * 64,
+                "plan": {
+                    "controls": {
+                        "receipt_required": True,
+                        "output_digest_required": True,
+                        "no_raw_shell": True,
+                        "allowed_network_egress": ["no_network"],
+                        "typed_execution_control_ids": [
+                            "output_digest_required",
+                            "network_boundary_match",
+                        ],
+                    }
+                },
+            }
+        },
+    }
+    overlay = typed_execution_governance_overlay(operation)
+
+    assert overlay["evidence_requirements"]["output_digest_required"] is True
+    assert overlay["allowed_network_egress"] == ["no_network"]
+    assert overlay["no_raw_shell"] is True
+
+
+def test_policy_output_digest_required_blocks_without_ref_in_overlay() -> None:
+    spec = _fixture_spec()
+    shared_state = {
+        "typed_execution_governance": typed_execution_governance_overlay(
+            {
+                "metadata": {
+                    "policy_enforcement": {
+                        "plan": {
+                            "controls": {
+                                "receipt_required": True,
+                                "output_digest_required": True,
+                                "typed_execution_control_ids": ["output_digest_required"],
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+    result = evaluate_typed_execution_governance(
+        spec=spec,
+        operation_id="op-policy-digest",
+        mode="dry_run",
+        shared_state=shared_state,
+    )
+
+    assert result["status"] == "blocked"
+    assert "missing_output_digest_ref" in result["governance"]["blockers"]
 
 
 def test_enforce_typed_execution_governance_stores_admission_record() -> None:
