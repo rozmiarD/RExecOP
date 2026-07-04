@@ -5,8 +5,6 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from rexecop.catalog.service import CatalogService
-from rexecop.catalog.unavailable import build_unavailable_operations_report
 from rexecop.cli import app
 from rexecop.profile.discoverability import show_profile_manifest
 from rexecop.profile.loader import load_profile
@@ -15,19 +13,12 @@ from rexecop.profile.operator_metadata import (
     collect_operator_metadata_errors,
     explain_profile_operation,
     intent_operator_metadata,
+    merge_profile_safe_next_options,
     resolve_failure_operator_hints,
 )
 from rexecop.profile.resolver import resolve_profile_path
 
 REGISTERED_PROFILE = "tecrax"
-ROOT = Path(__file__).resolve().parents[1]
-TECRAX_CATALOG = (
-    Path(__file__).resolve().parents[2]
-    / "tecrax"
-    / "examples"
-    / "catalogs"
-    / "targets.readonly.example.yaml"
-)
 
 runner = CliRunner()
 
@@ -62,18 +53,17 @@ def test_failure_operator_hints_are_profile_owned() -> None:
     assert hints["safe_next_options"]
 
 
-def test_unavailable_operations_merge_profile_safe_next_options() -> None:
-    service = CatalogService(TECRAX_CATALOG)
-    payload = build_unavailable_operations_report(
-        service,
-        "network-device-01",
-        intent="diagnose_monitoring_host",
+def test_merge_profile_safe_next_options_prefers_profile_owned_entries() -> None:
+    profile = load_profile(resolve_profile_path(REGISTERED_PROFILE))
+
+    merged = merge_profile_safe_next_options(
+        profile,
+        "diagnose_monitoring_host",
+        ["rexecop targets show node-01 --catalog <catalog>"],
     )
 
-    entry = payload["unavailable"][0]
-    assert entry["operation_id"] == "diagnose_monitoring_host"
-    options = entry["safe_next_options"]
-    assert any("runbook show diagnose_monitoring_host" in item for item in options)
+    assert merged[0].startswith("rexecop runbook show diagnose_monitoring_host")
+    assert "rexecop targets show node-01 --catalog <catalog>" in merged
 
 
 def test_profiles_show_reports_operator_metadata_coverage() -> None:
