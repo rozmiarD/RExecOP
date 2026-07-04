@@ -1,0 +1,19 @@
+workflow:
+  id: first_run_demo.inspect
+  intent: inspect
+  mode: read_only
+  risk: low
+  description: Inspect deterministic no-I/O fixture state.
+
+  steps:
+    - id: read
+      type: connector
+      connector: fixture
+      action: read
+      timeout: 10s
+      pause_safe: true
+
+    - id: produce_receipt
+      type: evidence
+      action: produce_receipt
+      pause_safe: true

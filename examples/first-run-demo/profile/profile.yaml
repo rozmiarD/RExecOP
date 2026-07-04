@@ -1,0 +1,27 @@
+profile_contract:
+  name: first_run_demo
+  version: "0.1.0"
+
+  intents:
+    required: true
+
+  workflows:
+    required: true
+
+  connector_requirements:
+    required: true
+
+  risk_classes:
+    required: true
+
+  evidence_requirements:
+    required: true
+
+  governance_expectations:
+    required: true
+
+  validation_rules:
+    required: true
+
+  escalation_rules:
+    required: true

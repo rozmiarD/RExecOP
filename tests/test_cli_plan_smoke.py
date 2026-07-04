@@ -140,3 +140,56 @@ def test_cli_root_envvar_and_explicit_precedence(tmp_path: Path) -> None:
     assert env_result.exit_code == 0, env_result.output
     env_operation_id = env_result.stdout.strip()
     assert (env_root / "operations" / f"{env_operation_id}.json").is_file()
+
+
+def test_cli_named_instance_isolates_default_runtime_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "--instance",
+            "alpha",
+            "plan",
+            "--profile",
+            str(PROFILE),
+            "--env",
+            str(ENVIRONMENT),
+            "--intent",
+            "inspect_fixture_state",
+            "--target",
+            "fixture-target",
+            "--mode",
+            "dry_run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    operation_id = result.stdout.strip()
+    instance_root = tmp_path / ".rexecop" / "instances" / "alpha"
+    assert (instance_root / "operations" / f"{operation_id}.json").is_file()
+    assert not (tmp_path / ".rexecop" / "operations" / f"{operation_id}.json").exists()
+
+
+def test_cli_explicit_root_wins_over_named_instance(tmp_path: Path) -> None:
+    explicit_root = tmp_path / "explicit-root"
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(explicit_root),
+            "--instance",
+            "alpha",
+            "init",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (explicit_root / "runtime_manifest.json").is_file()
+    assert not (tmp_path / ".rexecop" / "instances" / "alpha").exists()
+    manifest = json.loads((explicit_root / "runtime_manifest.json").read_text())
+    assert manifest["runtime_instance"] == "alpha"

@@ -1,0 +1,9 @@
+validation_rule:
+  intent: inspect
+  steps:
+    - type: require_mapping
+      key: connector_results
+      fail:
+        rule: first_run_demo.connector_results_required
+        details:
+          reason: missing connector results

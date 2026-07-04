@@ -1,0 +1,17 @@
+environment:
+  id: first-run-demo
+  profile: first_run_demo
+  description: Public-safe fixture environment for the first-run smoke path.
+  targets:
+    fixture-target:
+      type: fixture
+  connectors:
+    fixture:
+      enabled: true
+      backend: static_fixture
+      fixture_only: true
+      actions:
+        read:
+          data:
+            ok: true
+            source: first-run-demo

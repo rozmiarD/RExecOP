@@ -131,6 +131,9 @@ CI also checks out [`tecrax`](https://github.com/rozmiarD/tecrax) for integratio
 
 ## Quick start
 
+For a clean no-I/O first run with `init`, `doctor`, lint, explain and demo plan,
+see [docs/first-run.md](docs/first-run.md).
+
 ```bash
 rexecop version
 
@@ -156,6 +159,10 @@ Runtime artifacts live under `.rexecop/` (gitignored): operations, evidence, SCL
 
 | Command | Purpose |
 | --- | --- |
+| `init` | Create the runtime root layout without secrets or backend IO |
+| `doctor` | Check runtime root, storage, package compatibility, profile, env, catalog and secret refs |
+| `env lint` | Validate environment YAML and inline secret hygiene |
+| `profile lint` | Validate profile conformance for `readonly`, `mutation` or `all` tracks |
 | `plan` | Create operation + plan; evaluate configured PolicyEngine and mutating admission gates |
 | `approve` | Manual approval after `approval_required` |
 | `start` | Execute workflow (queues when lock/capacity busy) |
@@ -173,13 +180,16 @@ Runtime artifacts live under `.rexecop/` (gitignored): operations, evidence, SCL
 | `status` / `history` | Operation state and evidence history |
 | `version` | Package version |
 
-Global option: `--storage file|sqlite` selects the runtime storage backend.
+Global option: `--root` selects an explicit runtime root, `--instance` selects a named
+local instance under `./.rexecop/instances/`, and `--storage file|sqlite` selects the
+runtime storage backend.
 
 ## Development
 
 ```bash
 pip install -e /path/to/tecrax -e ".[dev]"
 python scripts/validate_public_truth.py
+python scripts/validate_first_run_smoke.py
 ruff check .
 mypy src/rexecop
 python -m build && python -m twine check dist/*

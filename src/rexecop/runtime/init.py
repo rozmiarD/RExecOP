@@ -29,7 +29,13 @@ RUNTIME_DIRECTORIES = (
 )
 
 
-def initialize_runtime_root(root: Path, *, backend: str | None = None) -> dict[str, Any]:
+def initialize_runtime_root(
+    root: Path,
+    *,
+    backend: str | None = None,
+    instance: str | None = None,
+    guided: bool = False,
+) -> dict[str, Any]:
     storage_backend = resolve_storage_backend(backend)
     store = create_store(root, backend=storage_backend)
     before = {path for path in _runtime_paths(root) if path.exists()}
@@ -46,6 +52,7 @@ def initialize_runtime_root(root: Path, *, backend: str | None = None) -> dict[s
         "rexecop_version": __version__,
         "storage_backend": storage_backend,
         "runtime_root": str(root),
+        "runtime_instance": instance,
         "initialized_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
         "secrets_created": False,
     }
@@ -57,15 +64,28 @@ def initialize_runtime_root(root: Path, *, backend: str | None = None) -> dict[s
     after = {path for path in _runtime_paths(root) if path.exists()}
     created = sorted(str(path.relative_to(root)) for path in after - before)
     existing = sorted(str(path.relative_to(root)) for path in after & before)
-    return {
+    result: dict[str, Any] = {
         "status": "initialized",
         "root": str(root),
+        "instance": instance,
         "storage_backend": storage_backend,
         "manifest": RUNTIME_MANIFEST,
         "created": created,
         "existing": existing,
         "secrets_created": False,
     }
+    if guided:
+        result["guided"] = True
+        result["next_steps"] = [
+            "rexecop doctor --profile <profile.yaml> --env <environment.yaml> "
+            "--catalog <targets.yaml>",
+            "rexecop profile lint --profile <profile.yaml> --track readonly",
+            "rexecop env lint --env <environment.yaml> --profile <profile.yaml>",
+            "rexecop operations explain <intent> --profile <profile.yaml>",
+            "rexecop plan --profile <profile.yaml> --env <environment.yaml> "
+            "--intent <intent> --target <target> --mode dry_run",
+        ]
+    return result
 
 
 def _runtime_paths(root: Path) -> tuple[Path, ...]:

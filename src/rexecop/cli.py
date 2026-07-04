@@ -13,14 +13,18 @@ from rexecop.catalog.service import (
     compile_operation_descriptor,
     compile_profile_operations,
 )
+from rexecop.environment.loader import load_environment
+from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
 from rexecop.operation.controller import OperationController
+from rexecop.profile.conformance import validate_profile_conformance
 from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
 from rexecop.reaction.model import ReactionContext
 from rexecop.reaction.service import ReactionService
+from rexecop.runtime.doctor import CHECK_BLOCKER, count_secret_refs, run_runtime_doctor
 from rexecop.runtime.init import initialize_runtime_root
-from rexecop.runtime.root import resolve_runtime_root
+from rexecop.runtime.root import resolve_runtime_instance, resolve_runtime_root
 from rexecop.runtime_ops.watchdog import WatchdogService
 from rexecop.runtime_ops.worker import (
     drain_queue,
@@ -37,14 +41,19 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 targets_app = typer.Typer(help="Query an operator-owned target catalog.", no_args_is_help=True)
+env_app = typer.Typer(help="Validate operator environment files.", no_args_is_help=True)
+profile_app = typer.Typer(help="Validate profile contracts.", no_args_is_help=True)
 operations_app = typer.Typer(
     help="Query profile-defined operations and target applicability.",
     no_args_is_help=True,
 )
 app.add_typer(targets_app, name="targets")
+app.add_typer(env_app, name="env")
+app.add_typer(profile_app, name="profile")
 app.add_typer(operations_app, name="operations")
 
 _runtime_root: Path | None = None
+_runtime_instance: str | None = None
 
 
 @app.callback()
@@ -55,6 +64,12 @@ def main(
         envvar="REXECOP_ROOT",
         help="Runtime root directory. Defaults to ./.rexecop.",
     ),
+    instance: str | None = typer.Option(
+        None,
+        "--instance",
+        envvar="REXECOP_INSTANCE",
+        help="Named runtime instance under ./.rexecop/instances when --root is omitted.",
+    ),
     storage: str = typer.Option(
         "file",
         "--storage",
@@ -63,8 +78,9 @@ def main(
     ),
 ) -> None:
     """RExecOp operations control-plane."""
-    global _runtime_root
-    _runtime_root = resolve_runtime_root(root)
+    global _runtime_instance, _runtime_root
+    _runtime_instance = resolve_runtime_instance(instance)
+    _runtime_root = resolve_runtime_root(root, instance=_runtime_instance)
     os.environ["REXECOP_STORAGE"] = resolve_storage_backend(storage)
 
 
@@ -83,17 +99,105 @@ def version_cmd() -> None:
 
 
 @app.command("init")
-def init_cmd() -> None:
+def init_cmd(
+    guided: bool = typer.Option(
+        False,
+        "--guided",
+        help="Include first-run next steps without creating secrets or doing backend IO.",
+    ),
+) -> None:
     """Create the runtime root layout without secrets or backend IO."""
     try:
         result = initialize_runtime_root(
             _runtime_root or resolve_runtime_root(),
             backend=os.environ.get("REXECOP_STORAGE"),
+            instance=_runtime_instance,
+            guided=guided,
         )
     except RExecOpError as exc:
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@app.command("doctor")
+def doctor_cmd(
+    profile: str | None = typer.Option(None, "--profile", help="Registered profile or path."),
+    env: Path | None = typer.Option(None, "--env", help="Optional environment YAML."),
+    catalog: Path | None = typer.Option(None, "--catalog", help="Optional target catalog YAML."),
+) -> None:
+    """Check runtime root, stack compatibility and optional operator inputs."""
+    result = run_runtime_doctor(
+        _runtime_root or resolve_runtime_root(),
+        storage_backend=os.environ.get("REXECOP_STORAGE"),
+        instance=_runtime_instance,
+        profile=profile,
+        env_path=env,
+        catalog_path=catalog,
+    )
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+    if result["status"] == CHECK_BLOCKER:
+        raise typer.Exit(code=1)
+
+
+@env_app.command("lint")
+def env_lint_cmd(
+    env: Path = typer.Option(..., "--env", help="Environment YAML to validate."),
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        help="Optional registered profile or profile path expected by the environment.",
+    ),
+) -> None:
+    """Validate an environment file and verify it contains no inline secrets."""
+    try:
+        environment = load_environment(env)
+        validate_no_inline_secrets(environment.as_dict())
+        expected_profile = ""
+        if profile:
+            expected_profile = load_profile(resolve_profile_path(profile)).name
+        if expected_profile and environment.profile and environment.profile != expected_profile:
+            raise RExecOpError(
+                f"environment profile mismatch: {environment.profile} != {expected_profile}"
+            )
+        result = {
+            "status": "passed",
+            "environment": {
+                "id": environment.id,
+                "profile": environment.profile,
+                "target_count": len(environment.targets),
+                "connector_count": len(environment.connectors),
+                "secret_ref_count": count_secret_refs(environment.as_dict()),
+            },
+        }
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@profile_app.command("lint")
+def profile_lint_cmd(
+    profile: str = typer.Option(..., "--profile", help="Registered profile or profile path."),
+    track: str = typer.Option(
+        "readonly",
+        "--track",
+        help="Conformance track: readonly, mutation or all.",
+    ),
+) -> None:
+    """Validate profile conformance for the selected track."""
+    try:
+        result = validate_profile_conformance(
+            profile,
+            require_reaction_observation=False,
+            track=track,
+        )
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+    if result.status != "passed":
+        raise typer.Exit(code=1)
 
 
 @targets_app.command("list")
