@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 import yaml
-from tests.test_catalog import _write_fixture
 from typer.testing import CliRunner
 
 from rexecop.cli import app
 from rexecop.operation.controller import OperationController
 from rexecop.operation.diff import diff_operation_plan, render_operation_plan_diff
+from test_catalog import _write_fixture
 
 runner = CliRunner()
 
