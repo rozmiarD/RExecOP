@@ -19,6 +19,7 @@ from rexecop.action.surface import (
 )
 from rexecop.action.templates import list_action_templates
 from rexecop.catalog.service import CatalogService, compile_profile_operations
+from rexecop.cli_contracts import cli_contract_registry
 from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
@@ -97,6 +98,7 @@ capabilities_app = typer.Typer(
     help="List neutral runtime capabilities and their sources.",
     no_args_is_help=True,
 )
+contracts_app = typer.Typer(help="Inspect stable public contract registries.", no_args_is_help=True)
 action_app = typer.Typer(
     help="Inspect profile action metadata without backend IO.",
     no_args_is_help=True,
@@ -126,6 +128,7 @@ app.add_typer(profile_app, name="profile")
 app.add_typer(profiles_app, name="profiles")
 app.add_typer(connectors_app, name="connectors")
 app.add_typer(capabilities_app, name="capabilities")
+app.add_typer(contracts_app, name="contracts")
 app.add_typer(action_app, name="action")
 app.add_typer(policy_app, name="policy")
 app.add_typer(operation_app, name="operation")
@@ -374,6 +377,12 @@ def connectors_show_cmd(
 def capabilities_list_cmd() -> None:
     """List neutral capabilities known to the runtime and their source."""
     typer.echo(json.dumps(list_capabilities_manifest(), indent=2, sort_keys=True))
+
+
+@contracts_app.command("cli")
+def contracts_cli_cmd() -> None:
+    """Emit machine-readable CLI schema and exit-code contracts."""
+    typer.echo(json.dumps(cli_contract_registry(), indent=2, sort_keys=True))
 
 
 @action_app.command("list")
@@ -1073,6 +1082,7 @@ def status_cmd(
     typer.echo(
         json.dumps(
             {
+                "schema": "rexecop.operation_status.v0.1",
                 "operation_id": item.id,
                 "state": item.state,
                 "profile": item.profile,

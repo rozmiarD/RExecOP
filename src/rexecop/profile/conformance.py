@@ -23,6 +23,7 @@ CONFORMANCE_CATEGORIES = (
     "connector",
     "validation",
 )
+PROFILE_CONFORMANCE_SCHEMA = "rexecop.profile_conformance.v0.1"
 ConformanceTrack = Literal["all", "readonly", "mutation"]
 REACTION_OBSERVATION_KEYS = frozenset(
     {
@@ -66,6 +67,7 @@ class ProfileConformanceResult:
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "schema": PROFILE_CONFORMANCE_SCHEMA,
             "profile": self.profile,
             "version": self.version,
             "status": self.status,

@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from rexecop.errors import RExecOpValidationError
-from rexecop.profile.conformance import validate_profile_conformance
+from rexecop.profile.conformance import PROFILE_CONFORMANCE_SCHEMA, validate_profile_conformance
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PROFILE = ROOT / "examples/profiles/runtime-fixture"
@@ -162,6 +162,7 @@ def test_profile_conformance_accepts_tecrax_reaction_observation_contract() -> N
         require_reaction_observation=True,
         track="readonly",
     )
+    assert result.as_dict()["schema"] == PROFILE_CONFORMANCE_SCHEMA
 
     assert result.status == "passed"
     assert result.track == "readonly"

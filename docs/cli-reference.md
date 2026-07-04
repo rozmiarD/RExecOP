@@ -50,6 +50,7 @@ See [secrets-operator.md](secrets-operator.md).
 | `connectors list` | Built-in and plugin connector backends |
 | `connectors show BACKEND` | One backend descriptor and plugin compatibility |
 | `capabilities list` | Neutral runtime capabilities and their source |
+| `contracts cli` | Machine-readable command schema, format, exit-code and redaction contract registry |
 
 See [profile-developer-surface.md](profile-developer-surface.md).
 
@@ -101,6 +102,16 @@ See [operator-catalog.md](operator-catalog.md).
 
 Inspection commands require a runtime store and an existing operation id from `plan`.
 Audit commands are projections only: SCLite remains the authoritative truth layer.
+
+## CLI Contract Registry
+
+`contracts cli` emits `rexecop.cli_contract_registry.v0.1`. It is a read-only
+registry for operator-facing JSON surfaces and records command argv, stable
+schema id, supported output formats, exit-code meanings, redaction and
+bounded-output claims, and the authority boundary for each output.
+
+The registry does not execute commands and does not replace command-specific
+tests. It is the M8 anti-drift surface for release-closure checks.
 
 ## Runtime triage and recovery
 

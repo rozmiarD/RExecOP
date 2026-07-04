@@ -89,6 +89,8 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - Input validation: `env lint`, `profile lint`, `secrets doctor`, `secrets suggest-ref`
 - Profile developer surface: `profiles list/show`, `connectors list/show`, `capabilities list`,
   `profile manifest`, `profile harness`, operator metadata projection
+- CLI contract registry: `contracts cli` emits command schemas, formats, exit-code policy
+  and redaction/authority claims for operator-facing surfaces
 - M5 action metadata (no backend IO): `action list`, `action show`, `action preview`,
   `action policy-preview`, `action validate`, `action diff --env`,
   `action configure --dry-run`, `action templates list` (scope 1.0: `http.simple-get`,

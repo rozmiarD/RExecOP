@@ -15,6 +15,10 @@ PyPI alpha line is **`0.2.14a0`**. Entries under [Releases](#releases) are newes
   `chain summary`, and required-redaction `support bundle --redacted` with
   stable JSON schemas, digest checks, bounded evidence previews, SCLite-ref
   integrity status, and no new truth-store ownership.
+- Started M8 CLI contract closure with `rexecop.cli_contract_registry.v0.1`
+  and `rexecop contracts cli`, a read-only machine-readable registry of
+  operator-facing command schemas, formats, exit-code policy, redaction claims
+  and authority boundaries.
 
 ## [0.2.14a0] - 2026-07-04
 

@@ -39,6 +39,7 @@ def test_cli_plan_smoke(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no
     status = runner.invoke(app, ["status", "--operation", operation_id])
     assert status.exit_code == 0
     payload = json.loads(status.stdout)
+    assert payload["schema"] == "rexecop.operation_status.v0.1"
     assert payload["state"] == "planned"
 
     history = runner.invoke(app, ["history", "--operation", operation_id])
@@ -87,7 +88,9 @@ def test_cli_root_isolates_runtime_state(tmp_path: Path) -> None:
         ["--root", str(root_a), "status", "--operation", operation_id],
     )
     assert status.exit_code == 0, status.output
-    assert json.loads(status.stdout)["operation_id"] == operation_id
+    payload = json.loads(status.stdout)
+    assert payload["schema"] == "rexecop.operation_status.v0.1"
+    assert payload["operation_id"] == operation_id
 
 
 def test_cli_root_envvar_and_explicit_precedence(tmp_path: Path) -> None:
