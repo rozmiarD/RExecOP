@@ -277,6 +277,79 @@ def test_cli_policy_explain_requires_environment_policy_pack() -> None:
     assert "environment policy_pack is required for policy explain" in result.output
 
 
+def test_cli_operation_explain_reports_plan_bindings_and_safe_actions(tmp_path: Path) -> None:
+    root = tmp_path / "runtime"
+    plan_result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(root),
+            "plan",
+            "--profile",
+            str(PROFILE),
+            "--env",
+            str(POLICY_ENVIRONMENT),
+            "--intent",
+            "inspect_fixture_state",
+            "--target",
+            "fixture-target",
+            "--mode",
+            "dry_run",
+        ],
+    )
+    assert plan_result.exit_code == 0, plan_result.output
+    operation_id = plan_result.stdout.strip()
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(root),
+            "operation",
+            "explain",
+            "--operation",
+            operation_id,
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = yaml.safe_load(result.stdout)
+    assert payload["schema"] == "rexecop.operation_explain.v0.1"
+    assert payload["operation"]["operation_id"] == operation_id
+    assert payload["bindings"]["profile_digest"]
+    assert payload["bindings"]["environment_digest"]
+    assert payload["governance"]["policy_verdict"]["decision"] == "allow"
+    assert payload["workflow"]["steps"] == [
+        {
+            "id": "inspect_state",
+            "type": "connector",
+            "connector": "fixture_source",
+            "action": "read_fixture_state",
+            "pause_safe": False,
+        },
+        {
+            "id": "produce_receipt",
+            "type": "evidence",
+            "connector": "",
+            "action": "produce_receipt",
+            "pause_safe": True,
+        },
+    ]
+    assert {
+        item["role"] for item in payload["expected_sclite_artifacts"]
+    } == {
+        "intent_contract",
+        "policy_decision",
+        "execution_contract",
+        "execution_ticket",
+        "execution_receipt",
+        "evidence_contract",
+    }
+    assert payload["safe_next_actions"] == [f"rexecop start --operation {operation_id}"]
+    assert "environment connector configuration" in result.stdout
+    assert "secret_ref" not in result.stdout
+
+
 def test_plan_projects_supported_operation_policy_obligations(tmp_path: Path) -> None:
     env_path = tmp_path / "env.yaml"
     env_data = yaml.safe_load(ENVIRONMENT.read_text())

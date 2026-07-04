@@ -38,6 +38,7 @@ Invalid transitions raise typed `RExecOpStateError`. Every transition emits evid
 | `env lint` | Validate an environment file and inline secret hygiene before planning |
 | `profile lint` | Validate profile conformance for `readonly`, `mutation` or `all` tracks |
 | `policy explain` | Show GovEngine policy reasoning for an operation-shaped request without execution |
+| `operation explain` | Explain a stored operation plan, bindings, expected artifacts and safe next actions |
 | `plan` | Create operation + `OperationPlan`; GovEngine gate for mutating modes |
 | `approve` | Manual approval after `approval_required` |
 | `start` | Execute workflow (may queue if lock/capacity busy) |
@@ -77,6 +78,16 @@ During `start`, `WorkflowRunner` writes:
 These are runtime contracts for operator review and downstream binding — distinct from the
 SCLite `execution_receipt` artifact emitted on the completion export path.
 See [execution-contract.md](execution-contract.md).
+
+## Operation explain
+
+`rexecop operation explain --operation <id>` reads the stored operation and
+`OperationPlan` and emits schema `rexecop.operation_explain.v0.1`. The output is
+redacted for operator review: it includes profile/environment/catalog digests,
+GovEngine decision and policy-enforcement blockers, expected SCLite artifact
+roles, planned step ids/actions, rollback/preflight/postflight availability,
+mutating contract completeness, and safe next commands. It does not execute,
+approve, re-evaluate policy reasoning, or expose connector configuration.
 
 ## Authority boundaries
 
