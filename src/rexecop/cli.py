@@ -17,6 +17,10 @@ from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
 from rexecop.operation.controller import OperationController
+from rexecop.operation.diff import (
+    diff_operation_plan,
+    render_operation_plan_diff,
+)
 from rexecop.operation.explain import explain_operation
 from rexecop.operation.review import render_operation_review, review_operation
 from rexecop.policy.explain import explain_operation_policy
@@ -263,6 +267,30 @@ def operation_explain_cmd(
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(json.dumps(result, indent=2, sort_keys=True))
+
+
+@operation_app.command("diff")
+def operation_diff_cmd(
+    operation: str = typer.Option(..., "--operation", help="Operation id."),
+    fmt: str = typer.Option(
+        "json",
+        "--format",
+        help="Output format: json, table or markdown.",
+    ),
+) -> None:
+    """Compare stored plan bindings against current profile/env/catalog state."""
+    try:
+        controller = _controller()
+        item = controller.get_operation(operation)
+        plan = controller.store.load_plan(operation)
+        result = diff_operation_plan(item, plan)
+        output = render_operation_plan_diff(result, fmt)
+    except (RExecOpError, ValueError) as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(output, nl=not output.endswith("\n"))
+    if result["status"] == "drifted":
+        raise typer.Exit(code=1)
 
 
 @operation_app.command("review")

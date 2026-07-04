@@ -181,6 +181,7 @@ def collect_errors() -> list[str]:
     _require(errors, "README.md", "docs/first-run.md")
     _require(errors, "README.md", "validate_first_run_smoke.py")
     _require(errors, "README.md", "operation review")
+    _require(errors, "README.md", "operation diff")
     _require(errors, "README.md", "runbook show")
     _require(errors, "docs/alpha-sign-off.md", "validate_first_run_smoke.py")
     _require(errors, "docs/alpha-sign-off.md", "validate_stack_contracts.py")

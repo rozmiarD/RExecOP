@@ -11,6 +11,9 @@ PyPI alpha line is **`0.2.11a0`**. Entries under [Releases](#releases) are newes
 
 ## Unreleased
 
+- Added `rexecop operation diff --operation <id>` with stable JSON plus
+  `--format table|markdown` to compare stored catalog/profile/environment
+  bindings against the current operator state before start.
 - Added `rexecop operation review --operation <id>` with stable JSON plus
   `--format table|markdown` decision screens for stored plans: digests,
   backends, runbook refs, stop conditions, expected evidence, governance

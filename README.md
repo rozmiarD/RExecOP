@@ -177,6 +177,7 @@ SCLite bundles, receipt exports, queue, locks and trigger inbox.
 | `policy explain` | Show GovEngine policy reasoning for one operation-shaped request without execution |
 | `operation explain` | Explain a stored operation plan, expected artifacts, bindings and safe next actions |
 | `operation review` | Decision screen for a stored plan (`--format json\|table\|markdown`) before start |
+| `operation diff` | Compare stored plan bindings vs current profile/env/catalog (`--format json\|table\|markdown`) |
 | `runbook show` | Show profile-owned runbook ref and bounded content for one intent |
 | `plan` | Create operation + plan; evaluate configured PolicyEngine and mutating admission gates |
 | `approve` | Manual approval after `approval_required` |
