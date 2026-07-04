@@ -20,6 +20,17 @@ from rexecop.profile.loader import load_profile
 
 EvidenceHandler = Callable[[StepExecutionContext], dict[str, Any]]
 
+_EXCLUDED_OUTPUT_STATE_DELTA_KEYS = frozenset(
+    {
+        "execution_context",
+        "execution_controls",
+        "execution_request",
+        "typed_execution_governance",
+        "typed_execution_specs",
+        "typed_execution_admissions",
+    }
+)
+
 __all__ = ["StepExecutor"]
 
 
@@ -180,7 +191,8 @@ class StepExecutor:
         state_delta = {
             key: value
             for key, value in context.shared_state.items()
-            if key not in state_before or state_before[key] != value
+            if key not in _EXCLUDED_OUTPUT_STATE_DELTA_KEYS
+            and (key not in state_before or state_before[key] != value)
         }
         canonical = json.dumps(
             {"output": result.output, "state_delta": state_delta},
