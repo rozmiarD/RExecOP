@@ -11,6 +11,11 @@ PyPI alpha line is **`0.2.12a0`**. Entries under [Releases](#releases) are newes
 
 ## Unreleased
 
+- Added M6 backend capability descriptors with identity class, egress/network
+  boundary, secret-ref requirements and live-backend posture projections
+  (`rexecop.backend_capability_descriptor.v0.1`). Typed execution compile
+  binds capability digests before IO; raw shell and undeclared backend classes
+  fail closed.
 - Started M6 typed execution contracts in RExecOp: digest-bound
   `StepExecutionSpec` with `CommandExecutionSpec`, `HttpActionExecutionSpec`
   and `static_fixture` projections (`rexecop.execution.typed_spec`). Connector

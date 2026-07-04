@@ -19,6 +19,10 @@ class ConnectorBackendDescriptor:
     capability_descriptors: tuple[str, ...]
     certification_tier: str
     compatibility_version: str
+    identity_class: str = "none"
+    egress_class: str = "no_network"
+    read_only_backend: bool = False
+    live_backend_capable: bool = True
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -28,6 +32,10 @@ class ConnectorBackendDescriptor:
             "capability_descriptors": list(self.capability_descriptors),
             "certification_tier": self.certification_tier,
             "compatibility_version": self.compatibility_version,
+            "identity_class": self.identity_class,
+            "egress_class": self.egress_class,
+            "read_only_backend": self.read_only_backend,
+            "live_backend_capable": self.live_backend_capable,
         }
 
 
@@ -39,6 +47,9 @@ _BUILTIN_BACKENDS: dict[str, ConnectorBackendDescriptor] = {
         capability_descriptors=("connector.mock.invoke",),
         certification_tier="bootstrap",
         compatibility_version=__version__,
+        identity_class="none",
+        egress_class="no_network",
+        live_backend_capable=False,
     ),
     "http_api": ConnectorBackendDescriptor(
         backend_class="http_api",
@@ -47,6 +58,9 @@ _BUILTIN_BACKENDS: dict[str, ConnectorBackendDescriptor] = {
         capability_descriptors=("connector.http.rest.read", "connector.http.rest.mutate"),
         certification_tier="core",
         compatibility_version=__version__,
+        identity_class="api_token_optional",
+        egress_class="outbound_http",
+        live_backend_capable=True,
     ),
     "local_shell_readonly": ConnectorBackendDescriptor(
         backend_class="local_shell_readonly",
@@ -55,6 +69,10 @@ _BUILTIN_BACKENDS: dict[str, ConnectorBackendDescriptor] = {
         capability_descriptors=("connector.shell.readonly",),
         certification_tier="core",
         compatibility_version=__version__,
+        identity_class="none",
+        egress_class="local_subprocess",
+        read_only_backend=True,
+        live_backend_capable=True,
     ),
     "ssh_readonly": ConnectorBackendDescriptor(
         backend_class="ssh_readonly",
@@ -63,6 +81,10 @@ _BUILTIN_BACKENDS: dict[str, ConnectorBackendDescriptor] = {
         capability_descriptors=("connector.ssh.readonly",),
         certification_tier="core",
         compatibility_version=__version__,
+        identity_class="ssh_identity",
+        egress_class="outbound_ssh",
+        read_only_backend=True,
+        live_backend_capable=True,
     ),
     "static_fixture": ConnectorBackendDescriptor(
         backend_class="static_fixture",
@@ -71,6 +93,9 @@ _BUILTIN_BACKENDS: dict[str, ConnectorBackendDescriptor] = {
         capability_descriptors=("connector.fixture.static",),
         certification_tier="core",
         compatibility_version=__version__,
+        identity_class="none",
+        egress_class="no_network",
+        live_backend_capable=False,
     ),
 }
 
@@ -92,6 +117,9 @@ def describe_connector_backend(name: str) -> ConnectorBackendDescriptor:
         capability_descriptors=(f"connector.plugin.{name}",),
         certification_tier="plugin",
         compatibility_version=__version__,
+        identity_class="plugin_declared",
+        egress_class="plugin_undeclared",
+        live_backend_capable=True,
     )
 
 

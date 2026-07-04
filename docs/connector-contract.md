@@ -170,7 +170,14 @@ rexecop connectors show http_api
 rexecop capabilities list
 ```
 
-Built-in backends report `certification_tier: core` (or `bootstrap` for `mock`).
+Built-in backends report `certification_tier: core` (or `bootstrap` for `mock`),
+plus M6 security posture fields: `identity_class`, `egress_class`,
+`read_only_backend` and `live_backend_capable`. Per-connector env bindings
+compile digest-bound `rexecop.backend_capability_descriptor.v0.1` projections
+during typed execution (secret-ref requirements and redacted network boundary,
+without resolved secrets or hosts). Raw shell backends and undeclared backend
+classes fail closed before backend IO.
+
 Plugin entry points report `certification_tier: plugin`. See
 [profile-developer-surface.md](profile-developer-surface.md).
 

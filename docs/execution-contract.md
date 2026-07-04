@@ -41,8 +41,10 @@ via `rexecop.execution.typed_spec`:
 When an operation seeds `shared_state.execution_context` with `profile_root` and
 `environment.connectors`, `StepExecutor` compiles the typed spec, stores
 `shared_state.typed_execution_specs[step_id].digest` before connector invoke,
-and fail-closes on schema major-version mismatch or digest drift. These records
-are runtime projections only — not SCLite truth artifacts.
+and fail-closes on schema major-version mismatch or digest drift. Each
+`StepExecutionSpec` may embed `rexecop.backend_capability_descriptor.v0.1`
+(identity class, egress boundary, secret-ref requirements, live-backend posture).
+These records are runtime projections only — not SCLite truth artifacts.
 
 ## ExecutionRequest fields
 

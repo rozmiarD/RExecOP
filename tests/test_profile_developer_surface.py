@@ -101,6 +101,7 @@ def test_connectors_show_describes_http_api_backend() -> None:
 
     assert result["connector_backend"]["backend_class"] == "http_api"
     assert result["connector_backend"]["certification_tier"] == "core"
+    assert result["connector_backend"]["egress_class"] == "outbound_http"
     assert "connector.http.rest.read" in result["connector_backend"]["capability_descriptors"]
 
 

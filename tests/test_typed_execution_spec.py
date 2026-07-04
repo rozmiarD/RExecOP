@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import yaml
 
+from rexecop.connectors.capability_descriptor import (
+    BACKEND_CAPABILITY_DESCRIPTOR_SCHEMA,
+    assert_backend_is_declared,
+    compile_connector_capability_descriptor,
+)
+from rexecop.connectors.registry import describe_connector_backend
 from rexecop.errors import RExecOpValidationError
 from rexecop.execution.executor import StepExecutor
 from rexecop.execution.typed_spec import (
@@ -24,6 +31,61 @@ from rexecop.workflow.runner import WorkflowRunner
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PROFILE = ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 FIXTURE_ENV = ROOT / "examples/environments/runtime-fixture.example.yaml"
+
+
+def test_connector_backend_descriptor_includes_security_posture() -> None:
+    descriptor = describe_connector_backend("http_api")
+
+    assert descriptor.identity_class == "api_token_optional"
+    assert descriptor.egress_class == "outbound_http"
+    assert descriptor.live_backend_capable is True
+
+
+def test_compile_http_backend_capability_descriptor() -> None:
+    descriptor = compile_connector_capability_descriptor(
+        connector="api",
+        backend_class="http_api",
+        connector_config={
+            "enabled": True,
+            "backend": "http_api",
+            "base_url_secret_ref": "api_base_url",
+            "actions": {"read_state": {"method": "GET", "path": "/state"}},
+        },
+        mode="dry_run",
+    )
+
+    assert descriptor["schema"] == BACKEND_CAPABILITY_DESCRIPTOR_SCHEMA
+    assert descriptor["egress_class"] == "outbound_http"
+    assert descriptor["network_boundary"]["egress"] == "outbound_http"
+    assert descriptor["digest"].startswith("sha256:")
+    rendered = json.dumps(descriptor, sort_keys=True)
+    assert "api_base_url" not in rendered
+
+
+def test_compile_ssh_capability_descriptor_requires_identity_ref() -> None:
+    with pytest.raises(RExecOpValidationError, match="identity_file_secret_ref"):
+        compile_connector_capability_descriptor(
+            connector="host",
+            backend_class="ssh_readonly",
+            connector_config={
+                "enabled": True,
+                "backend": "ssh_readonly",
+                "host": "private-host",
+                "user": "operator",
+                "allowlist": [{"action": "uptime", "command": "uptime", "args": []}],
+            },
+            mode="dry_run",
+        )
+
+
+def test_assert_backend_is_declared_blocks_raw_shell_backends() -> None:
+    with pytest.raises(RExecOpValidationError, match="raw shell backend blocked"):
+        assert_backend_is_declared("local_shell")
+
+
+def test_assert_backend_is_declared_blocks_undeclared_backend_classes() -> None:
+    with pytest.raises(RExecOpValidationError, match="undeclared backend capability"):
+        assert_backend_is_declared("custom_unknown_backend")
 
 
 def test_compile_static_fixture_step_execution_spec() -> None:
@@ -47,6 +109,8 @@ def test_compile_static_fixture_step_execution_spec() -> None:
     assert spec["projection_kind"] == "runtime_projection"
     assert spec["digest"].startswith("sha256:")
     assert spec["payload"]["schema"] == STATIC_FIXTURE_EXECUTION_SPEC_SCHEMA
+    assert spec["capability_descriptor"]["live_backend_posture"] == "fixture_only"
+    assert spec["capability_descriptor"]["egress_class"] == "no_network"
     assert "not a SCLite truth artifact" in spec["non_claims"][0]
 
 
@@ -100,6 +164,7 @@ def test_compile_http_action_execution_spec_from_fixture(tmp_path: Path) -> None
     connector_config = {
         "enabled": True,
         "backend": "http_api",
+        "base_url_secret_ref": "api_base_url",
         "actions": {
             "read_state": {
                 "method": "GET",

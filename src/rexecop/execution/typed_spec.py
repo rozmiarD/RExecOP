@@ -10,6 +10,7 @@ from rexecop.connectors.action_shape import (
     http_action_shape_digest,
     validate_http_action_shape,
 )
+from rexecop.connectors.capability_descriptor import compile_connector_capability_descriptor
 from rexecop.connectors.command_shape import normalize_allowlisted_argv
 from rexecop.connectors.errors import READ_ONLY_MODES
 from rexecop.errors import RExecOpValidationError
@@ -65,6 +66,12 @@ def compile_step_execution_spec(
         or contract.get("backend")
         or ""
     ).strip()
+    capability_descriptor = compile_connector_capability_descriptor(
+        connector=connector,
+        backend_class=backend,
+        connector_config=connector_config,
+        mode=mode,
+    )
     if backend == "http_api":
         payload = _compile_http_action_execution_spec(
             connector=connector,
@@ -107,6 +114,7 @@ def compile_step_execution_spec(
         "read_only": mode in READ_ONLY_MODES,
         "payload_schema": payload_schema,
         "payload": payload,
+        "capability_descriptor": capability_descriptor,
         "non_claims": list(_RUNTIME_PROJECTION_NON_CLAIMS),
     }
     spec["digest"] = step_execution_spec_digest(spec)
