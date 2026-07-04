@@ -33,6 +33,10 @@ Invalid transitions raise typed `RExecOpStateError`. Every transition emits evid
 
 | Command | Purpose |
 | --- | --- |
+| `init` | Create the runtime root layout without secrets or backend IO |
+| `doctor` | Check runtime root, storage, stack package compatibility and optional profile/env/catalog inputs |
+| `env lint` | Validate an environment file and inline secret hygiene before planning |
+| `profile lint` | Validate profile conformance for `readonly`, `mutation` or `all` tracks |
 | `plan` | Create operation + `OperationPlan`; GovEngine gate for mutating modes |
 | `approve` | Manual approval after `approval_required` |
 | `start` | Execute workflow (may queue if lock/capacity busy) |
@@ -82,8 +86,10 @@ See [execution-contract.md](execution-contract.md).
 
 ## Storage
 
-`FileStore` is the default backend under `.rexecop/`. Set `REXECOP_STORAGE=sqlite` or pass
-`--storage sqlite` for SQLite-backed operations, plans, and evidence (`.rexecop/rexecop.db`).
+`FileStore` is the default backend under the selected runtime root. Select the root with
+global `--root`, `REXECOP_ROOT`, named `--instance`, `REXECOP_INSTANCE`, or fallback
+`./.rexecop`. Set `REXECOP_STORAGE=sqlite` or pass `--storage sqlite` for
+SQLite-backed operations, plans, and evidence (`<root>/rexecop.db`).
 `storage/port.py` defines `OperationStoragePort` and `RuntimeStore` for optional backends.
 
 Operation metadata persists `profile_root` and sanitized `environment_connectors` for runtime

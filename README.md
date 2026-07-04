@@ -73,9 +73,13 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - SCLite port: full GovEngine-integration bundle emission (scoped ticket v0.3, kernel guard, review pass)
 - Profile resolution by path or `rexecop.profiles` entry point (`tecrax`)
 - Declarative profile validation rules (YAML, not hardcoded domain logic in core)
-- Domain-neutral `runtime-fixture` examples for lifecycle, policy and connector regressions;
-  Tecrax product semantics live only in the external `tecrax` package
+- Domain-neutral `first-run-demo` and `runtime-fixture` examples for onboarding,
+  lifecycle, policy and connector regressions; Tecrax product semantics live only
+  in the external `tecrax` package
 - Operational controls: approve, pause, resume, cancel, retry, rollback, queue, target lock, maintenance windows
+- Runtime readiness CLI: explicit `--root` / `REXECOP_ROOT`, named local
+  `--instance` / `REXECOP_INSTANCE`, `init`, `doctor`, `env lint`, and
+  `profile lint`
 - Runtime worker: `rexecop worker run`, `rexecop queue --drain`, `rexecop trigger` (host-owned scheduling)
 - Connectors: `mock`, config-driven `http_api` (retry, pagination, error mapping), `local_shell_readonly`, `ssh_readonly` (temporary; bounded output + digests)
 - Execution contracts: digest-bound `ExecutionRequest` / `ExecutionReceipt` in workflow `shared_state` (schema `v0.2`)
@@ -85,7 +89,8 @@ Ravenclaw is legacy and out of scope for RExecOp.
   and start-time drift rejection; catalog compatibility never replaces GovEngine admission
 - Storage: `FileStore` (default) or optional `SqliteStore` (`REXECOP_STORAGE` / `--storage`)
 - Secrets port: `REXECOP_SECRET_*` and `REXECOP_SECRETS_FILE` (no plaintext secrets in git or `.rexecop/`)
-- Operator CLI (`rexecop`); runtime data under `.rexecop/` in the current working directory
+- Operator CLI (`rexecop`); runtime data under an explicit root, named local
+  instance, or default `.rexecop/` in the current working directory
 
 ## What RExecOp does not include
 
@@ -131,29 +136,35 @@ CI also checks out [`tecrax`](https://github.com/rozmiarD/tecrax) for integratio
 
 ## Quick start
 
-For a clean no-I/O first run with `init`, `doctor`, lint, explain and demo plan,
-see [docs/first-run.md](docs/first-run.md).
-
 ```bash
 rexecop version
 
-rexecop plan \
-  --profile examples/profiles/runtime-fixture/profile.yaml \
-  --env examples/environments/runtime-fixture.example.yaml \
-  --intent inspect_fixture_state \
+rexecop --root /tmp/rexecop-first-run init --guided
+
+rexecop --root /tmp/rexecop-first-run doctor \
+  --profile examples/first-run-demo/profile/profile.yaml \
+  --env examples/first-run-demo/environment.yaml \
+  --catalog examples/first-run-demo/catalog.yaml
+
+rexecop operations explain inspect \
+  --profile examples/first-run-demo/profile/profile.yaml
+
+rexecop --root /tmp/rexecop-first-run plan \
+  --catalog examples/first-run-demo/catalog.yaml \
+  --intent inspect \
   --target fixture-target \
   --mode dry_run
-
-rexecop start --operation <operation-id>
-rexecop status --operation <operation-id>
-rexecop validate --operation <operation-id>
 ```
+
+See [docs/first-run.md](docs/first-run.md) for the full no-I/O first-run path
+with lint checks.
 
 - With `tecrax` installed, `--profile tecrax` resolves via entry point.
 - For offline tests without a domain package, use `examples/profiles/runtime-fixture/profile.yaml`.
 - Staging `http_api` template: `examples/environments/runtime-fixture.staging.example.yaml`
 
-Runtime artifacts live under `.rexecop/` (gitignored): operations, evidence, SCLite bundles, receipt exports.
+Runtime artifacts live under the selected runtime root: operations, evidence,
+SCLite bundles, receipt exports, queue, locks and trigger inbox.
 
 ## CLI commands
 

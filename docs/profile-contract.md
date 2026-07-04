@@ -18,6 +18,21 @@ rexecop plan --profile examples/profiles/runtime-fixture/profile.yaml ...
 
 Resolver: `rexecop.profile.resolver.resolve_profile_path()`.
 
+## Linting
+
+Use `profile lint` before using a new or changed profile in operator runs:
+
+```bash
+rexecop profile lint --profile examples/first-run-demo/profile/profile.yaml --track readonly
+rexecop profile lint --profile <profile.yaml> --track mutation
+rexecop profile lint --profile <profile.yaml> --track all
+```
+
+`readonly` verifies side-effect-free operation/catalog/workflow surfaces without
+requiring mutation candidates to pass. `mutation` validates bounded mutating
+candidates as candidates only; it is not an authorization or `mutation_ready`
+claim. `all` checks all profile operations.
+
 ## External Tecrax package
 
 Production Tecrax semantics ship in [`tecrax`](https://github.com/rozmiarD/tecrax):
@@ -112,6 +127,7 @@ Domain meaning stays in the profile package — not in `src/rexecop/validation/v
 
 | Location | Purpose |
 | --- | --- |
+| `examples/first-run-demo/` | Public-safe onboarding fixture for `init -> doctor -> explain -> plan` |
 | `examples/profiles/runtime-fixture/` | Bootstrap/offline tests in rexecop repo; domain-neutral no-I/O fixture |
 | `examples/profiles/http-health-fixture/` | http_api-only golden path without domain internals |
 | `tecrax` package | Operator-facing Tecrax profile |

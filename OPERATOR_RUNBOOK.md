@@ -32,11 +32,40 @@ pip install -e ../tecrax
 
 rexecop version   # expect 0.2.11a0 from the coordinated source checkout
 python scripts/validate_public_truth.py   # docs + version alignment
+python scripts/validate_first_run_smoke.py # no-I/O init/doctor/explain/plan smoke
 
 # Optional: SQLite backend for operations/plans/evidence (SCLite bundles still on disk)
 export REXECOP_STORAGE=sqlite
 # or per invocation: rexecop --storage sqlite plan ...
 ```
+
+## Runtime root and first-run diagnostics
+
+Use an explicit root for operator work. The default remains `./.rexecop`, but
+`--root` or `REXECOP_ROOT` avoids accidental writes from the wrong working
+directory. Named local instances are available through `--instance` or
+`REXECOP_INSTANCE`; they resolve under `./.rexecop/instances/<name>` unless
+`--root` is supplied.
+
+```bash
+export REXECOP_ROOT=~/rexecop-runtime
+rexecop init --guided
+
+rexecop doctor \
+  --profile examples/first-run-demo/profile/profile.yaml \
+  --env examples/first-run-demo/environment.yaml \
+  --catalog examples/first-run-demo/catalog.yaml
+
+rexecop profile lint \
+  --profile examples/first-run-demo/profile/profile.yaml \
+  --track readonly
+
+rexecop env lint \
+  --env examples/first-run-demo/environment.yaml \
+  --profile examples/first-run-demo/profile/profile.yaml
+```
+
+For a complete no-I/O walkthrough, see [docs/first-run.md](docs/first-run.md).
 
 ## Secrets (never in git or `.rexecop/`)
 
@@ -57,6 +86,8 @@ export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
 Alternative: `REXECOP_SECRET_FIXTURE_API_TOKEN`, etc. (see [connector-contract.md](docs/connector-contract.md)).
 
 Environment YAML must use `secret_ref` / `base_url_secret_ref` — inline secrets are rejected at `plan`.
+Use `rexecop env lint --env <environment.yaml> --profile <profile.yaml>` before
+planning a new operator environment.
 
 ## Environment files
 
@@ -75,17 +106,17 @@ Adjust `targets`, action `path` values, and `secret_ref` names for your APIs.
 ## Standard read-only workflow
 
 ```bash
-rexecop plan \
+rexecop --root ~/rexecop-runtime plan \
   --profile /path/to/RExecOP/examples/profiles/runtime-fixture/profile.yaml \
   --env ~/.rexecop/environments/runtime-fixture.staging.yaml \
   --intent inspect_fixture_state \
   --target fixture-target \
   --mode dry_run
 
-rexecop start --operation <operation-id>
-rexecop status --operation <operation-id>
-rexecop validate --operation <operation-id>
-rexecop history --operation <operation-id>
+rexecop --root ~/rexecop-runtime start --operation <operation-id>
+rexecop --root ~/rexecop-runtime status --operation <operation-id>
+rexecop --root ~/rexecop-runtime validate --operation <operation-id>
+rexecop --root ~/rexecop-runtime history --operation <operation-id>
 ```
 
 **Success criteria:**
@@ -197,10 +228,13 @@ Environment `safety` controls `max_concurrent_operations`, `target_lock_enabled`
 ## Runtime layout (`.rexecop/`)
 
 **Storage backends:** `file` (default) or `sqlite` (`REXECOP_STORAGE` / `--storage`).
-Operations, plans, and evidence use JSON files (`file`) or `.rexecop/rexecop.db` (`sqlite`).
-Queue, locks, receipts, approvals, and SCLite bundles always stay on disk under `.rexecop/`.
+**Root selection:** `--root`, `REXECOP_ROOT`, `--instance`, `REXECOP_INSTANCE`, or default
+`./.rexecop`.
+Operations, plans, and evidence use JSON files (`file`) or `<root>/rexecop.db` (`sqlite`).
+Queue, locks, receipts, approvals, and SCLite bundles always stay on disk under the
+selected runtime root.
 This is single-operator alpha storage — not multi-tenant or HA. SCLite bundles under
-`.rexecop/sclite/` are authoritative for review; internal evidence is runtime telemetry only
+`sclite/` are authoritative for review; internal evidence is runtime telemetry only
 (see [architecture.md](docs/architecture.md)).
 
 | Path | Content |
@@ -226,12 +260,13 @@ Directory is gitignored — back up operator-side if retention is required.
 | `capability_undeclared` | Action missing from profile `connectors/*.yaml` |
 | `connector disabled` | `enabled: false` in environment YAML |
 | Queue stuck | `rexecop queue`; `rexecop queue --drain` or `rexecop worker run --once` |
-| Wrong runtime data path | `.rexecop/` is relative to cwd — `cd` to your operator directory first |
+| Wrong runtime data path | Run `rexecop doctor`; prefer `--root` / `REXECOP_ROOT` for operator work |
 
 ## Safety checklist (every environment)
 
 - [ ] No secrets in git or committed `.rexecop/`
 - [ ] Environment uses `secret_ref` only
+- [ ] `rexecop doctor`, `rexecop env lint`, and `rexecop profile lint` pass
 - [ ] Read-only path validated before apply
 - [ ] Apply tested on non-critical target first
 - [ ] Target lock enabled for mutating workloads

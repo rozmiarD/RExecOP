@@ -3,6 +3,20 @@
 Environment YAML binds a profile to operator infrastructure: **targets**, **connectors**,
 and **safety** policy. RExecOp validates operation targets at `plan` time.
 
+## Linting
+
+Use `env lint` before planning against a new or edited environment:
+
+```bash
+rexecop env lint --env examples/first-run-demo/environment.yaml \
+  --profile examples/first-run-demo/profile/profile.yaml
+```
+
+The command loads the environment, rejects inline secrets through the same
+sanitization rules used by runtime paths, optionally checks that the environment
+profile matches the supplied profile, and reports target, connector and
+`secret_ref` counts as JSON.
+
 ## Target semantics
 
 Targets live under `environment.targets` as a map of names to specifications.

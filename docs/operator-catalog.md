@@ -84,6 +84,15 @@ rexecop plan \
   --mode dry_run
 ```
 
+Check the same catalog during first-run diagnostics:
+
+```bash
+rexecop doctor \
+  --profile profile_name \
+  --env /operator/private/environment.yaml \
+  --catalog /operator/private/targets.yaml
+```
+
 The plan binds canonical digests for the catalog, target descriptor, operation
 descriptor, profile snapshot and environment. RExecOp recomputes the binding
 immediately before `start`. Any drift blocks connector execution and requires a

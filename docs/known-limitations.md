@@ -31,7 +31,7 @@ This document states what the current published alpha line does **not** provide 
 | Staging proven, production is operator-owned | CI uses HTTP stub; live infra requires operator runbook and secrets hygiene |
 | `local_shell_readonly` only | No general shell apply backend in core |
 | `ssh_readonly` is temporary | PolicyEngine gate when `policy_pack` set; allowlisted argv + read-only modes remain in connector |
-| Static fixture is offline-only | `examples/profiles/runtime-fixture/` uses `static_fixture` for no-I/O lifecycle regression |
+| Static fixture is offline-only | `examples/first-run-demo/` and `examples/profiles/runtime-fixture/` use `static_fixture` for no-I/O onboarding and lifecycle regression |
 
 ## Profiles and domain
 

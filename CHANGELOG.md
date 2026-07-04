@@ -11,6 +11,19 @@ PyPI alpha line is **`0.2.11a0`**. Entries under [Releases](#releases) are newes
 
 ## Unreleased
 
+- Added first-run runtime readiness commands for source-line evaluation:
+  global `--root`, `REXECOP_ROOT`, named `--instance` / `REXECOP_INSTANCE`,
+  `rexecop init`, `rexecop init --guided`, and `rexecop doctor`.
+- Added operator-input validation commands:
+  `rexecop env lint` and `rexecop profile lint --track readonly|mutation|all`.
+- Added the public-safe `examples/first-run-demo/` fixture path plus
+  `scripts/validate_first_run_smoke.py`, now included in alpha sign-off, to
+  verify `init -> doctor -> explain -> plan` on a fresh runtime root without
+  credentials or external infrastructure.
+- Added [docs/first-run.md](docs/first-run.md) and updated runtime-root docs so
+  onboarding starts from explicit root initialization and diagnostics before
+  profile execution.
+
 ## [0.2.11a0] - 2026-06-28
 
 - Added governed manual watchdog recovery records through

@@ -63,8 +63,8 @@ is not a `mutation_ready` claim and does not authorize execution.
 The stack must keep these gates green before implementing later automation:
 
 - RExecOp: `scripts/validate_public_truth.py`, `scripts/validate_stack_contracts.py`,
-  `scripts/validate_profile_conformance.py`, `scripts/secret_scan.sh`,
-  core-domain-token guard, `ruff`, `mypy src/rexecop`, and pytest.
+  `scripts/validate_profile_conformance.py`, `scripts/validate_first_run_smoke.py`,
+  `scripts/secret_scan.sh`, core-domain-token guard, `ruff`, `mypy src/rexecop`, and pytest.
 - Tecrax: public truth, active profile validation, secret topology validation, `ruff`, `mypy src/tecrax`, and pytest.
 - GovEngine: public truth, alpha readiness, `ruff`, `mypy govengine`, and pytest.
 - SCLite: public truth, schema/security gates, `ruff`, `mypy`, and pytest.

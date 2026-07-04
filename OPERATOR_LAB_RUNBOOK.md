@@ -3,8 +3,9 @@
 RExecOp `0.2.11a0` source line — validate neutral core, plugin boundaries, read-only paths, and the full
 profile → GovEngine → SCLite emission path before apply.
 
-Runtime data is written to `.rexecop/` in the **current working directory**. Run lab commands
-from a dedicated directory (for example `~/lab/rexecop-runtime`) so artifacts stay isolated.
+Runtime data is written to the selected runtime root. Use `--root` / `REXECOP_ROOT`
+for lab work so artifacts stay isolated; the fallback remains `.rexecop/` in the
+current working directory.
 
 ## Prerequisites
 
@@ -18,9 +19,11 @@ from a dedicated directory (for example `~/lab/rexecop-runtime`) so artifacts st
 
 ```bash
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
+export REXECOP_ROOT=~/lab/rexecop-runtime
 rexecop version    # 0.2.11a0
 export REXECOP_STORAGE=sqlite   # optional SQLite backend for operations/plans/evidence
 python scripts/validate_public_truth.py
+python scripts/validate_first_run_smoke.py
 ```
 
 ## Lab checklist
@@ -36,7 +39,29 @@ python scripts/validate_public_truth.py
 
 - [ ] No plaintext tokens in git or committed `.rexecop/`
 - [ ] Environment YAML uses `secret_ref` / `base_url_secret_ref` only
-- [ ] After a run: `rg -i 'api_key|token|password' .rexecop/` shows only `[REDACTED]` or no hits
+- [ ] After a run: `rg -i 'api_key|token|password' "$REXECOP_ROOT"/` shows only `[REDACTED]` or no hits
+
+### 2b. First-run readiness
+
+Uses `examples/first-run-demo`; no domain package, endpoint, or secret is required.
+
+```bash
+rexecop init --guided
+rexecop doctor \
+  --profile examples/first-run-demo/profile/profile.yaml \
+  --env examples/first-run-demo/environment.yaml \
+  --catalog examples/first-run-demo/catalog.yaml
+rexecop profile lint \
+  --profile examples/first-run-demo/profile/profile.yaml \
+  --track readonly
+rexecop env lint \
+  --env examples/first-run-demo/environment.yaml \
+  --profile examples/first-run-demo/profile/profile.yaml
+```
+
+- [ ] `doctor` returns `status: passed`
+- [ ] Profile and environment lint return `status: passed`
+- [ ] `python scripts/validate_first_run_smoke.py` passes
 
 ### 3. http_api-only golden path (no domain internals)
 

@@ -10,7 +10,7 @@ Profiles (tecrax, examples/runtime-fixture)
   intents, workflows, connector contracts, validation_rules/
 
 RExecOp (this package)
-  operation lifecycle, OperationPlan, orchestration,
+  runtime root, operation lifecycle, OperationPlan, orchestration,
   connector dispatch, validation engine, escalation packaging
 
 GovEngine
@@ -23,7 +23,7 @@ SCLite
 | Layer | Owns | Does not own |
 | --- | --- | --- |
 | **Profiles** | Domain semantics, success criteria YAML | Execution mechanics, policy meaning |
-| **RExecOp** | State machine, step order, retry/pause, locks/queue | Policy decisions, artifact schemas |
+| **RExecOp** | Runtime root, state machine, step order, retry/pause, locks/queue | Policy decisions, artifact schemas |
 | **GovEngine** | Allowed/blocked/approval_required | Connector calls, workflow invention |
 | **SCLite** | Truth records and review semantics | Operation scheduling, infra APIs |
 
@@ -67,20 +67,22 @@ src/rexecop/                         tecrax (or other domain packages)
   record_rollback_marker (builtin)     profile-owned normalizers/aggregators
 ```
 
-The bundled `runtime-fixture` profile uses the generic `static_fixture` backend. Tecrax and
-other domain packages may register internal actions, but RExecOp core does not import or own
-their semantics.
+The bundled `first-run-demo` and `runtime-fixture` profiles use the generic
+`static_fixture` backend. Tecrax and other domain packages may register internal
+actions, but RExecOp core does not import or own their semantics.
 
 ## Storage boundary
 
 ```text
 OperationStoragePort (protocol)
-  ├── FileStore (default)     local JSON under .rexecop/ — single-operator default
+  ├── FileStore (default)     local JSON under selected runtime root
   ├── SqliteStore (optional)  operations/plans/evidence in rexecop.db; aux dirs on disk
   └── InMemoryStore (tests)   operations/plans/evidence in RAM; SCLite dir still on disk
 ```
 
-`.rexecop/` is RExecOp runtime operator storage, not parallel SCLite truth authority.
+The selected runtime root is RExecOp operator storage, not parallel SCLite truth authority.
+It is chosen by global `--root`, `REXECOP_ROOT`, named `--instance` /
+`REXECOP_INSTANCE`, or fallback `./.rexecop`.
 See [storage-backends.md](../docs/storage-backends.md) for File vs SQLite boundaries.
 
 ## Package map (current)
@@ -132,13 +134,13 @@ evidence events under `.rexecop/evidence/` are runtime telemetry, not long-term 
 
 | Path | Role |
 | --- | --- |
-| `.rexecop/operations/` | Operation envelope + OperationPlan JSON (`file` backend) |
-| `.rexecop/rexecop.db` | Operations, plans, evidence (`sqlite` backend) |
-| `.rexecop/evidence/` | Redacted internal lifecycle events |
-| `.rexecop/sclite/<op>/` | Authoritative SCLite artifact bundle |
-| `.rexecop/receipts/` | Non-authoritative export summary |
-| `.rexecop/approvals/` | Manual approval stub files |
-| `.rexecop/queue/`, `locks/`, `inbox/` | Queue drain, target lock, file-drop triggers |
+| `<root>/operations/` | Operation envelope + OperationPlan JSON (`file` backend) |
+| `<root>/rexecop.db` | Operations, plans, evidence (`sqlite` backend) |
+| `<root>/evidence/` | Redacted internal lifecycle events |
+| `<root>/sclite/<op>/` | Authoritative SCLite artifact bundle |
+| `<root>/receipts/` | Non-authoritative export summary |
+| `<root>/approvals/` | Manual approval stub files |
+| `<root>/queue/`, `locks/`, `inbox/` | Queue drain, target lock, file-drop triggers |
 
 All paths are gitignored. Queue, locks, SCLite bundles, and receipts stay on disk for both
 `file` and `sqlite` storage backends.

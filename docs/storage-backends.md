@@ -1,13 +1,34 @@
-# Storage backends
+# Storage and runtime roots
 
-RExecOp persists operator runtime data under `.rexecop/` in the current working directory.
+RExecOp persists operator runtime data under a runtime root. The fallback root is
+`.rexecop/` in the current working directory, but operator workflows should prefer
+an explicit root.
+
+## Runtime root selection
+
+| Selector | Effect |
+| --- | --- |
+| `--root <path>` | Explicit runtime root for one CLI invocation |
+| `REXECOP_ROOT=<path>` | Explicit runtime root for the process environment |
+| `--instance <name>` | Local named root under `./.rexecop/instances/<name>` when `--root` is omitted |
+| `REXECOP_INSTANCE=<name>` | Environment equivalent of `--instance` |
+
+Explicit `--root` / `REXECOP_ROOT` wins over named instances. Instance names are
+tokens, not paths; use `--root` for absolute or operator-managed directories.
+
+Initialize and check a root before using it:
+
+```bash
+rexecop --root /operator/rexecop-runtime init --guided
+rexecop --root /operator/rexecop-runtime doctor
+```
 
 ## Backend selection
 
 | Backend | Env / CLI | Use |
 | --- | --- | --- |
 | `file` (default) | `REXECOP_STORAGE=file` or omit | Single-operator JSON files |
-| `sqlite` | `REXECOP_STORAGE=sqlite` or `--storage sqlite` | Same layout with operations/plans/evidence in SQLite |
+| `sqlite` | `REXECOP_STORAGE=sqlite` or `--storage sqlite` | Same runtime root with operations/plans/evidence in SQLite |
 
 Factory: `rexecop.storage.factory.create_store()`.
 
