@@ -104,9 +104,21 @@ def _governance(operation: Operation) -> dict[str, Any]:
     verdict = metadata.get("policy_verdict")
     if not isinstance(verdict, Mapping):
         verdict = {}
+    lifecycle = metadata.get("policy_pack_lifecycle")
+    if not isinstance(lifecycle, Mapping):
+        lifecycle = {}
     return {
         "govengine_decision_type": operation.govengine_decision_type,
         "govengine_decision_summary": operation.govengine_decision_summary,
+        "policy_pack_lifecycle": {
+            "schema": str(lifecycle.get("schema") or ""),
+            "status": str(lifecycle.get("status") or ""),
+            "policy_id": str(lifecycle.get("policy_id") or ""),
+            "version": str(lifecycle.get("version") or ""),
+            "policy_pack_digest": str(lifecycle.get("policy_pack_digest") or ""),
+            "stages": dict(lifecycle.get("stages") or {}),
+            "enforcement_binding": dict(lifecycle.get("enforcement_binding") or {}),
+        },
         "policy_verdict": {
             "decision": str(verdict.get("decision") or ""),
             "reason_code": str(verdict.get("reason_code") or ""),

@@ -36,6 +36,10 @@ from rexecop.operation.state import OperationState, validate_transition
 from rexecop.orchestration.orchestrator import OperationOrchestrator
 from rexecop.policy.criticality import target_criticality
 from rexecop.policy.enforcement import build_policy_enforcement_record
+from rexecop.policy.lifecycle import (
+    bind_policy_pack_lifecycle,
+    describe_policy_pack_lifecycle,
+)
 from rexecop.policy.operation import evaluate_operation_policy, require_operation_policy_allows_plan
 from rexecop.policy.pack import compile_environment_policy_pack, policy_decision_from_verdict
 from rexecop.profile.loader import load_profile
@@ -169,6 +173,10 @@ class OperationController:
         validate_operation_target(environment, target)
         validate_workflow_contract(workflow, environment, profile)
         compiled_policy = compile_environment_policy_pack(environment.policy_pack)
+        policy_pack_lifecycle = describe_policy_pack_lifecycle(
+            environment.policy_pack,
+            compiled_policy,
+        )
         target_crit = target_criticality(environment, target)
 
         operation_id = generate_operation_id()
@@ -234,6 +242,9 @@ class OperationController:
         }
         if environment.policy_pack:
             operation.metadata["policy_pack"] = dict(environment.policy_pack)
+        operation.metadata["policy_pack_lifecycle"] = bind_policy_pack_lifecycle(
+            policy_pack_lifecycle
+        )
         operation.metadata["target_criticality"] = target_crit
         if catalog_resolution is not None:
             assert resolved_catalog_path is not None
@@ -281,9 +292,14 @@ class OperationController:
             )
             govengine_preview["policy_decision"] = policy_decision_from_verdict(verdict)
             operation.metadata["policy_verdict"] = verdict.as_dict()
-            operation.metadata["policy_enforcement"] = build_policy_enforcement_record(
+            policy_enforcement = build_policy_enforcement_record(
                 compiled_policy,
                 verdict,
+            )
+            operation.metadata["policy_enforcement"] = policy_enforcement
+            operation.metadata["policy_pack_lifecycle"] = bind_policy_pack_lifecycle(
+                policy_pack_lifecycle,
+                enforcement=policy_enforcement,
             )
             require_operation_policy_allows_plan(verdict, controls_enforced=True)
 

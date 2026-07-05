@@ -14,6 +14,7 @@ from rexecop.connectors.composite_runtime import build_connector_runtime
 from rexecop.environment.loader import load_environment
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
+from rexecop.policy.lifecycle import describe_policy_pack_lifecycle
 from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.storage.file_store import FileStore
 
@@ -43,6 +44,20 @@ def test_compile_environment_policy_pack_rejects_conflicts() -> None:
                 ],
             }
         )
+
+
+def test_policy_pack_lifecycle_reports_absent_pack() -> None:
+    lifecycle = describe_policy_pack_lifecycle(None)
+
+    assert lifecycle["schema"] == "rexecop.policy_pack_lifecycle.v0.1"
+    assert lifecycle["status"] == "absent"
+    assert lifecycle["source"] == "environment.policy_pack"
+    assert lifecycle["stages"] == {
+        "declared": False,
+        "compiled": False,
+        "bound_to_operation": False,
+        "enforcement_projected": False,
+    }
 
 
 def test_connector_policy_denies_ssh_on_critical_before_backend() -> None:
@@ -184,6 +199,19 @@ def test_plan_persists_policy_pack_and_verdict(tmp_path: Path) -> None:
     )
 
     assert operation.metadata["policy_pack"]["policy_id"] == "rexecop-runtime-fixture"
+    lifecycle = operation.metadata["policy_pack_lifecycle"]
+    assert lifecycle["schema"] == "rexecop.policy_pack_lifecycle.v0.1"
+    assert lifecycle["status"] == "compiled"
+    assert lifecycle["policy_id"] == "rexecop-runtime-fixture"
+    assert lifecycle["policy_pack_digest"].startswith("sha256:")
+    assert lifecycle["stages"] == {
+        "declared": True,
+        "compiled": True,
+        "bound_to_operation": True,
+        "enforcement_projected": True,
+    }
+    assert lifecycle["enforcement_binding"]["plan_digest"].startswith("sha256:")
+    assert lifecycle["enforcement_binding"]["admission_digest"].startswith("sha256:")
     assert operation.metadata["target_criticality"] == "low"
     assert operation.metadata["policy_verdict"]["decision"] == "allow"
     assert operation.metadata["policy_verdict"]["reason_code"] == "fixture_read_allowed"
@@ -215,6 +243,9 @@ def test_cli_policy_explain_uses_govengine_redacted_reasoning() -> None:
     explanation = payload["policy"]["explanation"]
     assert payload["schema"] == "rexecop.policy_explain.v0.1"
     assert payload["status"] == "explained"
+    assert payload["policy"]["lifecycle"]["schema"] == "rexecop.policy_pack_lifecycle.v0.1"
+    assert payload["policy"]["lifecycle"]["status"] == "compiled"
+    assert payload["policy"]["lifecycle"]["policy_pack_digest"].startswith("sha256:")
     assert explanation["decision"] == "allow"
     assert explanation["matched_rule"]["rule_id"] == "allow-inspect-fixture-state"
     assert explanation["matched_rule"]["conditions"] == [
@@ -319,6 +350,13 @@ def test_cli_operation_explain_reports_plan_bindings_and_safe_actions(tmp_path: 
     assert payload["bindings"]["profile_digest"]
     assert payload["bindings"]["environment_digest"]
     assert payload["governance"]["policy_verdict"]["decision"] == "allow"
+    lifecycle = payload["governance"]["policy_pack_lifecycle"]
+    assert lifecycle["schema"] == "rexecop.policy_pack_lifecycle.v0.1"
+    assert lifecycle["status"] == "compiled"
+    assert lifecycle["policy_id"] == "rexecop-runtime-fixture"
+    assert lifecycle["policy_pack_digest"].startswith("sha256:")
+    assert lifecycle["stages"]["bound_to_operation"] is True
+    assert lifecycle["stages"]["enforcement_projected"] is True
     assert payload["workflow"]["steps"] == [
         {
             "id": "inspect_state",

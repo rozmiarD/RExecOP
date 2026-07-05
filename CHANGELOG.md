@@ -12,6 +12,9 @@ PyPI alpha line is **`0.2.24a0`**. Entries under
 
 ## Unreleased
 
+- Added `rexecop.policy_pack_lifecycle.v0.1`, a redacted lifecycle projection
+  for `environment.policy_pack` covering absent/compiled/bound/enforcement
+  stages, GovEngine-owned pack digests and operation/explain visibility.
 - Added `reaction explain` (`rexecop.reaction_explain.v0.1`) and
   `chain explain` (`rexecop.chain_explain.v0.1`) as bounded, redacted audit
   projections over persisted operation/reaction artifacts.

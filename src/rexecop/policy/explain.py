@@ -10,6 +10,7 @@ from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.environment.targets import validate_operation_target
 from rexecop.errors import RExecOpValidationError
+from rexecop.policy.lifecycle import describe_policy_pack_lifecycle
 from rexecop.policy.operation import build_operation_policy_request
 from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import load_profile
@@ -110,6 +111,10 @@ def explain_operation_policy(
         "policy": {
             "policy_id": policy_pack.policy_id,
             "version": policy_pack.version,
+            "lifecycle": describe_policy_pack_lifecycle(
+                environment.policy_pack,
+                policy_pack,
+            ),
             "request": {
                 "request_id": request["request_id"],
                 "subject_ref": request["subject_ref"],

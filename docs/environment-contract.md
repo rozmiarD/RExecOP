@@ -145,7 +145,13 @@ environment:
 ```
 
 - Compiled at `plan` via `PolicyCompiler`; invalid packs fail plan with `RExecOpValidationError`.
-- Persisted on the operation as `metadata.policy_pack` and `metadata.target_criticality`.
+- Persisted on the operation as `metadata.policy_pack`, `metadata.policy_pack_lifecycle`
+  and `metadata.target_criticality`.
+- `metadata.policy_pack_lifecycle` uses schema `rexecop.policy_pack_lifecycle.v0.1`
+  and records `absent` or `compiled` status, GovEngine-owned
+  `policy_pack_digest`, lifecycle stages (`declared`, `compiled`,
+  `bound_to_operation`, `enforcement_projected`) and enforcement plan/admission
+  digests when present.
 - Operation-level `allow` and `allow_with_obligations` are admitted only through
   GovEngine `PolicyEnforcementPlan` and existing `GovAdmissionDecision`. Supported controls are `receipt_required`,
   `output_digest_required`, `output_limit`, `timeout`, and `max_steps`; unknown or

@@ -38,14 +38,16 @@ Pinned compatible with the SCLite alpha line used by RExecOp (`sclite-core==1.0.
 When the environment declares `policy_pack`, RExecOp:
 
 1. Compiles the pack at `plan` and stores it on the operation.
-2. Evaluates operation policy and asks GovEngine to build a digest-bound
+2. Records `rexecop.policy_pack_lifecycle.v0.1` with GovEngine-owned
+   `policy_pack_digest`, lifecycle stages and enforcement binding digests.
+3. Evaluates operation policy and asks GovEngine to build a digest-bound
    `PolicyEnforcementPlan` plus an existing `GovAdmissionDecision`.
-3. Accepts plain `allow` or `allow_with_obligations` only when every returned control
+4. Accepts plain `allow` or `allow_with_obligations` only when every returned control
    projects to the supported neutral runtime set.
-4. Projects the operation verdict to `govengine_request_preview.policy_decision`
+5. Projects the operation verdict to `govengine_request_preview.policy_decision`
    (via `policy_verdict_to_gov_policy_decision()`).
-5. Revalidates pack, verdict, admission, and digest at start/advance before backend IO.
-6. Re-evaluates per connector at invoke time in `CompositeConnectorRuntime` before backends run.
+6. Revalidates pack, verdict, admission, and digest at start/advance before backend IO.
+7. Re-evaluates per connector at invoke time in `CompositeConnectorRuntime` before backends run.
 
 Without `policy_pack`, `GovEngineClient` behavior is unchanged (compose inputs from preview overrides or fail-closed defaults).
 
@@ -62,8 +64,9 @@ rexecop policy explain \
 ```
 
 The command returns GovEngine `PolicyEvaluationExplanation` JSON under
-`policy.explanation`. RExecOp supplies the bounded operation request shape and
-does not compute matched rules, invariants, obligations, constraints, or
+`policy.explanation` and the RExecOp lifecycle projection under
+`policy.lifecycle`. RExecOp supplies the bounded operation request shape and does
+not compute matched rules, invariants, obligations, constraints, pack digests, or
 projected controls itself.
 
 GovEngine side (G1):
