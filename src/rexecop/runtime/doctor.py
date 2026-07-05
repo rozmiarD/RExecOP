@@ -18,7 +18,7 @@ from rexecop.runtime.contract_compatibility import (
 from rexecop.runtime.init import RUNTIME_DIRECTORIES, RUNTIME_MANIFEST
 from rexecop.storage.factory import resolve_storage_backend
 
-EXPECTED_GOVENGINE = "0.16.8"
+EXPECTED_GOVENGINE = "0.16.9"
 EXPECTED_SCLITE = "1.0.8"
 
 CHECK_PASSED = "passed"
