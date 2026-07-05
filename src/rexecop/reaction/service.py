@@ -7,11 +7,15 @@ from pathlib import Path
 from typing import Any
 
 from sclite import (
+    automation_edge,
+    automation_node,
+    build_automation_chain,
     build_finding,
     build_reaction_chain_manifest,
     build_reaction_plan,
     reaction_idempotency_key,
     validate_escalation_proposal,
+    verify_automation_chain,
     verify_reaction_chain_manifest,
 )
 from sclite.artifacts import artifact_sha256, canonical_artifact_bytes, validate_artifact
@@ -24,6 +28,12 @@ from rexecop.policy.operation import evaluate_operation_policy
 from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.profile.resolver import resolve_profile_path
+from rexecop.reaction.automation_admission import (
+    AUTOMATION_CHAIN_SCHEMA_REF,
+    admit_automation_transition_request,
+    automation_transition_contract_available,
+    unavailable_automation_binding,
+)
 from rexecop.reaction.compiler import compile_reaction_pack
 from rexecop.reaction.evaluator import evaluate_reaction
 from rexecop.reaction.model import ReactionContext
@@ -167,6 +177,9 @@ class ReactionService:
         admission_status = "not_applicable"
         admission_decision: str | None = None
         admission_decision_id: str | None = None
+        automation_binding: dict[str, Any] = unavailable_automation_binding(
+            "automation_transition_not_applicable"
+        )
         reason = evaluation.reason
 
         if outcome in {"run_intent", "retry_intent"} and intent_ref is not None:
@@ -228,6 +241,62 @@ class ReactionService:
                             "child operation policy drifted after reaction admission"
                         )
                     child_operation_id = child.id
+                    draft_chain = _build_automation_chain(
+                        reaction_id=reaction_id,
+                        created_at=created_at,
+                        profile_ref=profile_ref,
+                        observation=observation,
+                        finding=finding,
+                        source_operation_id=_source_operation_id(observation),
+                        source_operation_ref=_parent_operation_ref(
+                            self.controller,
+                            observation,
+                        ),
+                        source_intent=_source_intent_id(observation),
+                        reaction_plan_ref={
+                            "artifact_type": "reaction_plan",
+                            "schema_version": "v0.1",
+                            "schema_ref": "schemas/reaction_plan.v0.1.schema.json",
+                            "digest": "",
+                        },
+                        child_operation_id=child.id,
+                        child_intent=intent_ref,
+                        depth=reaction_context.depth,
+                        max_depth=pack.max_depth,
+                        max_reactions=pack.max_reactions,
+                        idempotency_key=key,
+                        admission=None,
+                        requires_govengine_admission=False,
+                    )
+                    if automation_transition_contract_available():
+                        automation_binding = admit_automation_transition_request(
+                            _automation_transition_request(
+                                reaction_id=reaction_id,
+                                chain_ref=_normalize_digest(artifact_sha256(draft_chain)),
+                                parent_operation_id=_source_operation_id(observation),
+                                parent_operation_ref=_parent_operation_ref(
+                                    self.controller,
+                                    observation,
+                                ),
+                                parent_intent=_source_intent_id(observation),
+                                child_operation_id=child.id,
+                                child_intent=intent_ref,
+                                transition_reason=reason,
+                                depth=reaction_context.depth + 1,
+                                max_depth=pack.max_depth,
+                                child_sequence=reaction_context.reaction_count + 1,
+                                max_children=pack.max_reactions,
+                            )
+                        ).as_dict()
+                        if automation_binding["status"] != "admitted":
+                            raise RExecOpValidationError(
+                                "automation transition admission denied: "
+                                f"{automation_binding['reason_code']}"
+                            )
+                    else:
+                        automation_binding = unavailable_automation_binding(
+                            "govengine_automation_transition_contract_unavailable"
+                        )
 
         plan = build_reaction_plan(
             reaction_id=reaction_id,
@@ -249,10 +318,56 @@ class ReactionService:
             observation=observation,
             finding=finding,
         )
+        automation_chain: dict[str, Any] | None = None
+        if child_operation_id:
+            automation_admission = None
+            if automation_binding.get("status") == "admitted":
+                admission = automation_binding.get("admission")
+                if isinstance(admission, Mapping):
+                    automation_admission = {
+                        "status": "admitted",
+                        "decision_id": str(admission.get("decision_id") or ""),
+                        "decision_digest": str(
+                            automation_binding.get("admission_digest") or ""
+                        ),
+                        "owner_layer": "govengine",
+                    }
+            automation_chain = _build_automation_chain(
+                reaction_id=reaction_id,
+                created_at=created_at,
+                profile_ref=profile_ref,
+                observation=observation,
+                finding=finding,
+                source_operation_id=_source_operation_id(observation),
+                source_operation_ref=_parent_operation_ref(self.controller, observation),
+                source_intent=_source_intent_id(observation),
+                reaction_plan_ref={
+                    "artifact_type": "reaction_plan",
+                    "schema_version": "v0.1",
+                    "schema_ref": "schemas/reaction_plan.v0.1.schema.json",
+                    "digest": artifact_sha256(plan),
+                },
+                child_operation_id=child_operation_id,
+                child_intent=str(intent_ref or ""),
+                depth=reaction_context.depth,
+                max_depth=pack.max_depth,
+                max_reactions=pack.max_reactions,
+                idempotency_key=key,
+                admission=automation_admission,
+                requires_govengine_admission=automation_admission is not None,
+            )
+            if automation_admission is not None:
+                verify_automation_chain(automation_chain)
         secure_directory(directory)
         _write_json(directory / "01_observation.json", observation)
         _write_json(directory / "02_finding.json", finding)
         _write_json(directory / "03_reaction_plan.json", plan)
+        if automation_chain is not None:
+            _write_json(directory / "05_automation_chain.json", automation_chain)
+            automation_binding["automation_chain_digest"] = _normalize_digest(
+                artifact_sha256(automation_chain)
+            )
+            automation_binding["automation_chain_schema_ref"] = AUTOMATION_CHAIN_SCHEMA_REF
         manifest = build_reaction_chain_manifest(
             reaction_id=reaction_id,
             created_at=created_at,
@@ -265,6 +380,8 @@ class ReactionService:
             "reaction_id": reaction_id,
             "reaction_plan": plan,
             "chain_root": manifest["root_chain_digest"],
+            "automation_admission": automation_binding,
+            "automation_chain": automation_chain or {},
         }
 
     def start(self, reaction_id: str) -> dict[str, Any]:
@@ -317,6 +434,7 @@ class ReactionService:
         observation = _read_json(directory / "01_observation.json")
         finding = _read_json(directory / "02_finding.json")
         receipt_path = directory / "04_execution_receipt.json"
+        automation_chain_path = directory / "05_automation_chain.json"
         receipt_status = "present" if receipt_path.is_file() else "not_started_or_not_required"
         admission_raw = plan.get("admission")
         admission: Mapping[str, Any] = admission_raw if isinstance(admission_raw, Mapping) else {}
@@ -325,6 +443,12 @@ class ReactionService:
             profile_ref_raw if isinstance(profile_ref_raw, Mapping) else {}
         )
         replay_status = str(replay.get("status") or "")
+        automation_chain: dict[str, Any] = {}
+        automation_verification: dict[str, Any] = {"status": "absent"}
+        if automation_chain_path.is_file():
+            automation_chain = _read_json(automation_chain_path)
+            automation_verification = verify_automation_chain(automation_chain)
+        automation_admission = _automation_admission_from_chain(automation_chain)
         return {
             "schema": "rexecop.reaction_explain.v0.1",
             "status": "verified" if replay_status in {"passed", "verified"} else "unverified",
@@ -356,6 +480,24 @@ class ReactionService:
                 "decision": str(admission.get("decision") or ""),
                 "decision_id": str(admission.get("decision_id") or ""),
             },
+            "automation_admission": automation_admission,
+            "automation_chain": {
+                "status": str(automation_verification.get("status") or "absent"),
+                "schema_ref": str(
+                    automation_verification.get("schema_ref")
+                    or automation_chain.get("schema_ref")
+                    or ""
+                ),
+                "root_digest": _normalize_digest(
+                    str(
+                        automation_verification.get("root_chain_digest")
+                        or artifact_sha256(automation_chain)
+                        if automation_chain
+                        else ""
+                    )
+                ),
+                "child_edge_count": int(automation_verification.get("child_edge_count") or 0),
+            },
             "chain": {
                 "root_digest": _normalize_digest(str(manifest.get("root_chain_digest") or "")),
                 "manifest_digest": artifact_sha256(manifest),
@@ -368,6 +510,9 @@ class ReactionService:
                 "reaction_plan": "03_reaction_plan.json",
                 "execution_receipt": (
                     "04_execution_receipt.json" if receipt_path.is_file() else ""
+                ),
+                "automation_chain": (
+                    "05_automation_chain.json" if automation_chain_path.is_file() else ""
                 ),
                 "manifest": "reaction_chain_manifest.json",
             },
@@ -432,6 +577,252 @@ def _source_operation_id(observation: Mapping[str, Any]) -> str:
     if not isinstance(source, Mapping):
         return ""
     return str(source.get("operation_id") or "")
+
+
+def _source_intent_id(observation: Mapping[str, Any]) -> str:
+    source = observation.get("source")
+    if not isinstance(source, Mapping):
+        return ""
+    return str(source.get("intent_id") or "")
+
+
+def _parent_operation_ref(
+    controller: OperationController,
+    observation: Mapping[str, Any],
+) -> str:
+    operation_id = _source_operation_id(observation)
+    if operation_id:
+        try:
+            operation = controller.store.load_operation(operation_id)
+        except Exception:
+            operation = None
+        if operation is not None:
+            return _normalize_digest(artifact_sha256(operation.as_dict()))
+    return _normalize_digest(artifact_sha256(dict(observation)))
+
+
+def _automation_transition_request(
+    *,
+    reaction_id: str,
+    chain_ref: str,
+    parent_operation_id: str,
+    parent_operation_ref: str,
+    parent_intent: str,
+    child_operation_id: str,
+    child_intent: str,
+    transition_reason: str,
+    depth: int,
+    max_depth: int,
+    child_sequence: int,
+    max_children: int,
+) -> dict[str, Any]:
+    return {
+        "request_id": f"automation-transition:{reaction_id}",
+        "chain_id": f"automation:{reaction_id}",
+        "parent_operation_id": parent_operation_id or "external-observation",
+        "parent_operation_ref": parent_operation_ref,
+        "parent_intent": parent_intent or "unknown",
+        "parent_status": "completed",
+        "child_operation_id": child_operation_id,
+        "child_intent": child_intent,
+        "child_intent_class": "read_only",
+        "transition_reason": transition_reason,
+        "automation_chain_ref": chain_ref,
+        "automation_chain_schema_ref": AUTOMATION_CHAIN_SCHEMA_REF,
+        "source": "reaction",
+        "depth": depth,
+        "max_depth": max_depth,
+        "child_sequence": child_sequence,
+        "max_children": max_children,
+        "allowed_child_intent_classes": ["read_only"],
+        "llm_proposed": False,
+        "llm_authority": False,
+    }
+
+
+def _build_automation_chain(
+    *,
+    reaction_id: str,
+    created_at: str,
+    profile_ref: Mapping[str, Any],
+    observation: Mapping[str, Any],
+    finding: Mapping[str, Any],
+    source_operation_id: str,
+    source_operation_ref: str,
+    source_intent: str,
+    reaction_plan_ref: Mapping[str, Any],
+    child_operation_id: str,
+    child_intent: str,
+    depth: int,
+    max_depth: int,
+    max_reactions: int,
+    idempotency_key: str,
+    admission: Mapping[str, Any] | None,
+    requires_govengine_admission: bool,
+) -> dict[str, Any]:
+    source_node = "source-operation"
+    observation_node = "observation"
+    finding_node = "finding"
+    reaction_node = "reaction-plan"
+    child_node = "child-operation"
+    child_depth = depth + 1
+    nodes = [
+        automation_node(
+            node_id=source_node,
+            node_type="operation",
+            depth=depth,
+            status="completed",
+            owner_layer="rexecop",
+            authority_level="projection",
+            operation_id=source_operation_id or "external-observation",
+            artifact_ref={
+                "artifact_type": "operation",
+                "schema_version": "v0.1",
+                "schema_ref": "rexecop.operation.v0.1",
+                "digest": source_operation_ref,
+            },
+            labels=[source_intent or "source"],
+        ),
+        automation_node(
+            node_id=observation_node,
+            node_type="observation",
+            depth=depth,
+            status="completed",
+            owner_layer="sclite",
+            authority_level="canonical",
+            artifact_ref={
+                "artifact_type": str(observation.get("artifact_type") or "observation_envelope"),
+                "schema_version": str(observation.get("schema_version") or "v0.1"),
+                "schema_ref": str(
+                    observation.get("schema_ref")
+                    or "schemas/observation_envelope.v0.1.schema.json"
+                ),
+                "digest": _normalize_digest(artifact_sha256(observation)),
+            },
+            labels=["observation"],
+        ),
+        automation_node(
+            node_id=finding_node,
+            node_type="finding",
+            depth=depth,
+            status="completed",
+            owner_layer="sclite",
+            authority_level="canonical",
+            artifact_ref={
+                "artifact_type": str(finding.get("artifact_type") or "finding"),
+                "schema_version": str(finding.get("schema_version") or "v0.1"),
+                "schema_ref": str(finding.get("schema_ref") or "schemas/finding.v0.1.schema.json"),
+                "digest": _normalize_digest(artifact_sha256(finding)),
+            },
+            labels=[str(finding.get("kind") or "finding")],
+        ),
+        automation_node(
+            node_id=reaction_node,
+            node_type="reaction_plan",
+            depth=depth,
+            status="planned",
+            owner_layer="sclite",
+            authority_level="canonical",
+            artifact_ref=reaction_plan_ref,
+            labels=["reaction"],
+        ),
+        automation_node(
+            node_id=child_node,
+            node_type="child_operation",
+            depth=child_depth,
+            status="admitted" if admission is not None else "planned",
+            owner_layer="rexecop",
+            authority_level="projection",
+            operation_id=child_operation_id,
+            labels=[child_intent, "read_only"],
+        ),
+    ]
+    edges = [
+        automation_edge(
+            edge_id="source-observed",
+            edge_type="observed",
+            from_node=source_node,
+            to_node=observation_node,
+            depth=depth,
+            labels=["source_observation"],
+        ),
+        automation_edge(
+            edge_id="observation-detected",
+            edge_type="detected",
+            from_node=observation_node,
+            to_node=finding_node,
+            depth=depth,
+            labels=["finding"],
+        ),
+        automation_edge(
+            edge_id="finding-planned-reaction",
+            edge_type="planned_reaction",
+            from_node=finding_node,
+            to_node=reaction_node,
+            depth=depth,
+            labels=["reaction_plan"],
+        ),
+        automation_edge(
+            edge_id="reaction-admitted-child",
+            edge_type="admitted_child",
+            from_node=reaction_node,
+            to_node=child_node,
+            depth=child_depth,
+            idempotency_key=idempotency_key,
+            admission=admission,
+            labels=["child_operation"],
+        ),
+    ]
+    return build_automation_chain(
+        chain_id=f"automation:{reaction_id}",
+        created_at=created_at,
+        profile_ref=profile_ref,
+        source_operation_id=source_operation_id or "external-observation",
+        controls={
+            "max_depth": max_depth,
+            "max_nodes": 16,
+            "max_reactions": max_reactions,
+            "requires_govengine_admission": requires_govengine_admission,
+            "requires_profile_transition": True,
+            "allowed_child_intent_classes": ["read_only"],
+            "llm_may_execute": False,
+        },
+        recovery={
+            "append_mode": "append_only",
+            "idempotency_scope": "chain_edge",
+            "duplicate_child_policy": "reuse_existing_child",
+            "replay_policy": "verify_before_execute",
+            "checkpoint_required": True,
+        },
+        compatibility={
+            "reaction_chain_v0_1_subset": True,
+            "single_step_reaction_compatible": True,
+        },
+        nodes=nodes,
+        edges=edges,
+    )
+
+
+def _automation_admission_from_chain(automation_chain: Mapping[str, Any]) -> dict[str, str]:
+    for edge in automation_chain.get("edges") or []:
+        if not isinstance(edge, Mapping):
+            continue
+        if edge.get("edge_type") != "admitted_child":
+            continue
+        admission = edge.get("admission")
+        if isinstance(admission, Mapping):
+            return {
+                "status": str(admission.get("status") or ""),
+                "decision_id": str(admission.get("decision_id") or ""),
+                "decision_digest": str(admission.get("decision_digest") or ""),
+                "owner_layer": str(admission.get("owner_layer") or ""),
+            }
+    return {
+        "status": "absent",
+        "decision_id": "",
+        "decision_digest": "",
+        "owner_layer": "",
+    }
 
 
 def _normalize_digest(value: str) -> str:

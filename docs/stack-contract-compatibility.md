@@ -18,7 +18,7 @@ Document id: `stack-contract-compatibility`.
 | Package | Public line | Required range in RExecOp | Role |
 | --- | --- | --- | --- |
 | `sclite-core` | `1.0.8` | `sclite-core==1.0.8` | SCLite truth, reaction, trigger-decision and watchdog-decision artifact schemas. |
-| `govengine` | `0.16.9` | `govengine==0.16.9` | PolicyEngine MVP, B2 enforcement-plan contracts, trigger-planning admission, supervisor-action admission and supervisor explanations. |
+| `govengine` | `0.16.9` | `govengine==0.16.9` | PolicyEngine MVP, B2 enforcement-plan contracts, trigger-planning admission, supervisor-action admission and supervisor explanations. Source lines after GovEngine `8d658a7` also expose automation-transition admission; RExecOp consumes it when available without claiming it from older installs. |
 | `rexecop` | `0.2.23a0` | current package | Neutral runner, connectors, catalog and reaction mechanics. |
 | `tecrax` | `0.3.11a0` | `tecrax==0.3.18a0` via optional extra | Domain infrastructure profile. |
 
@@ -31,7 +31,7 @@ Document id: `stack-contract-compatibility`.
 | SCLite reaction artifacts | `observation_envelope.v0.1`, `finding.v0.1`, `reaction_plan.v0.1`, `escalation_proposal.v0.1`, reaction chain manifest | SCLite | Validated/emitted as artifacts; RExecOp does not own domain observation meaning. |
 | SCLite trigger decision artifact | `trigger_decision.v0.1` | SCLite | Stores bounded trigger event, rule, GovEngine admission and optional child-operation references; RExecOp remains the trigger planner. |
 | SCLite watchdog decision artifact | `watchdog_decision.v0.1` | SCLite | Stores bounded watchdog record, supervisor-action admission and affected runtime references; RExecOp remains the runtime supervisor. |
-| SCLite automation chain contract | `automation_chain.v0.1` | SCLite | Contract-design baseline for future multi-step automation chains: nodes, edges, edge idempotency, GovEngine admission refs, depth/reaction budgets, recovery policy and LLM proposal-only invariants. RExecOp does not emit it yet. |
+| SCLite automation chain contract | `automation_chain.v0.1` | SCLite | RExecOp emits child-operation chain projections with nodes, edges, edge idempotency, depth/reaction budgets, recovery policy and LLM proposal-only invariants. GovEngine automation admission refs are embedded when the installed GovEngine line exposes the automation-transition contract. |
 | GovEngine policy request/verdict | `govengine.policy` schema `v0.1` | GovEngine | Used for deterministic policy evaluation when an environment declares `policy_pack`. |
 | GovEngine supported-contract catalog | `govengine.contract_compatibility` schema `v0.1`, `govengine-policy compatibility --json` | GovEngine | Consumed by RExecOp `doctor` and stack contract validators; unknown major contract versions fail closed. |
 | GovEngine enforcement plan | `PolicyEnforcementPlan`, `RuntimeControlProjection`, existing `GovAdmissionDecision` binding | GovEngine | Consumed by RExecOp B2 before execution and at connector invoke. |

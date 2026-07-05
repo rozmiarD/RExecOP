@@ -431,6 +431,10 @@ class OperationController:
             "rule_digest": rule_ref.get("digest"),
             "child_operation_id": plan.get("child_operation_id"),
             "admission": dict(plan.get("admission") or {}),
+            "automation_admission": dict(result.get("automation_admission") or {}),
+            "automation_chain_digest": str(
+                (result.get("automation_admission") or {}).get("automation_chain_digest") or ""
+            ),
         }
 
     def evaluate_governance(self, operation_id: str) -> GovEngineDecision:

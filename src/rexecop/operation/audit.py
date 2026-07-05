@@ -404,6 +404,14 @@ def _reaction_explain_summary(
     chain: Mapping[str, Any] = chain_raw if isinstance(chain_raw, Mapping) else {}
     replay_raw = chain.get("replay")
     replay: Mapping[str, Any] = replay_raw if isinstance(replay_raw, Mapping) else {}
+    automation_admission_raw = payload.get("automation_admission")
+    automation_admission: Mapping[str, Any] = (
+        automation_admission_raw if isinstance(automation_admission_raw, Mapping) else {}
+    )
+    automation_chain_raw = payload.get("automation_chain")
+    automation_chain: Mapping[str, Any] = (
+        automation_chain_raw if isinstance(automation_chain_raw, Mapping) else {}
+    )
     return {
         "status": str(payload.get("status") or ""),
         "schema": str(payload.get("schema") or ""),
@@ -413,6 +421,18 @@ def _reaction_explain_summary(
         "child_operation_id": child_operation_id,
         "chain_root": str(chain.get("root_digest") or ""),
         "replay_status": str(replay.get("status") or ""),
+        "automation_admission": {
+            "status": str(automation_admission.get("status") or ""),
+            "decision_id": str(automation_admission.get("decision_id") or ""),
+            "decision_digest": str(automation_admission.get("decision_digest") or ""),
+            "owner_layer": str(automation_admission.get("owner_layer") or ""),
+        },
+        "automation_chain": {
+            "status": str(automation_chain.get("status") or ""),
+            "schema_ref": str(automation_chain.get("schema_ref") or ""),
+            "root_digest": str(automation_chain.get("root_digest") or ""),
+            "child_edge_count": int(automation_chain.get("child_edge_count") or 0),
+        },
     }
 
 

@@ -152,6 +152,26 @@ govengine-supervisor explain request.json --json
 See [runtime-recovery-ops.md](runtime-recovery-ops.md) and GovEngine
 [RUNTIME_ADMISSION.md](https://github.com/rozmiarD/GovEngine/blob/main/docs/RUNTIME_ADMISSION.md#supervisor-action-explanation).
 
+## Automation transition admission
+
+Reaction-planned child operations are projected into SCLite
+`automation_chain.v0.1` artifacts. RExecOp owns runtime projection and
+child-operation plan mechanics; SCLite owns the chain artifact shape; GovEngine
+owns automation-transition admission when the installed GovEngine line exposes:
+
+- `AutomationTransitionRequest`
+- `admit_automation_transition()`
+- `automation_transition_request_digest()`
+- `automation_transition_admission_digest()`
+- `explain_automation_transition()`
+
+When those contracts are present, RExecOp records the request digest,
+admission digest and redacted explanation in the reaction admission binding and
+writes the GovEngine admission digest onto the `admitted_child` edge. When the
+current installed GovEngine does not expose the unreleased automation API,
+RExecOp reports the binding as `unavailable` and does not claim a GovEngine
+automation admission digest.
+
 ## Profile governance (G3)
 
 Profile developer surfaces attach GovEngine compatibility output without

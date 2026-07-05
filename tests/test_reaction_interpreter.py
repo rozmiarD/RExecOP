@@ -249,6 +249,99 @@ def test_admitted_reaction_runs_normal_lifecycle_and_binds_receipt(tmp_path: Pat
     ]
 
 
+def test_reaction_records_govengine_automation_admission_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeAutomationTransitionRequest:
+        def __init__(self, payload: dict) -> None:
+            self.payload = payload
+
+        @classmethod
+        def from_mapping(cls, payload: dict) -> FakeAutomationTransitionRequest:
+            return cls(dict(payload))
+
+        def as_dict(self) -> dict:
+            return dict(self.payload)
+
+    class FakeAdmission:
+        def as_dict(self) -> dict:
+            return {
+                "decision_id": "automation-transition:reaction-test",
+                "subject_ref": "sha256:" + "1" * 64,
+                "subject_kind": "operator_action",
+                "outcome": "allowed",
+                "allowed": True,
+                "reason_code": "automation_transition_allowed",
+                "blockers": [],
+                "signal": {},
+                "metadata": {},
+            }
+
+    class FakeExplanation:
+        def as_dict(self) -> dict:
+            return {
+                "schema_version": "v0.1",
+                "status": "explained",
+                "reason_code": "automation_transition_allowed",
+            }
+
+    import govengine
+
+    monkeypatch.setattr(
+        govengine,
+        "AutomationTransitionRequest",
+        FakeAutomationTransitionRequest,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        govengine,
+        "admit_automation_transition",
+        lambda request: FakeAdmission(),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        govengine,
+        "automation_transition_request_digest",
+        lambda request: "sha256:" + "2" * 64,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        govengine,
+        "automation_transition_admission_digest",
+        lambda admission: "sha256:" + "3" * 64,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        govengine,
+        "explain_automation_transition",
+        lambda request: FakeExplanation(),
+        raising=False,
+    )
+
+    profile_root = _profile(tmp_path)
+    environment_path = tmp_path / "environment.yaml"
+    environment_path.write_text(POLICY_ENV.read_text(encoding="utf-8"), encoding="utf-8")
+    service = ReactionService(OperationController(store=FileStore(tmp_path / "runtime")))
+
+    planned = service.plan(
+        profile_path=profile_root,
+        environment_path=environment_path,
+        observation_path=_observation(tmp_path / "degraded.json", profile_root, status="degraded"),
+        target="fixture-target",
+    )
+    reaction_id = planned["reaction_id"]
+    binding = planned["automation_admission"]
+
+    assert binding["status"] == "admitted"
+    assert binding["admission_digest"] == "sha256:" + "3" * 64
+    assert binding["automation_chain_digest"].startswith("sha256:")
+    assert (service.root / reaction_id / "05_automation_chain.json").is_file()
+    explanation = service.explain(reaction_id)
+    assert explanation["automation_admission"]["decision_digest"] == "sha256:" + "3" * 64
+    assert explanation["automation_chain"]["status"] == "passed"
+
+
 def test_repeated_reaction_plan_reuses_child_operation(tmp_path: Path) -> None:
     profile_root = _profile(tmp_path)
     environment_path = tmp_path / "environment.yaml"

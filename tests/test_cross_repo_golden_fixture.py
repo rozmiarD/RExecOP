@@ -164,6 +164,7 @@ def test_cross_repo_golden_fixture_explain_and_replay_gate(
     assert reaction["status"] == "verified"
     assert replay["status"] == "passed"
     assert reaction["chain"]["root_digest"].startswith("sha256:")
+    assert reaction["automation_chain"]["status"] == "passed"
 
     repeated = ReactionService(controller).plan(
         profile_path="tecrax",
@@ -194,3 +195,4 @@ def test_cross_repo_golden_fixture_explain_and_replay_gate(
     assert chain_payload["reaction"]["reaction_id"] == reaction_id
     assert chain_payload["reaction"]["status"] == "verified"
     assert chain_payload["reaction"]["replay_status"] == "passed"
+    assert chain_payload["reaction"]["automation_chain"]["status"] == "passed"

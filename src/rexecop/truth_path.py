@@ -167,15 +167,32 @@ def _auto_reaction_summary(metadata: Mapping[str, Any]) -> dict[str, Any]:
             "decision": str(admission.get("decision") or ""),
             "decision_id": str(admission.get("decision_id") or ""),
         }
+    automation_admission = auto_reaction.get("automation_admission")
+    automation_summary: dict[str, str] = {}
+    if isinstance(automation_admission, Mapping):
+        automation_summary = {
+            "status": str(automation_admission.get("status") or ""),
+            "reason_code": str(automation_admission.get("reason_code") or ""),
+            "admission_digest": str(automation_admission.get("admission_digest") or ""),
+            "automation_chain_digest": str(
+                automation_admission.get("automation_chain_digest")
+                or auto_reaction.get("automation_chain_digest")
+                or ""
+            ),
+        }
     return {
         "status": str(auto_reaction.get("status") or ""),
         "reaction_id": str(auto_reaction.get("reaction_id") or ""),
         "chain_root": _normalize_digest(str(auto_reaction.get("chain_root") or "")),
+        "automation_chain_digest": _normalize_digest(
+            str(auto_reaction.get("automation_chain_digest") or "")
+        ),
         "outcome": str(auto_reaction.get("outcome") or ""),
         "rule_id": str(auto_reaction.get("rule_id") or ""),
         "rule_digest": str(auto_reaction.get("rule_digest") or ""),
         "child_operation_id": str(auto_reaction.get("child_operation_id") or ""),
         "admission": admission_summary,
+        "automation_admission": automation_summary,
     }
 
 
@@ -317,6 +334,14 @@ def _truth_path_links(
                 "ref": str(auto_reaction.get("chain_root") or ""),
             }
         )
+        automation_chain_digest = str(auto_reaction.get("automation_chain_digest") or "")
+        if automation_chain_digest:
+            links.append(
+                {
+                    "kind": "automation_chain",
+                    "ref": automation_chain_digest,
+                }
+            )
         child_id = str(auto_reaction.get("child_operation_id") or "")
         if child_id:
             links.append({"kind": "child_operation", "ref": child_id})

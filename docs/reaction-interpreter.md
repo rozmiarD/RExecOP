@@ -12,8 +12,9 @@ SCLite observation envelope
   -> profile reaction pack
   -> deterministic RExecOp evaluation
   -> GovEngine PolicyEngine admission
+  -> optional GovEngine automation-transition admission
   -> normal RExecOp operation lifecycle
-  -> SCLite receipt and reaction chain
+  -> SCLite receipt, reaction chain and automation_chain projection
 ```
 
 An executable candidate must resolve to a read-only intent in the same profile
@@ -51,7 +52,12 @@ rexecop reaction-proposal-validate --profile tecrax --proposal proposal.json
 only the already admitted child and uses the ordinary connector, validation,
 evidence, and receipt path. `reaction-replay` performs no execution.
 `reaction explain` verifies the persisted reaction-chain manifest and emits a
-bounded, redacted operator projection; SCLite remains the truth authority.
+bounded, redacted operator projection; SCLite remains the truth authority. When
+the reaction planned a child operation, RExecOp also writes
+`05_automation_chain.json` using SCLite `automation_chain.v0.1`. If the
+installed GovEngine line exposes `AutomationTransitionRequest`, the child edge
+stores the GovEngine automation admission digest; otherwise the binding reports
+`unavailable` without claiming a GovEngine digest.
 
 Operation creation also supports an explicit plan-only automation mode:
 

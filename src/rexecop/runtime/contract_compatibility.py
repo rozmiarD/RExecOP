@@ -211,6 +211,11 @@ REXECOP_EXPECTED_GOVENGINE_CONTRACTS: tuple[dict[str, str], ...] = (
     {"surface_id": "governance_trace", "schema_version": "v0.1"},
 )
 
+REXECOP_OPTIONAL_GOVENGINE_CONTRACTS: tuple[dict[str, str], ...] = (
+    {"surface_id": "automation_transition_request", "schema_version": "v0.1"},
+    {"surface_id": "automation_transition_explanation", "schema_version": "v0.1"},
+)
+
 _PROJECTION_INDEX = {item["surface_id"]: item for item in REXECOP_RUNTIME_PROJECTIONS}
 
 
@@ -291,12 +296,14 @@ def build_govengine_contract_compatibility_request(
     *,
     request_id: str = "rexecop-govengine-contracts",
 ) -> dict[str, Any]:
+    declared_contracts = [dict(item) for item in REXECOP_EXPECTED_GOVENGINE_CONTRACTS]
+    declared_contracts.extend(_supported_optional_govengine_contracts())
     return {
         "schema_version": "v0.1",
         "request_id": request_id,
         "consumer": "rexecop",
         "consumer_version": __version__,
-        "declared_contracts": [dict(item) for item in REXECOP_EXPECTED_GOVENGINE_CONTRACTS],
+        "declared_contracts": declared_contracts,
     }
 
 
@@ -344,7 +351,10 @@ def contract_versions_summary(
         },
         "govengine_contracts": {
             item["surface_id"]: item["schema_version"]
-            for item in REXECOP_EXPECTED_GOVENGINE_CONTRACTS
+            for item in (
+                *REXECOP_EXPECTED_GOVENGINE_CONTRACTS,
+                *_supported_optional_govengine_contracts(),
+            )
         },
         "sclite_artifact_refs": {
             item["role"]: item["schema_version"] for item in supported_sclite_artifact_refs()
@@ -352,6 +362,27 @@ def contract_versions_summary(
         "status": govengine["status"],
         "blockers": list(govengine.get("blockers") or []),
     }
+
+
+def _supported_optional_govengine_contracts() -> list[dict[str, str]]:
+    try:
+        from govengine import supported_contract_report
+    except ImportError:
+        return []
+    try:
+        catalog = supported_contract_report()
+    except Exception:
+        return []
+    supported = {
+        str(item.get("surface_id") or "")
+        for item in catalog.get("contracts") or []
+        if isinstance(item, dict) and item.get("status") == "supported"
+    }
+    return [
+        dict(item)
+        for item in REXECOP_OPTIONAL_GOVENGINE_CONTRACTS
+        if item["surface_id"] in supported
+    ]
 
 
 def evaluate_stack_contract_compatibility(

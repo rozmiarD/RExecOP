@@ -19,8 +19,16 @@ PyPI alpha line is **`0.2.23a0`**. Entries under
   sanitized Tecrax diagnosis flow through RExecOp reaction planning, GovEngine
   admission, SCLite reaction-chain replay and idempotent recovery planning.
 - Added downstream compatibility awareness for SCLite `automation_chain.v0.1`
-  as the future multi-step automation-chain truth contract. RExecOp does not
-  emit the chain yet.
+  as the multi-step automation-chain truth contract.
+- RExecOp now projects reaction-planned child operations into SCLite
+  `automation_chain.v0.1` artifacts and exposes the projection through
+  `reaction explain`, `chain explain`, truth-path summaries and auto-reaction
+  metadata.
+- When the installed GovEngine exposes `AutomationTransitionRequest`,
+  RExecOp records GovEngine automation transition request/admission digests for
+  admitted child-operation chain decisions. Current `govengine==0.16.9`
+  installs without that unreleased API remain compatible and report the
+  automation admission binding as unavailable rather than claiming a digest.
 
 ## [0.2.23a0] - 2026-07-05
 
