@@ -1,6 +1,6 @@
 # Operator lab runbook
 
-RExecOp `0.2.16a0` source line — validate neutral core, plugin boundaries, read-only paths, and the full
+RExecOp `0.2.17a0` source line — validate neutral core, plugin boundaries, read-only paths, and the full
 profile → GovEngine → SCLite emission path before apply.
 
 Runtime data is written to the selected runtime root. Use `--root` / `REXECOP_ROOT`
@@ -20,7 +20,7 @@ current working directory.
 ```bash
 export REXECOP_SECRETS_FILE=~/.rexecop/secrets.yaml
 export REXECOP_ROOT=~/lab/rexecop-runtime
-rexecop version    # 0.2.16a0
+rexecop version    # 0.2.17a0
 export REXECOP_STORAGE=sqlite   # optional SQLite backend for operations/plans/evidence
 python scripts/validate_public_truth.py
 python scripts/validate_first_run_smoke.py

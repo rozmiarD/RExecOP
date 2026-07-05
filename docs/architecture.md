@@ -113,11 +113,11 @@ src/rexecop/
 
 ## GovEngine relationship
 
-Current source pin: `govengine==0.16.8` (see `pyproject.toml`).
+Current source pin: `govengine==0.16.9` (see `pyproject.toml`).
 
 GovEngine composes and validates `RuntimeAdmissionResult` and runner request/receipt shapes.
 RExecOp calls the GovEngine adapter before mutating execution and maps admission metadata into
-SCLite lifecycle artifacts. GovEngine `0.16.8` PolicyEngine evaluates
+SCLite lifecycle artifacts. GovEngine `0.16.9` PolicyEngine evaluates
 `environment.policy_pack` at plan and on every
 connector invoke. At operation level, RExecOp consumes a digest-bound GovEngine
 `PolicyEnforcementPlan` plus its existing `GovAdmissionDecision` and mechanically
