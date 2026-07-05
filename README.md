@@ -1,7 +1,7 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 0.2.17a0](https://img.shields.io/badge/package-rexecop%200.2.17a0-blueviolet.svg)](https://pypi.org/project/rexecop/0.2.17a0/)
+[![Package: rexecop 0.2.18a0](https://img.shields.io/badge/package-rexecop%200.2.18a0-blueviolet.svg)](https://pypi.org/project/rexecop/0.2.18a0/)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
 [![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
@@ -21,11 +21,11 @@ policy engine or a parallel truth layer.
 
 | Item | Value |
 | --- | --- |
-| Current source line | `0.2.17a0` |
+| Current source line | `0.2.18a0` |
 | Maturity | **alpha** — operator evaluation with documented limits |
 | Delivery | Published single supported alpha line; older PyPI releases are archived only |
 | Tests | CI reruns the current suite; `pytest -m delivery` runs the sign-off scope |
-| Latest PyPI | [`rexecop==0.2.17a0`](https://pypi.org/project/rexecop/0.2.17a0/) |
+| Latest PyPI | [`rexecop==0.2.18a0`](https://pypi.org/project/rexecop/0.2.18a0/) |
 | Source dependencies | `govengine==0.16.9`, `sclite-core==1.0.8` (see `pyproject.toml`) |
 | Stack compatibility | [`docs/stack-contract-compatibility.md`](docs/stack-contract-compatibility.md) |
 | Default posture | `dry_run` / read-only first; `apply` requires GovEngine allow |
@@ -131,16 +131,16 @@ Ravenclaw is legacy and out of scope for RExecOp.
 Published alpha package:
 
 ```bash
-python -m pip install "rexecop==0.2.17a0"
+python -m pip install "rexecop==0.2.18a0"
 rexecop version
 ```
 
-The published `0.2.17a0` wheel is the single supported alpha stack line for readonly
+The published `0.2.18a0` wheel is the single supported alpha stack line for readonly
 evaluation, M2–M8 operator UX (CLI contracts, error envelope, observability,
 explain/review/diff, triage/recovery, profile developer surface, action metadata),
 catalog drift binding, watchdog decision truth and manual recovery record paths.
 Older PyPI lines do not contain the watchdog decision truth path or manual recovery
-record path guarantees bundled in `0.2.17a0`.
+record path guarantees bundled in `0.2.18a0`.
 
 See [docs/distribution.md](docs/distribution.md) for Tecrax extra, wheels, Git URL, and private index notes.
 
@@ -158,7 +158,7 @@ pip install -e ".[dev]"
 With the Tecrax profile package:
 
 ```bash
-pip install "rexecop[tecrax]==0.2.17a0"
+pip install "rexecop[tecrax]==0.2.18a0"
 # or, for coordinated development: pip install -e /path/to/tecrax
 ```
 

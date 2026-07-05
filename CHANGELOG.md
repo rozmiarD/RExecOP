@@ -7,15 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Versioning:** pre-1.0 alpha tags use the `0.y.za0` form. Roadmap delivery before the
 public alpha gate used **`0.3.0a0`–`0.11.0a0`** (Phases 2B–9; see [Pre-alpha gate history](#pre-alpha-gate-history)).
 **`0.1.0a0`** (Phase 10) reset the public line and declared the alpha gate. The current
-PyPI alpha line is **`0.2.17a0`**. Entries under
+PyPI alpha line is **`0.2.18a0`**. Entries under
 [Releases](#releases) are newest first.
 
 ## Unreleased
 
+## [0.2.18a0] - 2026-07-05
+
+- Published `rexecop==0.2.18a0` on PyPI with `govengine==0.16.9`, `sclite-core==1.0.8`
+  and `tecrax==0.3.12a0` extra pin.
+- Repaired coordinated `rexecop[tecrax]` PyPI resolution after `0.2.17a0` shipped with a
+  stale `tecrax==0.3.12a0` extra.
+
 ## [0.2.17a0] - 2026-07-05
 
 - Published `rexecop==0.2.17a0` on PyPI with `govengine==0.16.9`, `sclite-core==1.0.8`
-  and `tecrax==0.3.11a0` extra pin.
+  and `tecrax==0.3.12a0` extra pin.
 - G8 slice 2 (`1d2df2d`): global CLI output context (`cli_output.py`) with root-level
   `--json`, `--format`, `--quiet`, `--verbose`, and `--no-color`.
 - G8 slice 2 (`1d2df2d`): `init` and `doctor` pilot table/markdown renderers plus
@@ -32,14 +39,14 @@ PyPI alpha line is **`0.2.17a0`**. Entries under
 
 ## [0.2.16a0] - 2026-07-04
 
-- Published `rexecop==0.2.16a0` on PyPI with `govengine==0.16.9`, `sclite-core==1.0.8`
-  and `tecrax==0.3.11a0` extra pin.
+- Published `rexecop==0.2.16a0` on PyPI with `govengine==0.16.8`, `sclite-core==1.0.8`
+  and `tecrax==0.3.12a0` extra pin.
 - Repaired coordinated `rexecop[tecrax]` PyPI resolution after `0.2.15a0` shipped with a
   stale `tecrax==0.3.9a0` extra; clean-install smoke is green on the repaired line.
 
 ## [0.2.15a0] - 2026-07-04
 
-- Published `rexecop==0.2.15a0` on PyPI with `govengine==0.16.9`, `sclite-core==1.0.8`
+- Published `rexecop==0.2.15a0` on PyPI with `govengine==0.16.8`, `sclite-core==1.0.8`
   and `tecrax==0.3.10a0` extra pin.
 - M8 release closure: public-truth validators, claim-to-code matrix, artifact
   install smoke (`validate_artifact_install_smoke.py`) and clean-install smoke

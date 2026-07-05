@@ -1,6 +1,6 @@
 # Distribution and installation
 
-RExecOp `0.2.17a0` is the current published alpha line on
+RExecOp `0.2.18a0` is the current published alpha line on
 [PyPI](https://pypi.org/project/rexecop/).
 The published wheel contains full B2, R4c, watchdog decision truth, and manual recovery records while retaining the maturity limits in
 [known-limitations.md](known-limitations.md).
@@ -9,7 +9,7 @@ The published wheel contains full B2, R4c, watchdog decision truth, and manual r
 
 | Path | When to use |
 | --- | --- |
-| **PyPI** (`pip install rexecop==0.2.17a0`) | Evaluation of the single supported alpha line |
+| **PyPI** (`pip install rexecop==0.2.18a0`) | Evaluation of the single supported alpha line |
 | Coordinated editable source (`pip install -e`) | Watchdog-decision truth binding development and operator lab |
 | Wheel from `dist/` after `python -m build` | Offline install, internal mirrors |
 | Git URL install | Pin a commit or tag without PyPI |
@@ -27,14 +27,14 @@ The published wheel contains full B2, R4c, watchdog decision truth, and manual r
 ```bash
 python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "rexecop==0.2.17a0"
+python -m pip install "rexecop==0.2.18a0"
 rexecop version
 ```
 
 With the compatible Tecrax profile:
 
 ```bash
-python -m pip install "rexecop[tecrax]==0.2.17a0"
+python -m pip install "rexecop[tecrax]==0.2.18a0"
 ```
 
 ## Coordinated editable install
@@ -76,7 +76,7 @@ python -m pip install "govengine @ git+https://github.com/rozmiarD/GovEngine.git
 python -m pip install "rexecop @ git+https://github.com/rozmiarD/RExecOP.git@main"
 ```
 
-The current RExecOp source line and published `0.2.17a0` wheel require GovEngine `0.16.9` and SCLite `1.0.8`.
+The current RExecOp source line and published `0.2.18a0` wheel require GovEngine `0.16.9` and SCLite `1.0.8`.
 
 ## Private index / GitHub Packages (operator-owned)
 

@@ -18,10 +18,10 @@ from rexecop.runtime.contract_compatibility import (  # noqa: E402
     validate_sclite_artifact_pins,
 )
 
-EXPECTED_REXECOP = "0.2.17a0"
+EXPECTED_REXECOP = "0.2.18a0"
 EXPECTED_GOVENGINE = "govengine==0.16.9"
 EXPECTED_SCLITE = "sclite-core==1.0.8"
-EXPECTED_TECRAX = "tecrax==0.3.11a0"
+EXPECTED_TECRAX = "tecrax==0.3.12a0"
 
 ACTIVE_READINESS = (
     "alpha_readonly",
@@ -36,8 +36,8 @@ NON_ACTIVE_READINESS = (
 REQUIRED_DOC_MARKERS = (
     "sclite-core==1.0.8",
     "govengine==0.16.9",
-    "rexecop` | `0.2.17a0`",
-    "tecrax==0.3.11a0",
+    "rexecop` | `0.2.18a0`",
+    "tecrax==0.3.12a0",
     "observation_envelope.v0.1",
     "PolicyEnforcementPlan",
     "ExecutionRequest` / `ExecutionReceipt` schema `v0.2`",

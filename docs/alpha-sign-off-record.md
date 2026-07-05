@@ -4,8 +4,8 @@
 
 | Field | Value |
 |-------|-------|
-| RExecOp version (dev line) | `0.2.17a0` |
-| RExecOp version (PyPI published) | `0.2.17a0` |
+| RExecOp version (dev line) | `0.2.18a0` |
+| RExecOp version (PyPI published) | `0.2.18a0` |
 | GovEngine version | `0.16.5` |
 | SCLite version | `1.0.8` |
 | Tecrax version | `0.3.9a0` |
