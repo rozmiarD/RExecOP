@@ -21,6 +21,13 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
             "unwrap": "",
             "max_response_bytes": 2048,
             "mutating": False,
+            "public_projection": {
+                "safe_fields": [
+                    "output.status_code",
+                    "output.error_class",
+                    "output.body_snippet",
+                ],
+            },
         },
         "connector_hints": {
             "base_url_secret_ref": "<connector>_base_url",
@@ -36,6 +43,9 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
         "command_shape": {
             "command": "",
             "args": [],
+            "public_projection": {
+                "safe_fields": ["output.stdout", "output.stderr"],
+            },
         },
         "allowlist_entry": {
             "action": "",
@@ -55,6 +65,9 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
         "command_shape": {
             "command": "",
             "args": [],
+            "public_projection": {
+                "safe_fields": ["output.stdout", "output.stderr"],
+            },
         },
         "allowlist_entry": {
             "action": "",

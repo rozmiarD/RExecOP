@@ -8,7 +8,7 @@ from typing import Any
 from govengine import explain_supervisor_action
 
 from rexecop.errors import RExecOpValidationError
-from rexecop.evidence.redaction import redact_payload
+from rexecop.evidence.public_projection import sanitize_for_public_surface
 from rexecop.operation.model import Operation
 from rexecop.operation.state import OperationState
 from rexecop.profile.loader import load_profile
@@ -147,7 +147,7 @@ def show_dead_letter_item(store: RuntimeStore, name: str) -> dict[str, Any]:
         "modified_at": datetime.fromtimestamp(path.stat().st_mtime, UTC)
         .replace(microsecond=0)
         .isoformat(),
-        "payload": redact_payload(payload),
+        "payload": sanitize_for_public_surface(payload),
         "non_claims": [
             "Redacted operator view only; dead-letter file remains runtime-local.",
             "Does not replay or reprocess inbox triggers automatically.",

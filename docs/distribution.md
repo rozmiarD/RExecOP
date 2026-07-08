@@ -89,7 +89,7 @@ path is **PyPI trusted publishing (OIDC)** from GitHub Actions:
 
 1. Configure a trusted publisher for `rozmiarD/RExecOP` on PyPI.
 2. Replace the `twine upload` step with `pypa/gh-action-pypi-publish@release/v1`.
-3. Keep `permissions.id-token: write` in the workflow (already enabled).
+3. Keep workflow permissions that allow GitHub OIDC token mint (already enabled).
 
 Do not store upload tokens in the repository, handoffs, or agent memory.
 

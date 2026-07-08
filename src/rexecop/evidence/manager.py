@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from rexecop.evidence.event import EvidenceEventType
+from rexecop.evidence.public_projection import sanitize_for_public_surface
 from rexecop.evidence.redaction import redact_payload
 from rexecop.storage.port import RuntimeStore
 
@@ -24,9 +25,16 @@ class EvidenceManager:
         step_id: str = "",
         correlation_id: str = "",
         payload: dict[str, Any] | None = None,
+        public_projection_allowlist: frozenset[str] | None = None,
     ) -> str:
         event_id = f"ev-{uuid.uuid4().hex[:12]}"
-        sanitized = redact_payload(payload or {})
+        if public_projection_allowlist is None:
+            sanitized = redact_payload(payload or {})
+        else:
+            sanitized = sanitize_for_public_surface(
+                payload or {},
+                allowlist=public_projection_allowlist,
+            )
         event = {
             "event_id": event_id,
             "operation_id": operation_id,

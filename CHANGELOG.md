@@ -12,6 +12,9 @@ PyPI alpha line is **`0.2.24a0`**. Entries under
 
 ## Unreleased
 
+- Added profile-declared `public_projection.safe_fields` allowlists for connector/runtime
+  outputs (`rexecop.public_projection.v0.1`); evidence, structured logs and dead-letter
+  triage project payloads before finite redaction detectors run.
 - Added `scripts/validate_supply_chain_gate.py` with `pip-audit`, CycloneDX SBOM output, and
   documented exceptions in `docs/supply-chain-audit-exceptions.json`; wired into CI/publish workflows.
 - CI `test` job now runs validators, ruff, mypy, and pytest on Python 3.11, 3.12, and 3.13.

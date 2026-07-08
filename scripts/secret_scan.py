@@ -45,8 +45,9 @@ PLACEHOLDER = re.compile(
     rb"(?i)^(?:example|sample|dummy|fake|test|fixture|placeholder|redacted|"
     rb"changeme|replace(?:_me)?|plaintext|value|abc|tok|token-value|"
     rb"pbs-secret|from-file|secret-value|secret-token|pbs-token-value|"
-    rb"user@pam!token-id=uuid|rexecop|\$[A-Za-z_{].*|\{[A-Za-z_{].*|<.*)"
+    rb"user@pam!token-id=uuid|rexecop|write|\$[A-Za-z_{].*|\{[A-Za-z_{].*|<.*)"
 )
+GITHUB_OIDC_PERMISSION = re.compile(rb"(?i)id-token\s*:\s*write")
 SENSITIVE_FILENAMES = re.compile(
     r"(?i)^(?:\.env(?:\..+)?|credentials(?:\..+)?\.json|secrets?\.(?:ya?ml|json)|"
     r"id_(?:rsa|dsa|ecdsa|ed25519)|known_hosts|.*\.(?:pem|key|p12|pfx|jks|keystore|kdbx))$"
@@ -102,6 +103,8 @@ def scan_data(*, scope: str, identity: str, path: str, data: bytes) -> list[Find
                         Finding(scope, identity, path, line_number, rule, key[2])
                     )
                     seen.add(key)
+        if GITHUB_OIDC_PERMISSION.search(line):
+            continue
         for match in CREDENTIAL_ASSIGNMENT.finditer(line):
             value = match.group(1).rstrip(b";)")
             if PLACEHOLDER.match(value):

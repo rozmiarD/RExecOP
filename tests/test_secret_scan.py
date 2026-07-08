@@ -33,6 +33,17 @@ def test_secret_scanner_reports_fingerprint_without_value() -> None:
     assert "sha256=" in rendered
 
 
+def test_secret_scanner_allows_github_oidc_permission_line() -> None:
+    scanner = _load_scanner()
+    findings = scanner.scan_data(
+        scope="test",
+        identity="fixture",
+        path=".github/workflows/publish.yml",
+        data=b"  id-token: write\n",
+    )
+    assert findings == []
+
+
 def test_secret_scanner_allows_explicit_placeholder() -> None:
     scanner = _load_scanner()
     findings = scanner.scan_data(

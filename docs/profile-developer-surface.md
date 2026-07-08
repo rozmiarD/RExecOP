@@ -194,6 +194,15 @@ It never edits the environment YAML. `--write-patch <path>` writes only the
 bounded patch document (`rexecop.action_configure_patch.v0.1`) so an operator
 can review/apply it deliberately.
 
+## Public projection allowlists
+
+Profiles may declare `public_projection.safe_fields` under each `command_shapes` or
+`action_shapes` entry. Runtime evidence, structured logs, dead-letter triage and support
+surfaces project connector/runtime payloads through that allowlist first; finite redaction
+detectors remain the second line of defense. Undeclared raw-ish fields are replaced with
+digest-only projections (`rexecop.public_projection.v0.1`). Built-in action templates ship
+starter allowlists for shell/SSH stdout/stderr and HTTP bounded error snippets.
+
 ## Plugin compatibility report
 
 `build_plugin_compatibility_report()` (used by `profiles show` and developer

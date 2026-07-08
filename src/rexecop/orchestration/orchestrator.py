@@ -15,6 +15,7 @@ from rexecop.errors import RExecOpStateError, RExecOpValidationError
 from rexecop.escalation.package import build_escalation_package
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.evidence.manager import EvidenceManager
+from rexecop.evidence.public_projection import resolve_public_projection_allowlist
 from rexecop.execution.backend import StepExecutionResult
 from rexecop.execution.executor import StepExecutor
 from rexecop.execution.govengine_governance import typed_execution_governance_overlay
@@ -690,6 +691,7 @@ class OperationOrchestrator:
         correlation_id: str,
         payload: dict[str, Any],
     ) -> None:
+        allowlist = self._resolve_step_projection_allowlist(operation, step_id)
         event_id = self.evidence.emit(
             operation_id=operation.id,
             event_type=event_type,
@@ -698,9 +700,43 @@ class OperationOrchestrator:
             state_after=operation.state,
             step_id=step_id,
             payload=payload,
+            public_projection_allowlist=allowlist,
         )
         operation.evidence_event_ids.append(event_id)
         self.store.save_operation(operation)
+
+    def _resolve_step_projection_allowlist(
+        self,
+        operation: Operation,
+        step_id: str,
+    ) -> frozenset[str]:
+        profile_root = str(operation.metadata.get("profile_root") or "").strip()
+        if not profile_root:
+            return frozenset()
+        try:
+            plan = self.store.load_plan(operation.id)
+        except (OSError, RExecOpValidationError):
+            return frozenset()
+        step = next(
+            (item for item in plan.planned_steps if str(item.get("id") or "") == step_id),
+            None,
+        )
+        if not isinstance(step, dict):
+            return frozenset()
+        connector = str(step.get("connector") or "").strip()
+        action = str(step.get("action") or "").strip()
+        if not connector or not action:
+            return frozenset()
+        try:
+            profile = load_profile(Path(profile_root))
+        except (OSError, RExecOpValidationError):
+            return frozenset()
+        declared = resolve_public_projection_allowlist(
+            profile=profile,
+            connector=connector,
+            action=action,
+        )
+        return declared
 
     def _emit_simple_event(
         self,

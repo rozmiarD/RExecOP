@@ -47,7 +47,7 @@ This document states what the current published alpha line does **not** provide 
 | Limitation | Detail |
 | --- | --- |
 | Secrets via operator config | `REXECOP_SECRETS_FILE` / env vars — no KMS/HSM integration |
-| Redaction has finite detectors | Key names, resolved values and common provider/token patterns are covered; arbitrary unknown plaintext still requires bounded profile outputs |
+| Redaction has finite detectors | Key names, resolved values and common provider/token patterns are covered after profile-declared `public_projection.safe_fields` allowlists; arbitrary unknown plaintext still requires explicit allowlisting |
 | CI secret scan is heuristic | Full tracked tree/history scan covers common providers, private keys and credential assignments; it is not a KMS or external repository audit |
 | Apply on critical targets | Requires explicit operator approval, GovEngine allow, and operational procedure — not unmanned |
 

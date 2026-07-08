@@ -28,6 +28,7 @@ class ObservabilityEvidenceManager(EvidenceManager):
         step_id: str = "",
         correlation_id: str = "",
         payload: dict[str, Any] | None = None,
+        public_projection_allowlist: frozenset[str] | None = None,
     ) -> str:
         event_id = super().emit(
             operation_id=operation_id,
@@ -38,6 +39,7 @@ class ObservabilityEvidenceManager(EvidenceManager):
             step_id=step_id,
             correlation_id=correlation_id,
             payload=payload,
+            public_projection_allowlist=public_projection_allowlist,
         )
         event_name = (
             event_type.value

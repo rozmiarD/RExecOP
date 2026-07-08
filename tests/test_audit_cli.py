@@ -96,9 +96,10 @@ def test_evidence_show_bounds_and_redacts_payloads(tmp_path: Path) -> None:
         operation_id=operation.id,
         event_type=EvidenceEventType.STEP_COMPLETED,
         payload={
-            "api_token": "fixture-secret-value",
+            "unexpected_field": "fixture-secret-value",
             "nested": {"notes": "safe diagnostic text"},
         },
+        public_projection_allowlist=frozenset(),
     )
 
     result = _invoke(root, "evidence", "show", operation.id)
@@ -106,10 +107,15 @@ def test_evidence_show_bounds_and_redacts_payloads(tmp_path: Path) -> None:
 
     assert payload["schema"] == "rexecop.evidence_show.v0.1"
     assert payload["event_count"] >= 1
-    assert payload["sensitivity"]["redaction_marker_count"] >= 1
+    assert payload["sensitivity"]["redaction_marker_count"] >= 0
     assert payload["sensitivity"]["strong_secret_pattern_detected"] is False
     assert "fixture-secret-value" not in result.stdout
-    assert "[REDACTED]" in result.stdout
+    step_event = next(
+        item for item in payload["events"] if item["event_type"] == "step_completed"
+    )
+    preview = step_event["payload_preview"]
+    assert preview["unexpected_field"]["projection"] == "digest_only"
+    assert preview["nested"]["projection"] == "digest_only"
 
 
 def test_chain_summary_includes_operation_evidence_and_sclite_links(tmp_path: Path) -> None:

@@ -66,7 +66,7 @@ Templates:
 3. **Read-only modes** — `dry_run`, `observe`, `emergency_readonly` refuse mutating actions.
 4. **Secrets** — use `secret_ref` / `base_url_secret_ref`; inline secrets in environment YAML
    are rejected at plan time.
-5. **Evidence** — connector responses pass through `redact_payload()` before persistence.
+5. **Evidence** — connector responses pass through profile-declared `public_projection.safe_fields` allowlists, then `redact_payload()` before persistence.
 6. **HTTP failures** — `http_api` sets `error_class`, `status_code`, and a redacted `body_snippet`
    when the upstream API returns an HTTP error body.
 7. **HTTP response bounds** — successful bodies are read only up to
