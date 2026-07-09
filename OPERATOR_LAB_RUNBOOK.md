@@ -24,6 +24,7 @@ rexecop version    # 0.2.24a0
 export REXECOP_STORAGE=sqlite   # optional SQLite backend for operations/plans/evidence
 python scripts/validate_public_truth.py
 python scripts/validate_first_run_smoke.py
+python scripts/validate_operator_journeys.py
 ```
 
 ## Lab checklist
@@ -62,6 +63,31 @@ rexecop env lint \
 - [ ] `doctor` returns `status: passed`
 - [ ] Profile and environment lint return `status: passed`
 - [ ] `python scripts/validate_first_run_smoke.py` passes
+
+### 2c. Operator journey smoke (§6)
+
+`scripts/validate_operator_journeys.py` runs four subprocess journeys on public
+fixtures — no domain package, staging endpoint, or secrets file required:
+
+| Journey | Commands exercised (summary) |
+| --- | --- |
+| Read-only | `env lint`, `profile harness`, `secrets doctor`, `action preview`, `plan` → `start` → `receipt show` |
+| Failure | blocked `action policy-preview`, injected fixture failure, `ops`, `explain-error`, `runbook`, `retry`, `runtime recover` |
+| Governance | `governance controls`, `policy explain`, catalog `action policy-preview` |
+| Audit | `history`, `operation truth-path`, `chain summary`, `support bundle --redacted` |
+
+```bash
+python scripts/validate_operator_journeys.py
+# expect: operator_journeys_ok:readonly=OK,failure=OK,governance=OK,audit=OK
+```
+
+**Lab-only retry drill:** `REXECOP_STATIC_FIXTURE_FAILURES` injects transient
+`static_fixture` failures for one CLI process (JSON map `connector:action` →
+`{count, error_class}`). Use only in tests/lab — not on operator hosts against
+real connectors. See [runtime-recovery-ops.md](docs/runtime-recovery-ops.md#fixture-failure-injection-lab-only).
+
+- [ ] `validate_operator_journeys.py` passes on a clean checkout
+- [ ] Understand fixture smoke ≠ staging/Tecrax proof (run sections 5–6 for real endpoints)
 
 ### 3. http_api-only golden path (no domain internals)
 

@@ -115,10 +115,30 @@ watchdog, and inbox interaction.
 ```text
 ops / runtime status
   -> explain-error <ref>
+  -> runbook show <intent> (context)
+  -> retry <operation-id> (when profile allows; no connector replay from recover)
   -> runtime recover (after restart)
   -> backup create (before invasive maintenance)
   -> plan / start only when blockers are understood
 ```
+
+### Fixture failure injection (lab only)
+
+For automated retry drills on the neutral `static_fixture` backend, tests and
+`validate_operator_journeys.py` may set:
+
+```bash
+export REXECOP_STATIC_FIXTURE_FAILURES='{"fixture_source:read_fixture_state":{"count":5,"error_class":"transient_connector_error"}}'
+rexecop --root "$REXECOP_ROOT" start --operation <id>
+```
+
+Effects:
+
+- Applies only to `backend: static_fixture` with `fixture_only: true`.
+- Scoped to one CLI process; does not affect production connectors.
+- After auto-retry exhaustion, `retry --operation` clears the path when failures are removed.
+
+Do **not** use this on operator hosts as a substitute for real incident response.
 
 ## Authority boundaries
 
@@ -128,3 +148,4 @@ ops / runtime status
 | `runtime recover` | Store reconciliation, lease/lock cleanup | Connector replay |
 | `backup *` | Operator store snapshots | SCLite truth export |
 | `explain-error` | Mapping refs to next actions | Automatic remediation |
+| `retry` | Re-attempt failed operation when profile retry policy allows | Connector replay without clearing failure cause |

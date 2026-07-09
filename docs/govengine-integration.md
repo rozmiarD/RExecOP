@@ -194,6 +194,39 @@ govengine-policy profile-governance projection.json --json
 See [profile-developer-surface.md](profile-developer-surface.md) and GovEngine
 [PROFILE_GOVERNANCE.md](https://github.com/rozmiarD/GovEngine/blob/main/docs/PROFILE_GOVERNANCE.md).
 
+## Governance controls (operator projection)
+
+RExecOp exposes a **read-only** operator catalog for GovEngine typed-execution
+controls. This closes the gap between `doctor` (runtime readiness) and
+`govengine-policy compatibility` (machine report) with a single CLI aimed at
+operators reviewing controls before planning work.
+
+```bash
+rexecop governance controls
+rexecop governance controls --profile examples/profiles/runtime-fixture/profile.yaml --track readonly
+```
+
+Output schema: `rexecop.governance_controls.v0.1`.
+
+| Field | Source | Authority |
+| --- | --- | --- |
+| `control_catalog`, `typed_execution_stack` | GovEngine `typed_execution_control_catalog()` + stack compatibility | GovEngine owns control definitions; RExecOp projects |
+| `profile_governance` (optional) | GovEngine `explain_profile_governance()` via `evaluate_profile_governance()` | Profile-owned declarations; GovEngine explains |
+| `non_claims` | RExecOp CLI contract | No admission, no mutation |
+
+**When to use what:**
+
+| Need | Command |
+| --- | --- |
+| Runtime root, packages, stack contracts | `rexecop doctor` |
+| Typed-execution control list + optional profile governance | `rexecop governance controls` |
+| Policy reasoning for one operation-shaped request | `rexecop policy explain` |
+| Policy impact on action shape without planning | `rexecop action policy-preview` |
+| Machine-readable supported-contract report | `govengine-policy compatibility --json` |
+
+`governance controls` does **not** replace GovEngine policy simulation or
+admission. It does not add a second PolicyEngine to RExecOp.
+
 ## Boundary
 
 GovEngine validates/contracts admission and runner records. RExecOp remains the runner,

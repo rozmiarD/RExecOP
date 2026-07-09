@@ -209,6 +209,20 @@ CLI_CONTRACTS: tuple[CliContract, ...] = (
         group="runtime_triage",
     ),
     CliContract(
+        command=("governance", "controls"),
+        schema="rexecop.governance_controls.v0.1",
+        stability="alpha_contract",
+        group="governance_inspection",
+        exit_codes=(
+            CliExitCode(0, "passed"),
+            CliExitCode(1, "blocked_or_validation_error"),
+        ),
+        authority="govengine_projection",
+        notes=(
+            "Projects typed-execution control catalog; does not admit operations.",
+        ),
+    ),
+    CliContract(
         command=("profile", "lint"),
         schema="rexecop.profile_conformance.v0.1",
         stability="alpha_contract",

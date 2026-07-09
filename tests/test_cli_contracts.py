@@ -21,6 +21,7 @@ EXPECTED_COMMAND_SCHEMAS = {
     "dead-letter show": "rexecop.dead_letter_show.v0.1",
     "evidence show": "rexecop.evidence_show.v0.1",
     "explain-error": "rexecop.explain_error.v0.1",
+    "governance controls": "rexecop.governance_controls.v0.1",
     "locks list": "rexecop.locks_list.v0.1",
     "observability diagnostics": "rexecop.runtime_diagnostics.v0.1",
     "observability logs list": "rexecop.structured_log_list.v0.1",
@@ -61,6 +62,7 @@ EXPECTED_COMMAND_GROUPS = {
         "observability logs list",
     },
     "profile_developer": {"profile lint"},
+    "governance_inspection": {"governance controls"},
     "runtime_triage": {
         "dead-letter list",
         "dead-letter show",

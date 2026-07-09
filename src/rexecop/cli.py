@@ -59,6 +59,7 @@ from rexecop.cli_output import (
 from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
+from rexecop.governance.operator_surface import collect_governance_controls
 from rexecop.operation.audit import (
     build_support_bundle,
     explain_chain,
@@ -136,6 +137,10 @@ action_templates_app = typer.Typer(
 )
 action_app.add_typer(action_templates_app, name="templates")
 policy_app = typer.Typer(help="Inspect GovEngine policy decisions.", no_args_is_help=True)
+governance_app = typer.Typer(
+    help="Inspect GovEngine governance projections without admission authority.",
+    no_args_is_help=True,
+)
 operation_app = typer.Typer(help="Inspect stored operation plans.", no_args_is_help=True)
 receipt_app = typer.Typer(help="Inspect redacted receipt and SCLite refs.", no_args_is_help=True)
 evidence_app = typer.Typer(help="Inspect bounded operation evidence.", no_args_is_help=True)
@@ -156,6 +161,7 @@ app.add_typer(capabilities_app, name="capabilities")
 app.add_typer(contracts_app, name="contracts")
 app.add_typer(action_app, name="action")
 app.add_typer(policy_app, name="policy")
+app.add_typer(governance_app, name="governance")
 app.add_typer(operation_app, name="operation")
 app.add_typer(receipt_app, name="receipt")
 app.add_typer(evidence_app, name="evidence")
@@ -702,6 +708,29 @@ def policy_explain_cmd(
         emit_failure(command=("policy", "explain"), message=str(exc))
     emit_payload(result, renderers=POLICY_EXPLAIN_RENDERERS)
     if result["status"] == "blocked":
+        raise typer.Exit(code=1)
+
+
+@governance_app.command("controls")
+def governance_controls_cmd(
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        help="Optional registered profile or path for profile-governance projection.",
+    ),
+    track: str = typer.Option(
+        "readonly",
+        "--track",
+        help="Profile governance track (readonly or mutation).",
+    ),
+) -> None:
+    """List GovEngine typed-execution controls and optional profile governance."""
+    try:
+        result = collect_governance_controls(profile=profile, track=track)
+    except RExecOpError as exc:
+        emit_failure(command=("governance", "controls"), message=str(exc))
+    typer.echo(json.dumps(result, indent=2, sort_keys=True))
+    if result["status"] != "passed":
         raise typer.Exit(code=1)
 
 

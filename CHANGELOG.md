@@ -12,6 +12,12 @@ PyPI alpha line is **`0.2.24a0`**. Entries under
 
 ## Unreleased
 
+- Added `rexecop governance controls` (`rexecop.governance_controls.v0.1`) for operator-facing
+  GovEngine typed-execution control catalog and optional profile-governance projection.
+- Added `scripts/validate_operator_journeys.py` smoke for §6 operator journeys: read-only
+  execute path, failure/retry/recover triage, governance controls, and audit CLI surfaces
+  on sanitized `runtime-fixture` / `first-run-demo` fixtures.
+- `static_fixture` accepts `REXECOP_STATIC_FIXTURE_FAILURES` for bounded operator retry drills.
 - Added `scripts/validate_stack_invariants.py` and `tests/test_stack_invariants.py`
   (`pytest -m invariant`) for digest normalization, unknown-major fail-closed, typed
   execution binding, public projection, and idempotency/replay invariants.

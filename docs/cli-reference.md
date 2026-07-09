@@ -22,7 +22,7 @@ lifecycle semantics see [operation-lifecycle.md](operation-lifecycle.md).
 
 Most lifecycle, triage, queue and worker commands require a initialized runtime
 root (`rexecop init`). Metadata commands (`env lint`, `profile lint`, `action`,
-`secrets`, `profiles`, `connectors`, `capabilities`, `policy explain`) work
+`secrets`, `profiles`, `connectors`, `capabilities`, `policy explain`, `governance controls`) work
 without a store.
 
 ## Runtime readiness
@@ -95,6 +95,7 @@ See [operator-catalog.md](operator-catalog.md).
 
 | Command | Purpose |
 | --- | --- |
+| `governance controls [--profile PATH] [--track readonly\|mutation]` | GovEngine typed-execution control catalog and optional profile-governance projection; not admission |
 | `policy explain --intent ID --target ID [--profile] [--env] [--catalog] [--mode]` | GovEngine policy path for one operation-shaped request |
 | `operation explain --operation ID` | Stored plan bindings, expected artifacts, safe next actions |
 | `operation review --operation ID [--format json\|table\|markdown]` | Decision screen for a stored plan |
@@ -233,6 +234,17 @@ See [operator-scheduler-pattern.md](operator-scheduler-pattern.md).
 
 See [reaction-interpreter.md](reaction-interpreter.md).
 
+## Operator journey smoke
+
+Automated subprocess smokes validate end-to-end CLI chains without private infrastructure:
+
+| Script | Scope |
+| --- | --- |
+| `scripts/validate_first_run_smoke.py` | Onboarding on `first-run-demo` |
+| `scripts/validate_operator_journeys.py` | §6 journeys: read-only execute, failure/triage/retry, governance, audit on `runtime-fixture` |
+
+See [OPERATOR_RUNBOOK.md](../OPERATOR_RUNBOOK.md#operator-journey-gates) for the manual equivalents.
+
 ## Command groups (quick index)
 
 ```text
@@ -245,12 +257,14 @@ rexecop [--root] [--instance] [--storage]
   connectors list | connectors show
   capabilities list
   action templates list
-  action list | show | preview | validate | configure | diff
+  action list | show | preview | policy-preview | validate | configure | diff
   targets list | show
   operations list | explain | unavailable
+  governance controls
   policy explain
-  operation explain | review | diff
+  operation explain | review | diff | truth-path
   runbook show
+  receipt show | evidence show | chain summary | chain explain | support bundle
   runtime status | recover
   ops | explain-error
   observability logs list | diagnostics

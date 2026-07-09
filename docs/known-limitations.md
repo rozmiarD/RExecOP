@@ -32,6 +32,8 @@ This document states what the current published alpha line does **not** provide 
 | `local_shell_readonly` only | No general shell apply backend in core |
 | `ssh_readonly` is temporary | PolicyEngine gate when `policy_pack` set; allowlisted argv + read-only modes remain in connector |
 | Static fixture is offline-only | `examples/first-run-demo/` and `examples/profiles/runtime-fixture/` use `static_fixture` for no-I/O onboarding and lifecycle regression |
+| Operator journey smoke is fixture-bound | `validate_operator_journeys.py` proves CLI chains on public fixtures; staging/Tecrax endpoints require separate lab runs ([OPERATOR_LAB_RUNBOOK.md](../OPERATOR_LAB_RUNBOOK.md)) |
+| Fixture failure env is lab-only | `REXECOP_STATIC_FIXTURE_FAILURES` injects transient `static_fixture` errors for retry drills in tests/smoke — not for production connectors |
 
 ## Profiles and domain
 
@@ -82,6 +84,8 @@ an untrusted proposal shape only, and mutation/apply readiness is explicitly fal
 - Host-owned worker, queue drain, and JSON `trigger` ingress
 - Runtime readiness CLI: explicit `--root`, named `--instance`, `init`, `doctor`, `env lint`, `profile lint`
 - Public-safe `examples/first-run-demo/` onboarding path with `scripts/validate_first_run_smoke.py`
+- §6 operator journey smoke with `scripts/validate_operator_journeys.py` (read-only execute, failure/triage, governance controls projection, audit CLI on fixtures)
+- `rexecop governance controls` — operator-facing GovEngine typed-execution control catalog projection (non-authoritative)
 - Optional SQLite storage backend for operations, plans, and evidence
 - Wheel build + `twine check` validated in CI
 

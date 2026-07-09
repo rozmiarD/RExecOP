@@ -63,6 +63,9 @@ jobs:
       - name: Validate first-run smoke
         run: python scripts/validate_first_run_smoke.py
 
+      - name: Validate operator journeys
+        run: python scripts/validate_operator_journeys.py
+
       - name: Validate cross-repo golden fixture
         run: python scripts/validate_cross_repo_golden_fixture.py
 

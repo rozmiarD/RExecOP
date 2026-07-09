@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from typing import Any
 
 from rexecop.connectors import errors as connector_errors
@@ -12,6 +14,7 @@ class StaticFixtureRuntime:
     """Deterministic no-I/O backend for neutral runtime contract tests."""
 
     _failure_counts: dict[tuple[str, str], dict[str, int | str]] = {}
+    _env_failures_loaded: bool = False
 
     @classmethod
     def set_failures(
@@ -29,10 +32,6 @@ class StaticFixtureRuntime:
             "error_class": error_class,
         }
 
-    @classmethod
-    def clear_failures(cls) -> None:
-        cls._failure_counts.clear()
-
     def __init__(
         self,
         *,
@@ -44,7 +43,39 @@ class StaticFixtureRuntime:
         self.config = config
         self.mutating_allowed = mutating_allowed
 
+    @classmethod
+    def clear_failures(cls) -> None:
+        cls._failure_counts.clear()
+        cls._env_failures_loaded = False
+
+    @classmethod
+    def _ensure_env_failures_loaded(cls) -> None:
+        if cls._env_failures_loaded:
+            return
+        cls._env_failures_loaded = True
+        raw = os.environ.get("REXECOP_STATIC_FIXTURE_FAILURES", "").strip()
+        if not raw:
+            return
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise ValueError("REXECOP_STATIC_FIXTURE_FAILURES must be a JSON object")
+        for key, spec in payload.items():
+            if not isinstance(key, str) or ":" not in key or not isinstance(spec, dict):
+                raise ValueError(
+                    "REXECOP_STATIC_FIXTURE_FAILURES entries must be "
+                    "'connector:action' -> {count, error_class?, error?}"
+                )
+            connector, action = key.split(":", 1)
+            cls.set_failures(
+                connector,
+                action,
+                count=int(spec.get("count") or 0),
+                error=str(spec.get("error") or "transient fixture failure"),
+                error_class=str(spec.get("error_class") or connector_errors.TRANSIENT),
+            )
+
     def invoke(self, request: ConnectorRequest) -> ConnectorResponse:
+        self._ensure_env_failures_loaded()
         failure = self._failure_counts.get((request.connector, request.action))
         if failure and int(failure["remaining"]) > 0:
             failure["remaining"] = int(failure["remaining"]) - 1

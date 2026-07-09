@@ -97,6 +97,10 @@ idempotent recovery planning.
 | Advisory proposal review | `rexecop.proposal_review.v0.1`, `rexecop.proposal_submission.v0.1` | `tests/test_reaction_interpreter.py`, CLI registry/error tests |
 | M6/M7 typed execution + truth-path | `project_truth_path()`, `admit_typed_execution()` | `validate_artifact_install_smoke.py`, `validate_clean_install_smoke.py` |
 | Cross-repo golden fixture | `rexecop.reaction_explain.v0.1`, `rexecop.chain_explain.v0.1` | `scripts/validate_cross_repo_golden_fixture.py` |
+| Operator journey §6 | `validate_operator_journeys.py` (read-only, failure, governance, audit CLI) | CI, `scripts/run_alpha_signoff_checks.sh`, `tests/test_operator_journeys.py` |
+| Governance controls CLI | `rexecop.governance_controls.v0.1` | `rexecop governance controls`, `tests/test_operator_journeys.py`, GovEngine catalog consumption |
+| M8.5 stack invariants | `pytest -m invariant`, `validate_stack_invariants.py` | `tests/test_stack_invariants.py` |
+| M8.5 release/process gates | `validate_release_train_preflight.py`, `validate_public_index_release_smoke.py`, `validate_supply_chain_gate.py`, `validate_external_review_gate.py` | CI `publish.yml`, alpha sign-off |
 
 ## Required gates
 
@@ -104,7 +108,10 @@ The stack must keep these gates green before implementing later automation:
 
 - RExecOp: `scripts/validate_public_truth.py`, `scripts/validate_stack_contracts.py`,
   `scripts/validate_profile_conformance.py`, `scripts/validate_first_run_smoke.py`,
+  `scripts/validate_operator_journeys.py`,
   `scripts/validate_cross_repo_golden_fixture.py`,
+  `scripts/validate_stack_invariants.py`, `scripts/validate_external_review_gate.py`,
+  `scripts/validate_release_train_preflight.py`, `scripts/validate_supply_chain_gate.py`,
   `scripts/validate_artifact_install_smoke.py`, `scripts/validate_clean_install_smoke.py`,
   `scripts/secret_scan.sh`, core-domain-token guard, `ruff`, `mypy src/rexecop`, and pytest.
 - Tecrax: public truth, active profile validation, secret topology validation, `ruff`, `mypy src/tecrax`, and pytest.

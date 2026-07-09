@@ -222,7 +222,7 @@ The CLI has grown across M1–M5 milestones. **Full command reference:**
 | Profile developer | `profile lint`, `profile manifest`, `profile harness`, `profiles list/show`, `connectors list/show`, `capabilities list` |
 | Action metadata | `action list`, `action show`, `action preview`, `action policy-preview`, `action validate`, `action diff`, `action configure` |
 | Catalog | `targets list/show`, `operations list`, `operations explain`, `operations unavailable` |
-| Pre-run inspection | `policy explain`, `operation explain`, `operation review`, `operation diff`, `runbook show` |
+| Pre-run inspection | `policy explain`, `governance controls`, `operation explain`, `operation review`, `operation diff`, `runbook show` |
 | Runtime triage | `runtime status`, `runtime reconstruct-status`, `ops`, `explain-error`, `dead-letter list/show`, `locks list`, `runtime recover`, `backup create/restore`, `watchdog manual-record` |
 | Observability | `observability logs list`, `observability diagnostics` |
 | Lifecycle | `plan`, `approve`, `start`, `pause`, `resume`, `cancel`, `retry`, `rollback`, `validate`, `escalate`, `status`, `history` |
@@ -237,6 +237,7 @@ Global options: `--root`, `--instance`, `--storage file|sqlite`.
 pip install -e /path/to/tecrax -e ".[dev]"
 python scripts/validate_public_truth.py
 python scripts/validate_first_run_smoke.py
+python scripts/validate_operator_journeys.py
 ruff check .
 mypy src/rexecop
 python -m build && python -m twine check dist/*
@@ -245,8 +246,9 @@ pytest -m delivery   # canonical sign-off scope from tests/delivery_scope.py
 ```
 
 GitHub Actions runs on every push and pull request: install `tecrax`, public truth validation,
-stack contract validation, profile conformance, first-run smoke, ruff, mypy, core boundary
-grep, secret scan, pytest, and a `package-dry-run` job (`build` + `twine check`).
+stack contract validation, profile conformance, first-run smoke, operator journey smoke,
+ruff, mypy, core boundary grep, secret scan, pytest, and a `package-dry-run` job
+(`build` + `twine check`).
 
 ## Documentation
 

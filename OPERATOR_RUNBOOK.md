@@ -33,6 +33,7 @@ pip install -e ../tecrax
 rexecop version   # expect 0.2.24a0 from the coordinated source checkout
 python scripts/validate_public_truth.py   # docs + version alignment
 python scripts/validate_first_run_smoke.py # no-I/O init/doctor/explain/plan smoke
+python scripts/validate_operator_journeys.py # §6 operator journeys on public fixtures
 
 # Optional: SQLite backend for operations/plans/evidence (SCLite bundles still on disk)
 export REXECOP_STORAGE=sqlite
@@ -66,6 +67,102 @@ rexecop env lint \
 ```
 
 For a complete no-I/O walkthrough, see [docs/first-run.md](docs/first-run.md).
+
+## Operator journey gates
+
+Roadmap §6 measures **real CLI usability**, not just the presence of commands. RExecOp
+ships two automated smokes:
+
+| Script | What it proves |
+| --- | --- |
+| `validate_first_run_smoke.py` | Onboarding only: `init` → `doctor` → explain/plan/review/runbook on `first-run-demo` (no backend IO). |
+| `validate_operator_journeys.py` | Full operator paths on `runtime-fixture` + `first-run-demo`: read-only execute, failure/triage/retry, governance projections, audit CLI. |
+
+Run both after install or before sign-off. They use **sanitized fixtures** — passing
+does not prove your staging endpoints or Tecrax targets work; it proves the control-plane
+CLI chain is coherent and regression-safe.
+
+### Read-only journey (execute path)
+
+Typical sequence before trusting a new environment:
+
+```bash
+export REXECOP_ROOT=~/rexecop-runtime
+rexecop --root "$REXECOP_ROOT" init
+
+rexecop env lint --env <environment.yaml> --profile <profile.yaml>
+rexecop profile harness --profile <profile.yaml>   # workflow fixture; use profile lint for conformance profiles
+rexecop secrets doctor --env <environment.yaml> [--catalog <catalog.yaml>]
+
+rexecop action preview <intent> --profile <profile.yaml> --env <environment.yaml> --target <target>
+rexecop --root "$REXECOP_ROOT" plan --profile ... --env ... --intent ... --target ... --mode dry_run
+rexecop operation review --operation <id>
+rexecop --root "$REXECOP_ROOT" start --operation <id>
+rexecop --root "$REXECOP_ROOT" status --operation <id>
+rexecop --root "$REXECOP_ROOT" receipt show <id>
+```
+
+**Intent:** validate bindings and policy path, then complete one read-only operation and
+inspect the redacted receipt projection. SCLite bundles under `<root>/sclite/<id>/`
+remain authoritative; `receipt show` is a bounded summary.
+
+### Failure journey (triage → retry → recover)
+
+When an operation fails or policy blocks work, use triage commands before replanning:
+
+```bash
+rexecop --root "$REXECOP_ROOT" ops                    # exit 1 when blockers exist
+rexecop explain-error <operation-id>
+rexecop runbook show <intent> --profile <profile.yaml>
+rexecop retry --operation <id>                          # only when profile retry policy allows
+rexecop --root "$REXECOP_ROOT" runtime recover --json   # after crash/worker interrupt
+```
+
+For **policy impact without planning**, simulate on the action shape:
+
+```bash
+rexecop action policy-preview <intent> --profile ... --env ... --target ... --mode apply
+```
+
+Blocked mutating previews exit `1` with `rexecop.action_policy_impact.v0.1` — GovEngine
+reasoning is under `policy_simulation`; RExecOp does not execute or admit from this command.
+
+See [runtime-recovery-ops.md](docs/runtime-recovery-ops.md) for authority boundaries
+(triage does not replace GovEngine admission or SCLite truth).
+
+### Governance journey (controls catalog)
+
+Before mutating work, inspect **what controls GovEngine expects** for typed execution
+and (optionally) how a profile projects into profile-governance:
+
+```bash
+rexecop governance controls
+rexecop governance controls --profile <profile.yaml> --track readonly
+rexecop policy explain --profile ... --env ... --intent ... --target ... --mode dry_run
+```
+
+`governance controls` returns `rexecop.governance_controls.v0.1`. It **projects**
+GovEngine's typed-execution control catalog and stack compatibility — it does not
+evaluate admission for a specific operation, mutate policy packs, or replace
+`govengine-policy explain|simulate|compatibility`. Use `doctor` for runtime-root
+readiness; use `governance controls` when you need an operator-facing control list.
+
+Details: [govengine-integration.md](docs/govengine-integration.md#governance-controls-operator-projection).
+
+### Audit journey (truth-path without fork)
+
+After a completed operation, audit surfaces project digests and redacted refs — they
+do not create a second truth store:
+
+```bash
+rexecop --root "$REXECOP_ROOT" history --operation <id>
+rexecop --root "$REXECOP_ROOT" operation truth-path --operation <id>
+rexecop --root "$REXECOP_ROOT" chain summary <id>
+rexecop --root "$REXECOP_ROOT" support bundle <id> --redacted
+```
+
+`truth-path` binds GovEngine governance trace digests and SCLite ref projections.
+Use `--redacted` on support bundles; unredacted export is blocked by design.
 
 ## Secrets (never in git or `.rexecop/`)
 
@@ -114,6 +211,10 @@ Adjust `targets`, action `path` values, and `secret_ref` names for your APIs.
 
 ## Standard read-only workflow
 
+Follow the [read-only journey](#read-only-journey-execute-path) checks (`env lint`,
+`secrets doctor`, `action preview`, `operation review`) before `start` on a new
+environment. Minimal execute path:
+
 ```bash
 rexecop --root ~/rexecop-runtime plan \
   --profile /path/to/RExecOP/examples/profiles/runtime-fixture/profile.yaml \
@@ -161,12 +262,14 @@ See [OPERATOR_LAB_RUNBOOK.md](OPERATOR_LAB_RUNBOOK.md) for the full lab checklis
 
 ## Runtime triage and recovery
 
-When queue, worker, or operation state looks wrong:
+When queue, worker, or operation state looks wrong, follow the
+[failure journey](#failure-journey-triage--retry--recover):
 
 ```bash
 rexecop --root ~/rexecop-runtime ops
 rexecop --root ~/rexecop-runtime runtime status --json
 rexecop explain-error <operation-id-or-dead-letter-or-watchdog-ref>
+rexecop retry --operation <id>    # after transient failure, if profile allows
 ```
 
 After host restart or worker crash:
@@ -186,10 +289,12 @@ Full reference: [docs/runtime-recovery-ops.md](docs/runtime-recovery-ops.md).
 M2 decision surfaces before mutating work:
 
 ```bash
+rexecop governance controls [--profile ... --track readonly]
 rexecop operation explain --operation <id>
 rexecop operation review --operation <id>
 rexecop operation diff --operation <id>
 rexecop policy explain --profile ... --env ... --intent ... --target ...
+rexecop action policy-preview <intent> --profile ... --env ... --target ... --mode dry_run
 ```
 
 ## Apply workflow (fixture or non-critical targets only)
@@ -309,7 +414,8 @@ Directory is gitignored — back up operator-side if retention is required.
 
 - [ ] No secrets in git or committed `.rexecop/`
 - [ ] Environment uses `secret_ref` only
-- [ ] `rexecop doctor`, `rexecop env lint`, `rexecop profile lint`, and `rexecop secrets doctor` pass (when using secret refs)
+- [ ] `python scripts/validate_first_run_smoke.py` and `python scripts/validate_operator_journeys.py` pass after install or upgrade
+- [ ] `rexecop doctor`, `rexecop env lint`, `rexecop profile lint` (or `profile harness`), and `rexecop secrets doctor` pass when using secret refs
 - [ ] Catalog targets checked with `rexecop operations unavailable` when applicability is unclear ([docs/operator-catalog.md](docs/operator-catalog.md))
 - [ ] Read-only path validated before apply
 - [ ] Apply tested on non-critical target first
