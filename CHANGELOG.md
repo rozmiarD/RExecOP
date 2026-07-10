@@ -14,6 +14,10 @@ PyPI alpha line is **`0.2.24a0`**. Entries under
 
 ## [0.2.25a0] - coordinated SCLite/GovEngine candidate
 
+- Enforces RExecOp-owned automation graph roots, connectivity, acyclicity,
+  depth, transitions and global child idempotency before persistence and during
+  explanation. The result explicitly does not claim GovEngine admission
+  authenticity or decision binding.
 - Migrates the public fixture Guard key above SCLite's 32-byte production
   floor and documents that short `REXECOP_KERNEL_GUARD_KEY` values fail closed;
   RExecOp retains custody/rotation responsibility and does not infer entropy.

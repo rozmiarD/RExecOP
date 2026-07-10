@@ -59,6 +59,13 @@ installed GovEngine line exposes `AutomationTransitionRequest`, the child edge
 stores the GovEngine automation admission digest; otherwise the binding reports
 `unavailable` without claiming a GovEngine digest.
 
+RExecOp verifies the runtime-owned graph semantics before persistence and again
+when explaining a reaction: one source-operation root, reachability, acyclicity,
+computed edge/node depth, allowed transitions and globally unique child
+idempotency keys. The explanation separates that result from SCLite's bridge
+shape checks. Recovery/checkpoint execution remains a runtime operation, while
+admission authenticity and exact decision binding remain GovEngine checks.
+
 Operation creation also supports an explicit plan-only automation mode:
 
 ```bash

@@ -34,6 +34,7 @@ from rexecop.reaction.automation_admission import (
     automation_transition_contract_available,
     unavailable_automation_binding,
 )
+from rexecop.reaction.automation_graph import verify_runtime_automation_graph
 from rexecop.reaction.compiler import compile_reaction_pack
 from rexecop.reaction.evaluator import evaluate_reaction
 from rexecop.reaction.model import ReactionContext
@@ -356,8 +357,8 @@ class ReactionService:
                 admission=automation_admission,
                 requires_govengine_admission=automation_admission is not None,
             )
-            if automation_admission is not None:
-                verify_automation_chain(automation_chain)
+            verify_automation_chain(automation_chain)
+            verify_runtime_automation_graph(automation_chain)
         secure_directory(directory)
         _write_json(directory / "01_observation.json", observation)
         _write_json(directory / "02_finding.json", finding)
@@ -445,9 +446,11 @@ class ReactionService:
         replay_status = str(replay.get("status") or "")
         automation_chain: dict[str, Any] = {}
         automation_verification: dict[str, Any] = {"status": "absent"}
+        runtime_graph_verification: dict[str, Any] = {"status": "absent"}
         if automation_chain_path.is_file():
             automation_chain = _read_json(automation_chain_path)
             automation_verification = verify_automation_chain(automation_chain)
+            runtime_graph_verification = verify_runtime_automation_graph(automation_chain)
         automation_admission = _automation_admission_from_chain(automation_chain)
         return {
             "schema": "rexecop.reaction_explain.v0.1",
@@ -482,7 +485,7 @@ class ReactionService:
             },
             "automation_admission": automation_admission,
             "automation_chain": {
-                "status": str(automation_verification.get("status") or "absent"),
+                "status": str(runtime_graph_verification.get("status") or "absent"),
                 "schema_ref": str(
                     automation_verification.get("schema_ref")
                     or automation_chain.get("schema_ref")
@@ -497,6 +500,8 @@ class ReactionService:
                     )
                 ),
                 "child_edge_count": int(automation_verification.get("child_edge_count") or 0),
+                "sclite_bridge": automation_verification,
+                "rexecop_graph": runtime_graph_verification,
             },
             "chain": {
                 "root_digest": _normalize_digest(str(manifest.get("root_chain_digest") or "")),
