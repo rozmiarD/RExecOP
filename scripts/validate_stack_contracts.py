@@ -10,6 +10,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from sclite.consumer_contracts import validate_consumer_imports  # noqa: E402
+
 import rexecop  # noqa: E402
 from rexecop.runtime.contract_compatibility import (  # noqa: E402
     REQUIRED_RUNTIME_PROJECTION_SURFACES,
@@ -82,6 +84,7 @@ def _require(errors: list[str], path: str, text: str, marker: str) -> None:
 
 def collect_errors() -> list[str]:
     errors: list[str] = []
+    errors.extend(validate_consumer_imports("rexecop", ROOT))
     project = _pyproject()
     docs = {
         "docs/stack-contract-compatibility.md": _read("docs/stack-contract-compatibility.md"),

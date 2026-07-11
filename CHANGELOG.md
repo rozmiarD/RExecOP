@@ -14,6 +14,9 @@ PyPI alpha line is **`0.2.24a0`**. Entries under
 
 ## [0.2.25a0] - coordinated SCLite/GovEngine candidate
 
+- Enforces RExecOp's production SCLite imports against the versioned
+  wheel-shipped consumer contract in the existing stack-contract CI gate.
+  Unreviewed deep imports and stale allowlist entries fail closed.
 - Enforces RExecOp-owned automation graph roots, connectivity, acyclicity,
   depth, transitions and global child idempotency before persistence and during
   explanation. The result explicitly does not claim GovEngine admission

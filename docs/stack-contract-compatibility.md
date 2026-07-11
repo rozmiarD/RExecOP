@@ -76,6 +76,7 @@ runtime behavior change. Compatibility policy id: `unknown_major_fail_closed`.
 | RExecOp doctor | `rexecop doctor` emits `rexecop.doctor_report.v0.1` with `contract_versions` and blocker `stack_contract_compatibility`. |
 | RExecOp explain | `rexecop operation explain` includes the same `contract_versions` summary for operator review. |
 | SCLite artifact refs | RExecOp pins `SCLITE_SCHEMA_REFS` to supported `v0.x` artifact versions and validates them in `scripts/validate_stack_contracts.py`. |
+| SCLite Python imports | The wheel-shipped `sclite.consumer_import_inventory.v1` allowlist is checked against `src/rexecop`; new top-level/deep imports and stale entries fail `validate_stack_contracts.py`. |
 | Profile contract | Profiles declare `profile_contract.version` (`rexecop.profile_contract.v0.1`) for intent/workflow/governance surfaces. |
 
 Golden fixture `tests/fixtures/stack_contract_compatibility_golden.json` guards
