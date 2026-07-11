@@ -20,7 +20,7 @@ from rexecop.adapters.sclite_port.full_bundle import (
     TRUST_PROFILE_REF_FILE,
     maybe_write_operator_kernel_guard_manifest,
 )
-from rexecop.adapters.sclite_port.target_host import resolve_sclite_target_host
+from rexecop.adapters.sclite_port.target_host import extract_target_host, resolve_sclite_target_host
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 
@@ -179,6 +179,11 @@ def test_target_host_resolution_for_logical_targets() -> None:
     host = resolve_sclite_target_host(plan)
     assert host == "runtime-fixture.fixture"
     assert "." in host
+
+
+def test_target_host_adapter_is_static_and_normalizes_explicit_hosts() -> None:
+    assert extract_target_host("https://Example.COM:443/path") == "example.com"
+    assert extract_target_host("localhost") == ""
 
 
 def test_review_bundle_matches_sclite_govengine_integration_shape(tmp_path: Path) -> None:
