@@ -29,10 +29,10 @@
   "sclite_artifact_versions": {
     "automation_chain": "v0.1",
     "evidence_contract": "v0.2",
-    "execution_contract": "v0.2",
+    "execution_contract": "v0.3",
     "execution_receipt": "v0.2",
     "execution_ticket": "v0.3",
     "intent_contract": "v0.2",
-    "policy_decision": "v0.2"
+    "policy_decision": "v0.3"
   }
 }

@@ -26,7 +26,7 @@ Document id: `stack-contract-compatibility`.
 
 | Surface | Current contract | Owner | RExecOp use |
 | --- | --- | --- | --- |
-| SCLite lifecycle artifacts | `intent_contract.v0.2`, `policy_decision.v0.2`, `execution_contract.v0.2`, `execution_receipt.v0.2`, `evidence_contract.v0.2`, `artifact_chain_manifest.v0.2` | SCLite | Emitted on completion through the SCLite adapter. |
+| SCLite lifecycle artifacts | `intent_contract.v0.2`, `policy_decision.v0.3`, `execution_contract.v0.3`, `execution_receipt.v0.2`, `evidence_contract.v0.2`, `artifact_chain_manifest.v0.2` | SCLite | Emitted on completion; scope provenance binds a GovEngine decision artifact to the exact operation target without claiming authority authentication. |
 | SCLite scoped ticket | `execution_ticket.v0.3` | SCLite | Used for scoped dry-run/review bundle truth. |
 | SCLite reaction artifacts | `observation_envelope.v0.1`, `finding.v0.1`, `reaction_plan.v0.1`, `escalation_proposal.v0.1`, reaction chain manifest | SCLite | Validated/emitted as artifacts; RExecOp does not own domain observation meaning. |
 | SCLite trigger decision artifact | `trigger_decision.v0.1` | SCLite | Stores bounded trigger event, rule, GovEngine admission and optional child-operation references; RExecOp remains the trigger planner. |

@@ -70,6 +70,16 @@ def test_build_intent_contract_validates() -> None:
 
 def test_build_lifecycle_artifacts_linked() -> None:
     artifacts = build_lifecycle_artifacts(_sample_operation(), _sample_plan())
+    policy = artifacts["policy_decision"]
+    contract = artifacts["execution_contract"]
+    assert policy["schema_version"] == "v0.3"
+    assert contract["schema_version"] == "v0.3"
+    assert policy["scope_assertion"] == contract["scope_assertion"]
+    assert policy["scope_assertion"]["decision_digest"].startswith("sha256:")
+    assert (
+        policy["scope_assertion"]["target"]["target_host"]
+        == contract["target_binding"]["target_host"]
+    )
     assert set(artifacts) == set(REVIEW_BUNDLE_REQUIRED_FILES)
     receipt = artifacts["execution_receipt"]
     assert receipt["links"]["execution_contract"]["descriptor"]["digest"]

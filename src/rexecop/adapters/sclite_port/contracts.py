@@ -15,8 +15,8 @@ RECEIPT_EXPORT_AUTHORITY = "non_authoritative_export"
 
 SCLITE_SCHEMA_REFS: dict[str, str] = {
     "intent_contract": "schemas/intent_contract.v0.2.schema.json",
-    "policy_decision": "schemas/policy_decision.v0.2.schema.json",
-    "execution_contract": "schemas/execution_contract.v0.2.schema.json",
+    "policy_decision": "schemas/policy_decision.v0.3.schema.json",
+    "execution_contract": "schemas/execution_contract.v0.3.schema.json",
     "execution_ticket": "schemas/execution_ticket.v0.3.schema.json",
     "execution_receipt": "schemas/execution_receipt.v0.2.schema.json",
     "evidence_contract": "schemas/evidence_contract.v0.2.schema.json",

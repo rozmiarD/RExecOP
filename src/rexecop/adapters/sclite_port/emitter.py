@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from govengine import build_scope_assertion, build_scope_decision
 from sclite.artifacts import validate_artifact
 from sclite.bundles import (
     REVIEW_BUNDLE_REQUIRED_FILES,
@@ -75,8 +76,8 @@ def _link(role: str, artifact: dict[str, Any]) -> dict[str, Any]:
 def _validate(role: str, artifact: dict[str, Any]) -> dict[str, Any]:
     schema_key = {
         "intent_contract": "intent_contract.v0.2",
-        "policy_decision": "policy_decision.v0.2",
-        "execution_contract": "execution_contract.v0.2",
+        "policy_decision": "policy_decision.v0.3",
+        "execution_contract": "execution_contract.v0.3",
         "execution_ticket": "execution_ticket.v0.3",
         "execution_receipt": "execution_receipt.v0.2",
         "evidence_contract": "evidence_contract.v0.2",
@@ -188,9 +189,18 @@ def build_policy_decision(
     decision = _policy_decision_value(operation.govengine_decision_type or "allowed")
     network_effect = "none_in_dry_run" if _rexecop_mode(plan.mode) == "dry_run" else "bounded"
     target_host = resolve_sclite_target_host(plan)
+    target = f"rexecop:{plan.environment}/{plan.target}"
+    authority_decision = build_scope_decision(
+        admission=operation.metadata.get("govengine_admission") or {},
+        operation_id=operation.id,
+        target=target,
+        target_host=target_host,
+        in_scope=decision != "deny",
+    )
+    scope_assertion = build_scope_assertion(authority_decision)
     artifact = {
         "artifact_type": "policy_decision",
-        "schema_version": "v0.2",
+        "schema_version": "v0.3",
         "schema_ref": SCLITE_SCHEMA_REFS["policy_decision"],
         "decision_id": f"policy-{operation.id}",
         "created_at": operation.updated_at,
@@ -201,6 +211,8 @@ def build_policy_decision(
             "target_host": target_host,
             "target_in_scope": decision != "deny",
         },
+        "scope_assertion": scope_assertion,
+        "authority_decision": authority_decision,
         "capability": {
             "class": plan.risk,
             "name": plan.intent,
@@ -232,7 +244,7 @@ def build_execution_contract(
     capability_mode = _rexecop_mode(plan.mode)
     artifact: dict[str, Any] = {
         "artifact_type": "execution_contract",
-        "schema_version": "v0.2",
+        "schema_version": "v0.3",
         "schema_ref": SCLITE_SCHEMA_REFS["execution_contract"],
         "contract_id": f"exec-contract-{operation.id}",
         "created_at": operation.updated_at,
@@ -245,6 +257,7 @@ def build_execution_contract(
             "target_host": target_host,
             "target_in_scope": policy_decision["decision"] != "deny",
         },
+        "scope_assertion": dict(policy_decision["scope_assertion"]),
         "execution_shape": {
             "tool": primary_tool,
             "normalized_args": normalized_args,

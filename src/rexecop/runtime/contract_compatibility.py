@@ -35,8 +35,8 @@ _SCLITE_SCHEMA_REF_PATTERN = re.compile(r"schemas/([a-z_]+)\.(v\d+\.\d+)\.schema
 
 SUPPORTED_SCLITE_ARTIFACT_VERSIONS: dict[str, str] = {
     "intent_contract": "v0.2",
-    "policy_decision": "v0.2",
-    "execution_contract": "v0.2",
+    "policy_decision": "v0.3",
+    "execution_contract": "v0.3",
     "execution_ticket": "v0.3",
     "execution_receipt": "v0.2",
     "evidence_contract": "v0.2",
