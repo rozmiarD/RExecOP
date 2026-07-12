@@ -7,6 +7,7 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.operation.model import Operation, StateTransitionRecord, utc_now_iso
 from rexecop.operation.state import OperationState, validate_transition
+from rexecop.runtime_ops.attempts import AttemptJournal
 from rexecop.runtime_ops.coordinator import ACTIVE_RUNTIME_STATES
 from rexecop.runtime_ops.lease import DEFAULT_LEASE_TTL_SECONDS, WorkerLeaseManager
 from rexecop.runtime_ops.target_lock import TargetLockManager
@@ -49,6 +50,7 @@ def run_startup_recovery(
     cleared_lease = False
     released_locks = _release_stale_locks(locks)
     interrupted = _interrupt_active_operations(ctrl, observed_at=observed_at)
+    indeterminate_attempts = AttemptJournal(store.root).mark_started_indeterminate()
     receipt_repairs: list[dict[str, Any]] = []
     receipt_blockers: list[dict[str, Any]] = []
     if repair_receipts:
@@ -62,6 +64,7 @@ def run_startup_recovery(
             "cleared_stale_worker_lease": cleared_lease,
             "released_stale_locks": released_locks,
             "interrupted_operations": interrupted,
+            "indeterminate_attempts": indeterminate_attempts,
             "receipt_repairs": receipt_repairs,
             "receipt_blockers": receipt_blockers,
         },
@@ -70,10 +73,12 @@ def run_startup_recovery(
                 cleared_lease
                 or released_locks
                 or interrupted
+                or indeterminate_attempts
                 or receipt_repairs
                 or receipt_blockers
             ),
             "interrupted_count": len(interrupted),
+            "indeterminate_attempt_count": len(indeterminate_attempts),
             "released_lock_count": len(released_locks),
             "receipt_repair_count": len(receipt_repairs),
             "receipt_blocker_count": len(receipt_blockers),

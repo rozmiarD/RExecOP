@@ -19,6 +19,8 @@ from rexecop.execution.typed_spec import bind_step_execution_spec, compile_step_
 from rexecop.profile.loader import load_profile
 
 EvidenceHandler = Callable[[StepExecutionContext], dict[str, Any]]
+AttemptStartHandler = Callable[[StepExecutionContext, dict[str, Any] | None], dict[str, Any]]
+AttemptFinishHandler = Callable[[dict[str, Any], str, StepExecutionResult | None], None]
 
 _EXCLUDED_OUTPUT_STATE_DELTA_KEYS = frozenset(
     {
@@ -40,10 +42,14 @@ class StepExecutor:
         connector_dispatcher: ConnectorDispatcher | None = None,
         *,
         evidence_handler: EvidenceHandler | None = None,
+        attempt_start_handler: AttemptStartHandler | None = None,
+        attempt_finish_handler: AttemptFinishHandler | None = None,
         internal_handlers: Mapping[str, InternalHandler] | None = None,
     ) -> None:
         self.connector_dispatcher = connector_dispatcher or ConnectorDispatcher()
         self.evidence_handler = evidence_handler
+        self.attempt_start_handler = attempt_start_handler
+        self.attempt_finish_handler = attempt_finish_handler
         self._internal_handlers = load_internal_handlers(extra=internal_handlers)
 
     def execute(self, context: StepExecutionContext) -> StepExecutionResult:
@@ -113,30 +119,43 @@ class StepExecutor:
                         + str(admission.get("reason_code") or "denied")
                     ),
                 )
-        response = self.connector_dispatcher.invoke(
-            ConnectorRequest(
-                connector=connector,
-                action=action,
-                target=context.target,
-                mode=context.mode,
-                metadata={
-                    "execution_controls": dict(
-                        context.shared_state.get("execution_controls") or {}
-                    )
-                },
-            )
+        attempt = (
+            self.attempt_start_handler(context, spec)
+            if self.attempt_start_handler is not None
+            else None
         )
+        try:
+            response = self.connector_dispatcher.invoke(
+                ConnectorRequest(
+                    connector=connector,
+                    action=action,
+                    target=context.target,
+                    mode=context.mode,
+                    metadata={
+                        "execution_controls": dict(
+                            context.shared_state.get("execution_controls") or {}
+                        )
+                    },
+                )
+            )
+        except BaseException:
+            if attempt is not None and self.attempt_finish_handler is not None:
+                self.attempt_finish_handler(attempt, "indeterminate", None)
+            raise
         if not response.success:
             output = redact_payload(response.as_dict())
             error_class = str(response.data.get("error_class") or "")
             if error_class:
                 output["error_class"] = error_class
-            return StepExecutionResult(
+            result = StepExecutionResult(
                 step_id=step_id,
                 success=False,
                 output=output,
                 error=redact_text(response.error),
             )
+            if attempt is not None and self.attempt_finish_handler is not None:
+                self.attempt_finish_handler(attempt, "failed", result)
+            return result
         output = redact_payload(response.as_dict())
         before_state = response.data.get("before_state")
         after_state = response.data.get("after_state")
@@ -144,7 +163,10 @@ class StepExecutor:
             output["before_state"] = before_state
         if isinstance(after_state, dict):
             output["after_state"] = after_state
-        return StepExecutionResult(step_id=step_id, success=True, output=output)
+        result = StepExecutionResult(step_id=step_id, success=True, output=output)
+        if attempt is not None and self.attempt_finish_handler is not None:
+            self.attempt_finish_handler(attempt, "completed", result)
+        return result
 
     def _execute_internal(
         self,

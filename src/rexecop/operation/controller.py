@@ -106,9 +106,11 @@ class OperationController:
         manager = WorkerLeaseManager(self.store.root)
         record = manager.acquire(worker_id=worker_id)
         self._execution_lease = record
+        self.orchestrator.execution_lease_record = record
         try:
             yield record
         finally:
+            self.orchestrator.execution_lease_record = None
             self._execution_lease = None
             manager.release(
                 owner_token=str(record["owner_token"]),
@@ -740,6 +742,10 @@ class OperationController:
 
     def retry(self, operation_id: str) -> Operation:
         with self.execution_lease():
+            if self.orchestrator.attempts.has_indeterminate_side_effect(operation_id):
+                raise RExecOpValidationError(
+                    "outcome_indeterminate: side-effectful attempt requires explicit reconciliation"
+                )
             operation = self.get_operation(operation_id)
             if is_mutating_mode(operation.mode):
                 self.runtime.check_maintenance_window(operation)

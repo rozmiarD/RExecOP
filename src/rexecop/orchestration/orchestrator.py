@@ -9,6 +9,7 @@ from rexecop.adapters.govengine_port.contracts import (
     WAITING_DECISIONS,
     is_mutating_mode,
 )
+from rexecop.catalog.digest import canonical_digest
 from rexecop.connectors.composite_runtime import build_connector_runtime
 from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.errors import RExecOpStateError, RExecOpValidationError
@@ -16,7 +17,7 @@ from rexecop.escalation.package import build_escalation_package
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.evidence.manager import EvidenceManager
 from rexecop.evidence.public_projection import resolve_public_projection_allowlist
-from rexecop.execution.backend import StepExecutionResult
+from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
 from rexecop.execution.executor import StepExecutor
 from rexecop.execution.govengine_governance import typed_execution_governance_overlay
 from rexecop.observability.emitter import StructuredLogEmitter
@@ -30,6 +31,7 @@ from rexecop.policy.enforcement import (
 )
 from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import LoadedProfile, load_profile
+from rexecop.runtime_ops.attempts import AttemptJournal
 from rexecop.storage.port import RuntimeStore
 from rexecop.validation.validator import validate_operation_result
 from rexecop.workflow.runner import WorkflowRunner
@@ -110,6 +112,8 @@ class OperationOrchestrator:
         self._transition = transition
         self._export_receipt = export_receipt
         self._auto_reaction_handler = auto_reaction_handler
+        self.execution_lease_record: dict[str, Any] | None = None
+        self.attempts = AttemptJournal(store.root)
 
     def _runner_for_operation(self, operation: Operation) -> WorkflowRunner:
         connectors = operation.metadata.get("environment_connectors")
@@ -131,8 +135,53 @@ class OperationOrchestrator:
         executor = StepExecutor(
             connector_dispatcher=ConnectorDispatcher(runtime),
             evidence_handler=lambda ctx: self._export_receipt(ctx.operation_id),
+            attempt_start_handler=self._start_attempt,
+            attempt_finish_handler=self._finish_attempt,
         )
         return WorkflowRunner(executor)
+
+    def _start_attempt(
+        self, context: StepExecutionContext, spec: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        lease = self.execution_lease_record
+        if lease is None:
+            raise RExecOpValidationError("execution attempt requires active execution lease")
+        operation = self.store.load_operation(context.operation_id)
+        plan = self.store.load_plan(context.operation_id)
+        governance = operation.metadata.get("governance_admission")
+        permit_ref = ""
+        if isinstance(governance, dict):
+            permit_ref = str(governance.get("admission_digest") or "")
+        return self.attempts.start(
+            operation_id=operation.id,
+            operation_revision=operation.operation_revision,
+            step_id=str(context.step.get("id") or ""),
+            plan=plan.as_dict(),
+            execution_spec=spec,
+            target=context.target,
+            mode=context.mode,
+            lease=lease,
+            execution_permit_ref=permit_ref,
+        )
+
+    def _finish_attempt(
+        self,
+        attempt: dict[str, Any],
+        status: str,
+        result: StepExecutionResult | None,
+    ) -> None:
+        payload = result.as_dict() if result is not None else {}
+        error_class = (
+            "outcome_indeterminate"
+            if status == "indeterminate"
+            else str((payload.get("output") or {}).get("error_class") or "")
+        )
+        self.attempts.finish(
+            attempt,
+            status=status,
+            result_digest=("sha256:" + canonical_digest(payload)) if payload else "",
+            error_class=error_class,
+        )
 
     def start(self, operation_id: str) -> Operation:
         operation = self.store.load_operation(operation_id)
