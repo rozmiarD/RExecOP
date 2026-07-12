@@ -10,6 +10,13 @@ from rexecop.evidence.redaction import redact_payload
 from rexecop.profile.loader import LoadedProfile, load_profile
 
 PUBLIC_PROJECTION_SCHEMA = "rexecop.public_projection.v0.1"
+AUDIENCE_LOCAL_OPERATOR = "local_operator"
+AUDIENCE_RUNTIME_DIAGNOSTIC = "runtime_diagnostic"
+AUDIENCE_SUPPORT_BUNDLE = "support_bundle"
+AUDIENCE_PUBLIC_SHAREABLE = "public_shareable"
+PROJECTION_AUDIENCES = frozenset(
+    {AUDIENCE_RUNTIME_DIAGNOSTIC, AUDIENCE_SUPPORT_BUNDLE, AUDIENCE_PUBLIC_SHAREABLE}
+)
 
 TOP_LEVEL_SAFE_FIELDS = frozenset(
     {
@@ -24,6 +31,7 @@ TOP_LEVEL_SAFE_FIELDS = frozenset(
         "output_sizes",
         "max_output_bytes",
         "observed_destination_binding",
+        "audience",
     }
 )
 
@@ -57,6 +65,7 @@ def resolve_public_projection_allowlist(
     profile: LoadedProfile | Path | str | None,
     connector: str,
     action: str,
+    audience: str = AUDIENCE_PUBLIC_SHAREABLE,
 ) -> frozenset[str]:
     """Resolve profile-declared safe fields for one connector action."""
     loaded = _load_profile(profile)
@@ -72,7 +81,7 @@ def resolve_public_projection_allowlist(
         shape = shapes.get(action)
         if not isinstance(shape, Mapping):
             continue
-        declared = _safe_fields_from_shape(shape)
+        declared = _safe_fields_from_shape(shape, audience=audience)
         if declared:
             return declared
     return frozenset()
@@ -83,7 +92,25 @@ def sanitize_for_public_surface(
     *,
     allowlist: Collection[str] | None = None,
 ) -> Any:
-    """Apply allowlist projection first, then finite redaction detectors."""
+    return sanitize_for_audience(
+        payload,
+        audience=AUDIENCE_PUBLIC_SHAREABLE,
+        allowlist=allowlist,
+    )
+
+
+def sanitize_for_audience(
+    payload: Any,
+    *,
+    audience: str,
+    allowlist: Collection[str] | None = None,
+) -> Any:
+    """Apply the explicit audience contract before finite redaction detectors."""
+    normalized = str(audience or "").strip()
+    if normalized == AUDIENCE_LOCAL_OPERATOR:
+        return redact_payload(payload)
+    if normalized not in PROJECTION_AUDIENCES:
+        raise ValueError(f"unsupported projection audience: {normalized or 'missing'}")
     projected = project_public_payload(payload, allowlist=allowlist)
     return redact_payload(projected)
 
@@ -111,16 +138,26 @@ def _load_profile(profile: LoadedProfile | Path | str | None) -> LoadedProfile |
     return load_profile(path)
 
 
-def _safe_fields_from_shape(shape: Mapping[str, Any]) -> frozenset[str]:
+def _safe_fields_from_shape(
+    shape: Mapping[str, Any],
+    *,
+    audience: str,
+) -> frozenset[str]:
     projection = shape.get("public_projection")
     if isinstance(projection, Mapping):
-        raw_fields = projection.get("safe_fields")
+        audience_config = projection.get(audience)
+        if isinstance(audience_config, Mapping):
+            raw_fields = audience_config.get("safe_fields")
+        elif audience == AUDIENCE_PUBLIC_SHAREABLE:
+            raw_fields = projection.get("safe_fields")
+        else:
+            raw_fields = None
         if isinstance(raw_fields, list):
             fields = frozenset(str(item).strip() for item in raw_fields if str(item).strip())
             if any("*" in item for item in fields):
                 return frozenset()
             return fields
-    legacy = shape.get("safe_output_fields")
+    legacy = shape.get("safe_output_fields") if audience == AUDIENCE_PUBLIC_SHAREABLE else None
     if isinstance(legacy, list):
         fields = frozenset(str(item).strip() for item in legacy if str(item).strip())
         if any("*" in item for item in fields):

@@ -9,6 +9,10 @@ from typing import Any
 from sclite.artifacts import artifact_sha256
 
 from rexecop.errors import RExecOpValidationError
+from rexecop.evidence.public_projection import (
+    AUDIENCE_SUPPORT_BUNDLE,
+    sanitize_for_audience,
+)
 from rexecop.evidence.redaction import (
     REDACTED,
     contains_strong_secret_pattern,
@@ -186,10 +190,27 @@ def build_support_bundle(
         "status": _support_status(receipt, evidence, chain),
         "operation_id": operation.id,
         "redacted": True,
-        "operation": _operation_summary(operation),
-        "receipt": receipt,
-        "evidence": evidence,
-        "chain": chain,
+        "audience": AUDIENCE_SUPPORT_BUNDLE,
+        "operation": sanitize_for_audience(
+            _operation_summary(operation),
+            audience=AUDIENCE_SUPPORT_BUNDLE,
+            allowlist={"mode", "state"},
+        ),
+        "receipt": sanitize_for_audience(
+            receipt,
+            audience=AUDIENCE_SUPPORT_BUNDLE,
+            allowlist={"schema", "status"},
+        ),
+        "evidence": sanitize_for_audience(
+            evidence,
+            audience=AUDIENCE_SUPPORT_BUNDLE,
+            allowlist={"schema", "status"},
+        ),
+        "chain": sanitize_for_audience(
+            chain,
+            audience=AUDIENCE_SUPPORT_BUNDLE,
+            allowlist={"schema", "status"},
+        ),
         "safe_next_actions": _support_next_actions(operation.id, receipt, evidence, chain),
         "non_claims": [
             "Support bundle is a redacted diagnostic projection only.",

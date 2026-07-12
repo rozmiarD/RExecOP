@@ -28,6 +28,11 @@ Shareable evidence is allowlist-first. Structured state, response bodies, and
 diagnostics are digest-only by default. Only exact paths may be disclosed;
 wildcard subtrees never widen a public projection.
 
+Audience widening is never implicit. Local operator, runtime diagnostic, support
+bundle and public-shareable views are distinct contracts. Support/public views do
+not inherit local fields, and regression tests cover hostnames, addresses, usernames,
+inventory, topology, vulnerability details and customer identifiers.
+
 ## Residual deployment dependency
 
 Hostname validation alone cannot prevent DNS rebinding. Stable live deployments

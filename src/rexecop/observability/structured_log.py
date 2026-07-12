@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from rexecop.evidence.public_projection import sanitize_for_public_surface
+from rexecop.evidence.public_projection import (
+    AUDIENCE_RUNTIME_DIAGNOSTIC,
+    sanitize_for_audience,
+)
 from rexecop.evidence.redaction import redact_text
 from rexecop.observability.failure_classes import is_valid_failure_class
 
@@ -67,8 +70,11 @@ def build_structured_log_event(
         "event_kind": str(event_kind or "").strip(),
         "correlation_id": str(correlation_id or "").strip(),
         "message": redact_text(message),
+        "audience": AUDIENCE_RUNTIME_DIAGNOSTIC,
         "refs": (refs or StructuredLogRefs()).as_dict(),
-        "details": sanitize_for_public_surface(details or {}),
+        "details": sanitize_for_audience(
+            details or {}, audience=AUDIENCE_RUNTIME_DIAGNOSTIC
+        ),
         "non_claims": [
             "Structured logs are bounded runtime projections only.",
             "Does not expose raw secrets or private connector payloads.",

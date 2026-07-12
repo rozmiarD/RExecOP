@@ -47,6 +47,7 @@ def test_structured_log_event_schema_and_redaction() -> None:
     )
 
     assert event["schema"] == STRUCTURED_LOG_EVENT_SCHEMA
+    assert event["audience"] == "runtime_diagnostic"
     assert event["refs"]["operation_id"] == "op-1"
     assert event["refs"]["plan_id"] == "op-1"
     assert event["refs"]["evidence_ref"] == "ev-1"

@@ -133,7 +133,11 @@ def test_chain_summary_includes_operation_evidence_and_sclite_links(tmp_path: Pa
 
 
 def test_support_bundle_requires_redacted_and_includes_audit_sections(tmp_path: Path) -> None:
-    root, _, operation = _exported_operation(tmp_path)
+    root, controller, operation = _exported_operation(tmp_path)
+    operation.environment = "customer-9472-production"
+    operation.target = "customer-db-01.internal"
+    operation.requested_by = "customer-admin"
+    controller.store.save_operation(operation)
 
     unredacted = _invoke(root, "support", "bundle", operation.id)
     assert unredacted.exit_code == 1
@@ -146,6 +150,11 @@ def test_support_bundle_requires_redacted_and_includes_audit_sections(tmp_path: 
     payload = _json_output(result)
     assert payload["schema"] == "rexecop.support_bundle.v0.1"
     assert payload["redacted"] is True
+    assert payload["audience"] == "support_bundle"
     assert payload["receipt"]["schema"] == "rexecop.receipt_show.v0.1"
     assert payload["evidence"]["schema"] == "rexecop.evidence_show.v0.1"
     assert payload["chain"]["schema"] == "rexecop.chain_summary.v0.1"
+    serialized = json.dumps(payload, sort_keys=True)
+    assert "customer-9472-production" not in serialized
+    assert "customer-db-01.internal" not in serialized
+    assert "customer-admin" not in serialized

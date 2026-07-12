@@ -70,6 +70,10 @@ M7 audit commands expose operator-facing projections over the existing runtime s
 
 These commands do not create new truth artifacts, do not read secrets and do not print raw
 connector output. `support bundle` deliberately requires `--redacted`.
+The bundle declares `audience: support_bundle` and applies a separate bounded allowlist;
+it does not reuse the broader runtime-local operator view. Structured logs declare
+`audience: runtime_diagnostic`, while connector public evidence follows the
+`public_shareable` contract.
 
 ## Connector and API payloads
 

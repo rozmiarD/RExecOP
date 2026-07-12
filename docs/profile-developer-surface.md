@@ -205,6 +205,12 @@ digest-only projections (`rexecop.public_projection.v0.1`). Paths must be exact 
 response bodies and diagnostics are digest-only by default. Built-in action templates ship
 explicit starter allowlists for shell/SSH stdout/stderr and HTTP bounded error snippets.
 
+Projection audiences are explicit: `local_operator` is a runtime-local redacted view,
+`runtime_diagnostic` is digest-first, `support_bundle` uses its own bounded allowlist,
+and `public_shareable` uses the profile's public allowlist. A profile may declare
+`public_projection.support_bundle.safe_fields`; it is never inferred from the local
+view. Legacy `public_projection.safe_fields` applies only to `public_shareable`.
+
 ## Plugin compatibility report
 
 `build_plugin_compatibility_report()` (used by `profiles show` and developer
