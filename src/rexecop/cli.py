@@ -243,10 +243,23 @@ _LIFECYCLE_LOOKUP_ACTIONS = (
 
 
 def _lifecycle_lookup_failure(command: tuple[str, ...], exc: RExecOpError) -> None:
+    stable_runtime_codes = {
+        "unsafe_destination",
+        "concurrency_conflict",
+        "lease_lost",
+        "outcome_indeterminate",
+    }
+    code = str(getattr(exc, "reason_code", "runtime_error"))
+    reason_code = code if code in stable_runtime_codes else "operation_lookup_failed"
+    message = (
+        str(getattr(exc, "public_message", "runtime operation failed"))
+        if code in stable_runtime_codes
+        else str(exc)
+    )
     emit_failure(
         command=command,
-        message=str(exc),
-        reason_code="operation_lookup_failed",
+        message=message,
+        reason_code=reason_code,
         safe_next_actions=_LIFECYCLE_LOOKUP_ACTIONS,
     )
 

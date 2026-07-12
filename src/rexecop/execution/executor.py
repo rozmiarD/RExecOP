@@ -10,7 +10,7 @@ from typing import Any
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
-from rexecop.errors import RExecOpValidationError
+from rexecop.errors import RExecOpError, RExecOpValidationError
 from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
 from rexecop.execution.govengine_governance import enforce_typed_execution_governance
@@ -72,11 +72,17 @@ class StepExecutor:
         except Exception as exc:  # noqa: BLE001 - step boundary
             context.shared_state.clear()
             context.shared_state.update(state_before)
+            if isinstance(exc, RExecOpError):
+                reason_code = str(getattr(exc, "reason_code", "runtime_error"))
+                message = str(getattr(exc, "public_message", "runtime operation failed"))
+            else:
+                reason_code = "internal_error"
+                message = "connector execution failed"
             return StepExecutionResult(
                 step_id=step_id,
                 success=False,
-                output={},
-                error=redact_text(str(exc)),
+                output={"error_class": reason_code, "reason_code": reason_code},
+                error=message,
             )
 
     def _execute_connector(

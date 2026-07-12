@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from rexecop.errors import RExecOpValidationError
+from rexecop.errors import RExecOpLeaseLost, RExecOpValidationError
 from rexecop.storage.atomic import atomic_write_text, secure_directory, secure_file
 
 WORKER_LEASE_SCHEMA = "rexecop.worker_lease.v0.2"
@@ -97,7 +97,7 @@ class WorkerLeaseManager:
             if existing and not self.is_stale(
                 existing, now=observed_at, max_age_seconds=max_age_seconds
             ):
-                raise RExecOpValidationError(
+                raise RExecOpLeaseLost(
                     f"worker lease held by {str(existing.get('worker_id') or '')!r}"
                 )
             persisted_epoch = 0
@@ -163,7 +163,7 @@ class WorkerLeaseManager:
                 str(lease.get("process_instance_id") or ""),
             )
             if self.is_stale(existing, now=now):
-                raise RExecOpValidationError("lease_lost: execution lease expired")
+                raise RExecOpLeaseLost("execution lease expired")
 
     def _require_owner(
         self, owner_token: str, lease_epoch: int, process_instance_id: str
@@ -174,7 +174,7 @@ class WorkerLeaseManager:
             or int(existing.get("lease_epoch") or 0) != lease_epoch
             or str(existing.get("process_instance_id") or "") != process_instance_id
         ):
-            raise RExecOpValidationError("worker lease ownership conflict")
+            raise RExecOpLeaseLost("worker lease ownership conflict")
         return existing
 
     def _write_unlocked(self, record: dict[str, Any]) -> None:

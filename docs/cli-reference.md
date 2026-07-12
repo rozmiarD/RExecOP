@@ -144,6 +144,12 @@ The envelope contains:
 - `safe_next_actions`: bounded operator next steps;
 - `details`: redacted diagnostic projection from the failing command when useful.
 
+Execution-kernel failures use stable codes `unsafe_destination`,
+`concurrency_conflict`, `lease_lost`, and `outcome_indeterminate`. Public
+envelopes use bounded messages and never include traceback or raw unexpected
+exception text. Retry classification uses the recorded `error_class`, not
+exception-message parsing.
+
 Exit-code policy for registry commands:
 
 | Exit code | Meaning | Output |

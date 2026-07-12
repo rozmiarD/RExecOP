@@ -90,8 +90,9 @@ def test_recovery_marks_started_attempt_indeterminate_and_blocks_effect_retry(
     assert recovered["status"] == "indeterminate"
     assert recovered["error_class"] == "outcome_indeterminate"
     assert report["summary"]["indeterminate_attempt_count"] == 1
-    with pytest.raises(RExecOpValidationError, match="outcome_indeterminate"):
+    with pytest.raises(RExecOpValidationError) as caught:
         controller.retry(operation.id)
+    assert caught.value.reason_code == "outcome_indeterminate"
 
 
 def test_process_loss_after_possible_io_recovers_deterministically(tmp_path: Path) -> None:

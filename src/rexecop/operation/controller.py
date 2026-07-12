@@ -27,7 +27,11 @@ from rexecop.connectors.action_shape import validate_http_action_shape
 from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import sanitize_connectors_for_storage, validate_no_inline_secrets
 from rexecop.environment.targets import validate_operation_target
-from rexecop.errors import RExecOpConcurrencyConflict, RExecOpValidationError
+from rexecop.errors import (
+    RExecOpConcurrencyConflict,
+    RExecOpOutcomeIndeterminate,
+    RExecOpValidationError,
+)
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.observability.emitter import StructuredLogEmitter
 from rexecop.observability.evidence import ObservabilityEvidenceManager
@@ -735,8 +739,8 @@ class OperationController:
     def retry(self, operation_id: str) -> Operation:
         with self.execution_lease():
             if self.store.has_indeterminate_side_effect(operation_id):
-                raise RExecOpValidationError(
-                    "outcome_indeterminate: side-effectful attempt requires explicit reconciliation"
+                raise RExecOpOutcomeIndeterminate(
+                    "side-effectful attempt requires explicit reconciliation"
                 )
             operation = self.get_operation(operation_id)
             if is_mutating_mode(operation.mode):
