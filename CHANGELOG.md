@@ -14,6 +14,8 @@
   immediately before connector IO and bound to operation/plan/spec/admission/target/lease facts.
 - Adds typed stable runtime reason codes for unsafe destinations, CAS conflicts,
   lost leases and indeterminate outcomes; unknown exception text is not projected publicly.
+- Hardens trusted in-process plugins with versioned signature contracts, built-in
+  collision guards, bounded compatibility failures and stable-doctor inventory/allowlist checks.
 
 - Starts M8.6 security hardening: pagination is same-origin only with loop
   detection, auth headers cannot target transport-reserved names, and public

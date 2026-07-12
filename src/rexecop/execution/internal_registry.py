@@ -4,7 +4,9 @@ from collections.abc import Callable, Mapping
 from importlib.metadata import entry_points
 from typing import Any
 
+from rexecop.errors import RExecOpValidationError
 from rexecop.execution.backend import StepExecutionContext
+from rexecop.plugins.contract import validate_internal_registrar
 
 InternalHandler = Callable[[StepExecutionContext], dict[str, Any]]
 
@@ -42,6 +44,18 @@ def _iter_internal_action_entry_points() -> list:
     return list(entry_points(group=INTERNAL_ACTION_ENTRY_GROUP))
 
 
+def internal_action_plugin_inventory() -> list[dict[str, Any]]:
+    return [
+        {
+            "name": ep.name,
+            "entry_group": INTERNAL_ACTION_ENTRY_GROUP,
+            "trusted_in_process": True,
+            "contract": "rexecop.internal_action_registrar.v1",
+        }
+        for ep in _iter_internal_action_entry_points()
+    ]
+
+
 def load_internal_handlers(
     *,
     extra: Mapping[str, InternalHandler] | None = None,
@@ -51,10 +65,21 @@ def load_internal_handlers(
     for ep in _iter_internal_action_entry_points():
         loaded = ep.load()
         if callable(loaded):
+            validate_internal_registrar(loaded)
             registered = loaded()
             if isinstance(registered, Mapping):
+                collisions = sorted(set(registered) & set(handlers))
+                if collisions:
+                    raise RExecOpValidationError(
+                        "plugin_name_collision: internal action: " + ",".join(collisions)
+                    )
                 handlers.update(registered)
     if extra:
+        collisions = sorted(set(extra) & set(handlers))
+        if collisions:
+            raise RExecOpValidationError(
+                "plugin_name_collision: internal action: " + ",".join(collisions)
+            )
         handlers.update(extra)
     return handlers
 
@@ -64,7 +89,13 @@ def list_registered_internal_actions() -> list[str]:
     for ep in _iter_internal_action_entry_points():
         loaded = ep.load()
         if callable(loaded):
+            validate_internal_registrar(loaded)
             registered = loaded()
             if isinstance(registered, Mapping):
+                collisions = sorted(set(registered) & names)
+                if collisions:
+                    raise RExecOpValidationError(
+                        "plugin_name_collision: internal action: " + ",".join(collisions)
+                    )
                 names.update(registered)
     return sorted(names)

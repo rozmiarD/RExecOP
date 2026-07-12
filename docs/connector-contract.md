@@ -203,6 +203,9 @@ classes fail closed before backend IO.
 
 Plugin entry points report `certification_tier: plugin`. See
 [profile-developer-surface.md](profile-developer-surface.md).
+They execute as trusted in-process code under the versioned factory contract; RExecOp does
+not claim process isolation or sandboxing. Compatibility reports bound plugin exceptions and
+never include raw plugin exception text.
 
 ## Boundary
 

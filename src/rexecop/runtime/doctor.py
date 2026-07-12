@@ -12,6 +12,7 @@ from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
 from rexecop.profile.conformance import validate_profile_conformance
+from rexecop.profile.extension_manifest import build_plugin_compatibility_report
 from rexecop.runtime.contract_compatibility import (
     DOCTOR_REPORT_SCHEMA,
     contract_versions_summary,
@@ -37,6 +38,8 @@ def run_runtime_doctor(
     env_path: Path | None = None,
     catalog_path: Path | None = None,
     executor_posture: str | None = None,
+    deployment_posture: str | None = None,
+    plugin_allowlist: str | None = None,
 ) -> dict[str, Any]:
     profile_check = _check_profile(profile)
     expected_profile = str((profile_check.get("details") or {}).get("profile") or "")
@@ -45,6 +48,12 @@ def run_runtime_doctor(
         _check_runtime_root(root),
         storage_check,
         _check_executor_posture(executor_posture or os.environ.get("REXECOP_EXECUTOR_POSTURE")),
+        _check_plugin_posture(
+            deployment_posture or os.environ.get("REXECOP_DEPLOYMENT_POSTURE") or "alpha",
+            plugin_allowlist
+            if plugin_allowlist is not None
+            else os.environ.get("REXECOP_PLUGIN_ALLOWLIST"),
+        ),
         _check_runtime_layout(root),
         _check_stack_packages(),
         _check_typed_execution_stack_compatibility(),
@@ -158,6 +167,57 @@ def _check_executor_posture(value: str | None) -> dict[str, Any]:
             "requested": posture,
             "certified": "single_executor",
             "lease_scope": "one runtime root",
+        },
+    )
+
+
+def _check_plugin_posture(
+    deployment_posture: str,
+    allowlist_value: str | None,
+) -> dict[str, Any]:
+    posture = deployment_posture.strip().lower()
+    report = build_plugin_compatibility_report()
+    inventory = report.get("inventory") or {}
+    connector_plugins = [
+        str(item.get("name") or "") for item in inventory.get("connector_backends") or []
+    ]
+    internal_plugins = [
+        str(item.get("name") or "") for item in inventory.get("internal_action_registrars") or []
+    ]
+    installed = sorted(set(connector_plugins + internal_plugins) - {""})
+    allowlist = sorted(
+        {item.strip() for item in (allowlist_value or "").split(",") if item.strip()}
+    )
+    unallowed = sorted(set(installed) - set(allowlist))
+    compatibility_failures = list(report.get("failed") or [])
+    blockers = list(compatibility_failures)
+    if posture == "stable":
+        blockers.extend(unallowed)
+    if blockers:
+        return _check(
+            "plugin_posture",
+            CHECK_BLOCKER,
+            "plugin inventory is incompatible with the requested deployment posture",
+            details={
+                "deployment_posture": posture,
+                "execution_model": "trusted_in_process",
+                "installed": installed,
+                "allowlist": allowlist,
+                "unallowed": unallowed,
+                "compatibility_failures": compatibility_failures,
+            },
+            next_action="set REXECOP_PLUGIN_ALLOWLIST to reviewed plugin entry-point names",
+        )
+    return _check(
+        "plugin_posture",
+        CHECK_PASSED,
+        "trusted in-process plugin inventory is compatible",
+        details={
+            "deployment_posture": posture,
+            "execution_model": "trusted_in_process",
+            "sandboxed": False,
+            "installed": installed,
+            "allowlist": allowlist,
         },
     )
 

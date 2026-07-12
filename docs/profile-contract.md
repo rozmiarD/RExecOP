@@ -79,6 +79,13 @@ does not ship or document domain-specific backend names as core behavior. Prefer
 built-in generic backends (`http_api`, `ssh_readonly`, `local_shell_readonly`,
 `static_fixture`) unless a profile package explicitly owns an extension.
 
+Plugins are **trusted in-process code**, not sandboxed workloads. Connector factories must
+implement `rexecop.connector_backend_factory.v1`; internal registrars implement
+`rexecop.internal_action_registrar.v1`. Plugin names cannot replace built-ins, and factory
+`TypeError` is a plugin failure rather than a signal to retry a legacy zero-argument call.
+Stable deployment requires every installed plugin entry-point name in
+`REXECOP_PLUGIN_ALLOWLIST`; `rexecop doctor` reports and enforces that inventory.
+
 Environment YAML may reference a backend name directly:
 
 ```yaml

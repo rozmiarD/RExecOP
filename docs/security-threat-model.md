@@ -10,6 +10,8 @@
   files, and operator egress controls are operator-owned inputs.
 - Connector responses, pagination links, redirects, remote output, diagnostics,
   plugin output, and profile-supplied public-field declarations are untrusted.
+- Plugin packages themselves are trusted in-process code. Stable posture requires an
+  explicit entry-point allowlist; RExecOp does not claim an out-of-process sandbox.
 
 ## Required invariants
 
