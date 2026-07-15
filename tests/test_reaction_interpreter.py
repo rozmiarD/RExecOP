@@ -15,6 +15,7 @@ from rexecop.operation.controller import OperationController
 from rexecop.operation.model import Operation, utc_now_iso
 from rexecop.operation.state import OperationState
 from rexecop.profile.loader import load_profile
+from rexecop.reaction.automation_admission import admit_automation_transition_request
 from rexecop.reaction.compiler import compile_reaction_pack
 from rexecop.reaction.evaluator import evaluate_reaction
 from rexecop.reaction.model import ReactionContext
@@ -29,6 +30,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PROFILE = ROOT / "examples/profiles/runtime-fixture"
 POLICY_ENV = ROOT / "examples/environments/runtime-fixture.policy.example.yaml"
 runner = CliRunner()
+
+
+def _digest(char: str) -> str:
+    return "sha256:" + char * 64
 
 
 def _pack(*, outcome: str = "run_intent", intent_ref: str | None = "inspect_fixture_state") -> dict:
@@ -368,6 +373,38 @@ def test_reaction_records_govengine_automation_admission_digest(
     explanation = service.explain(reaction_id)
     assert explanation["automation_admission"]["decision_digest"] == "sha256:" + "3" * 64
     assert explanation["automation_chain"]["status"] == "passed"
+
+
+def test_automation_adapter_is_planning_only_and_carries_no_execution_authority() -> None:
+    binding = admit_automation_transition_request(
+        {
+            "request_id": "automation-request-1",
+            "chain_id": "chain-1",
+            "parent_operation_id": "op-parent",
+            "parent_operation_ref": _digest("a"),
+            "parent_intent": "collect_basic_host_inventory",
+            "parent_status": "completed",
+            "child_operation_id": "op-child",
+            "child_intent": "summarize_inventory",
+            "child_intent_class": "readonly_followup",
+            "transition_reason": "parent_completed_with_followup",
+            "automation_chain_ref": _digest("b"),
+            "automation_chain_schema_ref": "schemas/automation_chain.v0.1.schema.json",
+            "source": "reaction",
+            "depth": 1,
+            "max_depth": 3,
+            "child_sequence": 1,
+            "max_children": 2,
+            "allowed_child_intent_classes": ["readonly_followup"],
+        }
+    )
+
+    assert binding.status == "admitted"
+    assert binding.admission["metadata"]["governance_flow"] == (
+        "planning_admission_adapter.v1"
+    )
+    assert binding.admission["metadata"]["execution_authority"] is False
+    assert "authorization" not in binding.admission
 
 
 def test_repeated_reaction_plan_reuses_child_operation(tmp_path: Path) -> None:

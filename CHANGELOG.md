@@ -2,6 +2,10 @@
 
 ## Unreleased — explicit orchestration contract ownership
 
+- Verifies trigger, supervisor and automation planning admissions as explicitly
+  non-executable GovEngine adapters. Cross-stack G3 coverage requires the
+  `planning_admission_adapter.v1` marker, rejects any authorization field and
+  leaves canonical attempt-bound governance on the pre-I/O execution path.
 - Types the signed-decision consumer against GovEngine's module-scoped
   `DecisionClaimPort`; existing RExecOp stores remain the sole implementations
   of atomic claim persistence, locking and recovery durability.

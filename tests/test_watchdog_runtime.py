@@ -63,6 +63,12 @@ def test_watchdog_records_worker_heartbeat(tmp_path: Path) -> None:
     assert artifact["schema_ref"] == "schemas/watchdog_decision.v0.1.schema.json"
     assert artifact["observation"]["record_id"] == record["record_id"]
     assert artifact["admission"]["outcome"] == "record_only"
+    admission = service._admit_record(record)["admission"]
+    assert admission["metadata"]["governance_flow"] == (
+        "planning_admission_adapter.v1"
+    )
+    assert admission["metadata"]["execution_authority"] is False
+    assert "authorization" not in admission
     assert artifact["authority"] == {
         "truth_layer": "sclite",
         "supervisor": "rexecop",

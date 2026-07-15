@@ -203,6 +203,14 @@ govengine-supervisor explain request.json --json
 `gates_checked`, `reason_code`, `blockers`, and `safe_next_actions`. Digest-bound
 `request_digest` and `admission_digest` align with `admit_supervisor_action()`.
 
+Trigger, supervisor and automation admission records are planning-only
+adapters. Their metadata carries
+`governance_flow=planning_admission_adapter.v1` and
+`execution_authority=false`; these records must not be supplied where a signed,
+attempt-bound `GovernanceDecision` is required. If planning creates an
+executable operation, the normal RExecOp pre-I/O path still obtains, verifies
+and atomically claims the canonical decision.
+
 See [runtime-recovery-ops.md](runtime-recovery-ops.md) and GovEngine
 [RUNTIME_ADMISSION.md](https://github.com/rozmiarD/GovEngine/blob/main/docs/RUNTIME_ADMISSION.md#supervisor-action-explanation).
 
@@ -211,7 +219,7 @@ See [runtime-recovery-ops.md](runtime-recovery-ops.md) and GovEngine
 Reaction-planned child operations are projected into SCLite
 `automation_chain.v0.1` artifacts. RExecOp owns runtime projection and
 child-operation plan mechanics; SCLite owns the chain artifact shape; GovEngine
-`0.16.11` owns automation-transition admission through:
+owns automation-transition admission through:
 
 - `AutomationTransitionRequest`
 - `admit_automation_transition()`
@@ -222,8 +230,8 @@ child-operation plan mechanics; SCLite owns the chain artifact shape; GovEngine
 RExecOp records the request digest, admission digest and redacted explanation in
 the reaction admission binding and writes the GovEngine admission digest onto the
 `admitted_child` edge. The runtime still reports the binding as `unavailable`
-for older local GovEngine installs, but the supported package line requires
-`govengine==0.16.11`.
+for older local GovEngine installs. The supported package line is defined by
+the exact `govengine` pin in `pyproject.toml`.
 
 ## Profile governance (G3)
 

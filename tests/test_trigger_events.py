@@ -162,6 +162,13 @@ def test_trigger_event_plans_operation_and_records_decision_evidence(tmp_path: P
     assert decision["admission"]["request"]["decision"] == "plan_operation"
     assert decision["admission"]["request"]["operation_mode"] == "dry_run"
     assert decision["admission"]["admission"]["allowed"] is True
+    assert decision["admission"]["admission"]["metadata"] == {
+        "source": "trigger_planning_request",
+        "schema_version": "v0.1",
+        "governance_flow": "planning_admission_adapter.v1",
+        "execution_authority": False,
+    }
+    assert "authorization" not in decision["admission"]["admission"]
     assert decision["admission"]["request_digest"].startswith("sha256:")
     assert decision["admission"]["admission_digest"].startswith("sha256:")
     assert decision["sclite"]["schema_ref"] == "schemas/trigger_decision.v0.1.schema.json"
