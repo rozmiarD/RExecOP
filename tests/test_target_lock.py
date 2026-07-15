@@ -47,7 +47,10 @@ def test_target_lock_blocks_second_apply_on_same_target(tmp_path: Path) -> None:
     assert lock_files[0].parent.stat().st_mode & 0o777 == 0o700
 
 
-def test_target_lock_released_after_completion(tmp_path: Path) -> None:
+def test_target_lock_released_after_completion(
+    tmp_path: Path,
+    allow_mutation_without_governance_for_runtime_test: None,
+) -> None:
     controller = _controller(tmp_path)
     operation = controller.plan(
         profile_path=PROFILE,
@@ -58,7 +61,10 @@ def test_target_lock_released_after_completion(tmp_path: Path) -> None:
     )
     completed = controller.start(operation.id)
     assert completed.state == OperationState.COMPLETED.value
-    assert controller.runtime.target_lock.holder_operation_id(
-        operation.environment,
-        operation.target,
-    ) is None
+    assert (
+        controller.runtime.target_lock.holder_operation_id(
+            operation.environment,
+            operation.target,
+        )
+        is None
+    )

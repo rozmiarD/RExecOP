@@ -2,6 +2,15 @@
 
 ## Unreleased — explicit orchestration contract ownership
 
+- Projects a GovEngine-owned digest over the bounded runtime capability
+  descriptor instead of reusing the digest of RExecOp's larger source record.
+- Removes the fallback that treated backend-declared capabilities as operation
+  requirements. Profiles now declare `required_capability_descriptors`, and
+  RExecOp only carries those requirements into GovEngine admission.
+- Keeps outbound destination admission fail closed unless an independent
+  digest-bound network-policy projection is supplied; connector destination
+  metadata cannot create its own allowlist.
+
 - Completes M9 certified single-host runtime: fenced single-executor leases,
   monotonic operation CAS, atomic FIFO queue claims, durable connector attempts,
   deterministic `outcome_indeterminate` recovery and an operation-record outbox

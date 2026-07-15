@@ -13,6 +13,10 @@ from govengine import (
 from govengine.typed_execution_governance import (
     evaluate_typed_execution_stack_compatibility as govengine_stack_compatibility,
 )
+from govengine.typed_execution_governance import (
+    network_policy_binding_digest,
+    runtime_capability_descriptor_digest,
+)
 
 from rexecop.catalog.digest import canonical_digest
 from rexecop.connectors.errors import READ_ONLY_MODES
@@ -52,9 +56,7 @@ def build_typed_execution_stack_compatibility_request(
     return {
         "schema_version": "v0.1",
         "request_id": request_id,
-        "backend_descriptors": [
-            item.as_dict() for item in list_connector_backend_descriptors()
-        ],
+        "backend_descriptors": [item.as_dict() for item in list_connector_backend_descriptors()],
         "required_controls": list(EXPECTED_TYPED_EXECUTION_CONTROLS),
     }
 
@@ -143,10 +145,30 @@ def build_typed_execution_governance_request(
         approval_ref = _approval_evidence_ref_from_shared_state(shared_state)
         if approval_ref:
             evidence["approval_evidence_ref"] = approval_ref
-    egress = allowed_network_egress or overlay.get("allowed_network_egress")
-    if not egress:
-        egress = [_default_allowed_egress(capability)]
-    required = required_capability_descriptors or overlay.get("required_capability_descriptors")
+    policy_egress = allowed_network_egress or overlay.get("allowed_network_egress")
+    network_policy_raw = spec.get("network_policy_binding")
+    network_policy = dict(network_policy_raw) if isinstance(network_policy_raw, Mapping) else {}
+    if policy_egress:
+        requested_egress = [str(item) for item in policy_egress]
+        profile_egress = network_policy.get("allowed_network_egress")
+        if isinstance(profile_egress, list):
+            network_policy["allowed_network_egress"] = [
+                item for item in profile_egress if item in requested_egress
+            ]
+        else:
+            network_policy["allowed_network_egress"] = requested_egress
+    egress = network_policy.get("allowed_network_egress")
+    if not isinstance(egress, list):
+        actual_egress = _default_allowed_egress(capability)
+        egress = [actual_egress] if actual_egress in {"no_network", "local_subprocess"} else []
+    if required_capability_descriptors is not None:
+        required = list(required_capability_descriptors)
+    elif isinstance(overlay.get("required_capability_descriptors"), list):
+        required = list(overlay["required_capability_descriptors"])
+    elif isinstance(spec.get("required_capability_descriptors"), list):
+        required = list(spec["required_capability_descriptors"])
+    else:
+        required = []
     request_metadata: dict[str, Any] = {}
     allowed_backends = overlay.get("allowed_backend_classes")
     if isinstance(allowed_backends, list) and allowed_backends:
@@ -160,19 +182,12 @@ def build_typed_execution_governance_request(
     if isinstance(destination, Mapping):
         destination_fields = {
             "destination_binding": dict(destination),
-            "allowed_network_schemes": [str(destination.get("scheme") or "")],
-            "allowed_address_classes": [str(destination.get("address_class") or "")],
-            "required_origin_binding_digest": str(
-                destination.get("origin_binding_digest") or ""
-            ),
         }
         request_metadata["require_destination_binding"] = True
-    if not required:
-        declared = capability.get("declared_capability_descriptors")
-        required = list(declared) if isinstance(declared, list) else []
     request_id = str(overlay.get("request_id") or "").strip() or (
         f"rexecop-typed-execution:{operation_id}:{step_id}"
     )
+    capability_projection = _runtime_capability_projection(capability)
     return {
         "schema_version": "v0.1",
         "request_id": request_id,
@@ -180,7 +195,7 @@ def build_typed_execution_governance_request(
         "step_id": step_id,
         "operation_mode": mode,
         "step_execution_spec_digest": str(spec.get("digest") or "").strip(),
-        "capability_descriptor_digest": str(capability.get("digest") or "").strip(),
+        "capability_descriptor_digest": runtime_capability_descriptor_digest(capability_projection),
         "payload_schema": str(spec.get("payload_schema") or "").strip(),
         "payload_digest": _payload_digest(spec),
         "backend_class": str(spec.get("backend_class") or "").strip(),
@@ -188,9 +203,13 @@ def build_typed_execution_governance_request(
         "action": str(spec.get("action") or "").strip(),
         "read_only": bool(spec.get("read_only")),
         "side_effect_class": _side_effect_class(spec),
-        "capability_descriptor": _runtime_capability_projection(capability),
+        "capability_descriptor": capability_projection,
         "evidence_requirements": evidence,
         "allowed_network_egress": list(egress),
+        "network_policy_binding": network_policy,
+        "network_policy_binding_digest": (
+            network_policy_binding_digest(network_policy) if network_policy else ""
+        ),
         "required_capability_descriptors": list(required),
         "metadata": request_metadata,
         **destination_fields,
@@ -312,14 +331,10 @@ def _runtime_capability_projection(descriptor: Mapping[str, Any]) -> dict[str, A
         "read_only_backend": bool(descriptor.get("read_only_backend", False)),
         "live_backend_posture": str(descriptor.get("live_backend_posture") or "").strip(),
         "network_boundary": dict(network_boundary) if isinstance(network_boundary, Mapping) else {},
-        "secret_ref_requirements": [
-            dict(item) for item in secret_refs if isinstance(item, Mapping)
-        ]
+        "secret_ref_requirements": [dict(item) for item in secret_refs if isinstance(item, Mapping)]
         if isinstance(secret_refs, list)
         else [],
-        "declared_capability_descriptors": list(declared)
-        if isinstance(declared, list)
-        else [],
+        "declared_capability_descriptors": list(declared) if isinstance(declared, list) else [],
         "certification_tier": str(descriptor.get("certification_tier") or "").strip(),
         "mode": str(descriptor.get("mode") or "").strip(),
     }

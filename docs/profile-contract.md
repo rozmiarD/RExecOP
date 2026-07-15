@@ -99,6 +99,31 @@ connectors:
 Domain API semantics belong in profile connector YAML and operator environment files, not in
 `src/rexecop`.
 
+Connector contracts that participate in typed execution declare GovEngine
+operation requirements independently of the backend inventory:
+
+```yaml
+connector:
+  name: fixture_source
+  capabilities:
+    - read_fixture_state
+  required_capability_descriptors:
+    - connector.fixture.static
+```
+
+`required_capability_descriptors` must be a duplicate-free list of non-empty
+strings. It describes what the operation requires; the backend capability
+descriptor separately describes what the runtime offers. RExecOp does not fill
+missing requirements from backend declarations.
+
+Profiles that deliberately support more than one backend can use
+`required_capability_descriptors_by_backend`; an entry may be a list or an
+action-to-list mapping. The generic list remains the fallback. Outbound
+connectors also declare an independent `network_policy_binding` (or
+`network_policy_binding_by_backend`) with allowed egress, schemes and address
+classes. These fields belong to the profile contract and are never inferred
+from the environment's requested destination.
+
 RExecOp core must **never** import `tecrax` or `tecrax_profile`. CI enforces this with a grep
 guard on `src/rexecop`.
 

@@ -43,7 +43,10 @@ def test_pause_only_at_pause_safe_step(tmp_path: Path) -> None:
         controller.pause(operation.id)
 
 
-def test_resume_continues_apply_workflow(tmp_path: Path) -> None:
+def test_resume_continues_apply_workflow(
+    tmp_path: Path,
+    allow_mutation_without_governance_for_runtime_test: None,
+) -> None:
     controller = _controller(tmp_path, GovEngineDecisionType.ALLOWED)
     operation = controller.plan(
         profile_path=PROFILE,

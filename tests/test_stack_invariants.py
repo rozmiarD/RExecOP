@@ -127,7 +127,8 @@ def test_typed_execution_governance_binds_spec_and_capability_digests() -> None:
         mode="dry_run",
     )
     assert request["step_execution_spec_digest"] == spec["digest"]
-    assert request["capability_descriptor_digest"] == spec["capability_descriptor"]["digest"]
+    assert request["capability_descriptor_digest"].startswith("sha256:")
+    assert request["capability_descriptor_digest"] != spec["capability_descriptor"]["digest"]
 
 
 def test_typed_execution_binding_blocks_missing_output_digest_when_required() -> None:

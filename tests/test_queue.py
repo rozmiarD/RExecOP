@@ -45,7 +45,10 @@ def test_queue_respects_max_concurrent_operations(tmp_path: Path) -> None:
     assert queue_file.parent.stat().st_mode & 0o777 == 0o700
 
 
-def test_process_queue_starts_next_operation(tmp_path: Path) -> None:
+def test_process_queue_starts_next_operation(
+    tmp_path: Path,
+    allow_mutation_without_governance_for_runtime_test: None,
+) -> None:
     controller = _controller(tmp_path)
     first = controller.plan(
         profile_path=PROFILE,

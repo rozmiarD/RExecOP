@@ -31,7 +31,10 @@ def _controller(tmp_path: Path) -> OperationController:
     )
 
 
-def test_auto_retry_transient_connector_error(tmp_path: Path) -> None:
+def test_auto_retry_transient_connector_error(
+    tmp_path: Path,
+    allow_mutation_without_governance_for_runtime_test: None,
+) -> None:
     StaticFixtureRuntime.set_failures(
         "fixture_source",
         "apply_fixture_change",
@@ -52,7 +55,10 @@ def test_auto_retry_transient_connector_error(tmp_path: Path) -> None:
     assert OperationState.RETRYING.value in history
 
 
-def test_policy_denied_not_retried(tmp_path: Path) -> None:
+def test_policy_denied_not_retried(
+    tmp_path: Path,
+    allow_mutation_without_governance_for_runtime_test: None,
+) -> None:
     StaticFixtureRuntime.set_failures(
         "fixture_source",
         "apply_fixture_change",
@@ -75,7 +81,10 @@ def test_policy_denied_not_retried(tmp_path: Path) -> None:
         controller.retry(operation.id)
 
 
-def test_manual_retry_after_failure(tmp_path: Path) -> None:
+def test_manual_retry_after_failure(
+    tmp_path: Path,
+    allow_mutation_without_governance_for_runtime_test: None,
+) -> None:
     StaticFixtureRuntime.set_failures(
         "fixture_source",
         "apply_fixture_change",

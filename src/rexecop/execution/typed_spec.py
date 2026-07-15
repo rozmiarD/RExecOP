@@ -112,9 +112,7 @@ def compile_step_execution_spec(
         )
         payload_schema = PROFILE_CONNECTOR_EXECUTION_SPEC_SCHEMA
     else:
-        raise RExecOpValidationError(
-            f"typed execution unsupported backend: {backend or 'missing'}"
-        )
+        raise RExecOpValidationError(f"typed execution unsupported backend: {backend or 'missing'}")
 
     spec = {
         "schema": STEP_EXECUTION_SPEC_SCHEMA,
@@ -128,6 +126,12 @@ def compile_step_execution_spec(
         "payload_schema": payload_schema,
         "payload": payload,
         "capability_descriptor": capability_descriptor,
+        "required_capability_descriptors": _required_capability_descriptors(
+            contract,
+            backend=backend,
+            action=action,
+        ),
+        "network_policy_binding": _network_policy_binding(contract, backend=backend),
         "non_claims": list(_RUNTIME_PROJECTION_NON_CLAIMS),
     }
     spec["digest"] = step_execution_spec_digest(spec)
@@ -135,11 +139,103 @@ def compile_step_execution_spec(
     return spec
 
 
+def _required_capability_descriptors(
+    connector_contract: Mapping[str, Any],
+    *,
+    backend: str,
+    action: str,
+) -> list[str]:
+    values: Any = None
+    by_backend = connector_contract.get("required_capability_descriptors_by_backend")
+    if isinstance(by_backend, Mapping):
+        backend_requirements = by_backend.get(backend)
+        if isinstance(backend_requirements, Mapping):
+            values = backend_requirements.get(action)
+        elif backend_requirements is not None:
+            values = backend_requirements
+    if values is None:
+        values = connector_contract.get("required_capability_descriptors")
+    if values is None:
+        return []
+    if not isinstance(values, list) or any(
+        not isinstance(value, str) or not value.strip() for value in values
+    ):
+        raise RExecOpValidationError(
+            "connector required_capability_descriptors must be a list of strings"
+        )
+    normalized = [value.strip() for value in values]
+    if len(normalized) != len(set(normalized)):
+        raise RExecOpValidationError(
+            "connector required_capability_descriptors contains duplicates"
+        )
+    return normalized
+
+
+def _network_policy_binding(
+    connector_contract: Mapping[str, Any],
+    *,
+    backend: str,
+) -> dict[str, Any]:
+    raw: Any = None
+    by_backend = connector_contract.get("network_policy_binding_by_backend")
+    if isinstance(by_backend, Mapping):
+        raw = by_backend.get(backend)
+    if raw is None:
+        raw = connector_contract.get("network_policy_binding")
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise RExecOpValidationError("connector network_policy_binding must be a mapping")
+    supported = {
+        "allowed_network_egress",
+        "allowed_network_schemes",
+        "allowed_address_classes",
+        "required_origin_binding_digest",
+    }
+    unknown = sorted(str(key) for key in raw if key not in supported)
+    if unknown:
+        raise RExecOpValidationError(
+            "connector network_policy_binding contains unsupported fields: " + ", ".join(unknown)
+        )
+    normalized: dict[str, Any] = {}
+    for key in (
+        "allowed_network_egress",
+        "allowed_network_schemes",
+        "allowed_address_classes",
+    ):
+        values = raw.get(key)
+        if values is None:
+            continue
+        if not isinstance(values, list) or any(
+            not isinstance(value, str) or not value.strip() for value in values
+        ):
+            raise RExecOpValidationError(
+                f"connector network_policy_binding {key} must be a list of strings"
+            )
+        items = [value.strip() for value in values]
+        if len(items) != len(set(items)):
+            raise RExecOpValidationError(
+                f"connector network_policy_binding {key} contains duplicates"
+            )
+        normalized[key] = items
+    if not normalized.get("allowed_network_egress"):
+        raise RExecOpValidationError(
+            "connector network_policy_binding allowed_network_egress is required"
+        )
+    origin_digest = raw.get("required_origin_binding_digest")
+    if origin_digest is not None:
+        if not isinstance(origin_digest, str) or not origin_digest.strip():
+            raise RExecOpValidationError(
+                "connector network_policy_binding required_origin_binding_digest "
+                "must be a non-empty string"
+            )
+        normalized["required_origin_binding_digest"] = origin_digest.strip()
+    return normalized
+
+
 def step_execution_spec_digest(spec: Mapping[str, Any]) -> str:
     payload = {
-        key: value
-        for key, value in dict(spec).items()
-        if key not in {"digest", "non_claims"}
+        key: value for key, value in dict(spec).items() if key not in {"digest", "non_claims"}
     }
     return "sha256:" + canonical_digest(payload)
 
@@ -174,9 +270,7 @@ def assert_step_execution_spec_unchanged(
     expected = str(prior.get("digest") or "").strip()
     actual = str(spec.get("digest") or "").strip()
     if expected and actual and expected != actual:
-        raise RExecOpValidationError(
-            f"typed execution spec drift detected for step {step_id}"
-        )
+        raise RExecOpValidationError(f"typed execution spec drift detected for step {step_id}")
 
 
 def bind_step_execution_spec(
@@ -257,9 +351,7 @@ def _compile_command_execution_spec(
     mode: str,
 ) -> dict[str, Any]:
     if mode not in READ_ONLY_MODES and backend.endswith("_readonly"):
-        raise RExecOpValidationError(
-            f"readonly backend {backend} refuses mutating mode {mode}"
-        )
+        raise RExecOpValidationError(f"readonly backend {backend} refuses mutating mode {mode}")
     allowlist = connector_config.get("allowlist")
     if not isinstance(allowlist, list):
         raise RExecOpValidationError(f"command allowlist missing for connector {connector}")

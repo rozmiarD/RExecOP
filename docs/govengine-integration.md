@@ -91,13 +91,33 @@ Unknown/malformed controls, timeout on an unsupported plugin backend, digest dri
 obligation is satisfied merely because it was returned. Connector-level policy controls
 are not projected and remain blocked.
 
+## Typed-execution boundary hardening
+
+For each connector step, RExecOp projects the bounded runtime capability record
+and asks GovEngine to compute/validate the digest of that projection. The
+RExecOp source descriptor keeps its own runtime digest; the two digests are not
+interchangeable because they cover different records.
+
+Operation capability requirements come only from the owning profile connector
+contract (`required_capability_descriptors` or its explicit backend/action
+variant) or from an explicit governance overlay/caller argument. RExecOp does
+not fall back to capabilities declared by the selected backend. Missing
+requirements fail closed in GovEngine as
+`operation_capability_requirements_missing`.
+
+`no_network` remains the default fixture path. Outbound network/destination
+admission additionally requires a separate digest-bound network policy
+projection declared by the profile (`network_policy_binding`, optionally
+selected by backend). RExecOp does not derive allowed schemes, address classes,
+or origin constraints from the requested destination.
+
 ## Decision mapping
 
 `RuntimeAdmissionResult` from GovEngine maps to RExecOp `GovEngineDecisionType`:
 
 | GovEngine outcome | RExecOp effect (mutating modes) |
 | --- | --- |
-| `allowed` | May proceed to execution after approval state satisfied |
+| `allowed` | May proceed only after all current typed-execution and approval gates remain satisfied |
 | `approval_required` | `waiting_for_approval` — no mutating connector calls |
 | `blocked`, `read_only_only`, `human_required`, … | `blocked` or wait — no mutation |
 | `error` / invalid admission | Fail closed |

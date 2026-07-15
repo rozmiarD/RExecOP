@@ -54,14 +54,12 @@ DOCKER_SOCKET_SHOW = (
     "systemctl show docker.socket --property=LoadState --property=ActiveState "
     "--property=SubState --property=UnitFileState --no-pager"
 )
-ADGUARD_DNS_QUERY = (
-    "dig @adguard.example.invalid example.com A +time=2 +tries=1 +noall +answer"
-)
+ADGUARD_DNS_QUERY = "dig @adguard.example.invalid example.com A +time=2 +tries=1 +noall +answer"
 ADGUARD_LOGIN_STATUS = (
     "curl -q -sS -m 3 --connect-timeout 2 --max-redirs 0 -o /dev/null "
     "-w %{http_code} http://adguard.example.invalid/login.html"
 )
-AVAILABLE_UPDATES_SUMMARY = "/usr/lib/update-notifier/apt-check"
+AVAILABLE_UPDATES_SUMMARY = "/usr/local/libexec/tecrax-update-status"
 
 
 def _http_binding(operation: object, connector_action: str) -> str:
@@ -165,10 +163,7 @@ def test_core_has_no_domain_specific_tokens() -> None:
         if path.name == "command_shape.py":
             continue
         text = path.read_text().lower()
-        if any(
-            re.search(rf"\b{re.escape(token)}\b", text)
-            for token in domain_tokens
-        ):
+        if any(re.search(rf"\b{re.escape(token)}\b", text) for token in domain_tokens):
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == []
 
@@ -178,9 +173,7 @@ def test_tecrax_basic_host_inventory_ssh_readonly_e2e(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     secrets_path = tmp_path / "secrets.yaml"
-    secrets_path.write_text(
-        "secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n"
-    )
+    secrets_path.write_text("secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n")
     secrets_path.chmod(0o600)
     monkeypatch.setenv("REXECOP_SECRETS_FILE", str(secrets_path))
     outputs = {
@@ -237,9 +230,7 @@ def test_tecrax_ntp_health_ssh_readonly_e2e(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     secrets_path = tmp_path / "secrets.yaml"
-    secrets_path.write_text(
-        "secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n"
-    )
+    secrets_path.write_text("secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n")
     secrets_path.chmod(0o600)
     monkeypatch.setenv("REXECOP_SECRETS_FILE", str(secrets_path))
     outputs = {
@@ -287,9 +278,7 @@ def test_tecrax_docker_services_health_ssh_readonly_e2e(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     secrets_path = tmp_path / "secrets.yaml"
-    secrets_path.write_text(
-        "secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n"
-    )
+    secrets_path.write_text("secrets:\n  monitoring_host_ssh_identity: /tmp/test-identity\n")
     secrets_path.chmod(0o600)
     monkeypatch.setenv("REXECOP_SECRETS_FILE", str(secrets_path))
     outputs = {
@@ -340,9 +329,7 @@ def test_tecrax_zabbix_application_health_http_e2e(tmp_path: Path) -> None:
             return None
 
         def read(self, _size: int = -1) -> bytes:
-            return json.dumps(
-                {"jsonrpc": "2.0", "result": "7.2.14", "id": 1}
-            ).encode()
+            return json.dumps({"jsonrpc": "2.0", "result": "7.2.14", "id": 1}).encode()
 
     controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
     with patch(
@@ -396,8 +383,7 @@ def test_tecrax_zabbix_http_action_drift_fails_before_backend_io(
 def test_tecrax_adguard_health_local_shell_e2e(tmp_path: Path) -> None:
     outputs = {
         ADGUARD_DNS_QUERY: (
-            "example.com. 300 IN A 104.20.23.154\n"
-            "example.com. 300 IN A 172.66.147.243\n"
+            "example.com. 300 IN A 104.20.23.154\nexample.com. 300 IN A 172.66.147.243\n"
         ),
         ADGUARD_LOGIN_STATUS: "200",
     }
@@ -565,8 +551,7 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
     }
     local_outputs = {
         ADGUARD_DNS_QUERY: (
-            "example.com. 300 IN A 104.20.23.154\n"
-            "example.com. 300 IN A 172.66.147.243\n"
+            "example.com. 300 IN A 104.20.23.154\nexample.com. 300 IN A 172.66.147.243\n"
         ),
         ADGUARD_LOGIN_STATUS: "200",
     }
@@ -628,11 +613,10 @@ def test_tecrax_monitoring_diagnosis_preserves_partial_failure(
         {
             "step_id": "read_zabbix_api_version",
             "error_class": "transient_connector_error",
-        }
+        },
     ]
     assert any(
-        item["component"] == "zabbix"
-        and item["reason_code"] == "zabbix_unhealthy"
+        item["component"] == "zabbix" and item["reason_code"] == "zabbix_unhealthy"
         for item in details["findings"]
     )
 
@@ -682,8 +666,7 @@ def test_tecrax_monitoring_diagnosis_auto_react_plan_only_never_starts_child(
     }
     local_outputs = {
         ADGUARD_DNS_QUERY: (
-            "example.com. 300 IN A 104.20.23.154\n"
-            "example.com. 300 IN A 172.66.147.243\n"
+            "example.com. 300 IN A 104.20.23.154\nexample.com. 300 IN A 172.66.147.243\n"
         ),
         ADGUARD_LOGIN_STATUS: "200",
     }

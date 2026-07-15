@@ -3,6 +3,22 @@ connector:
   capabilities:
     - read_fixture_state
     - apply_fixture_change
+  required_capability_descriptors:
+    - connector.fixture.static
+  required_capability_descriptors_by_backend:
+    http_api:
+      read_fixture_state:
+        - connector.http.rest.read
+      apply_fixture_change:
+        - connector.http.rest.mutate
+  network_policy_binding_by_backend:
+    http_api:
+      allowed_network_egress:
+        - outbound_http
+      allowed_network_schemes:
+        - http
+      allowed_address_classes:
+        - loopback
   modes:
     - read_only
     - apply

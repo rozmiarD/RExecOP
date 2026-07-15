@@ -76,23 +76,19 @@ def test_readonly_inspect_fixture_state_against_staging_http(tmp_path: Path) -> 
         assert "api_key" not in serialized.lower() or "[REDACTED]" in serialized
 
         bundle_dir = store.operation_sclite_dir(operation.id)
-        receipt = json.loads(
-            (bundle_dir / "05_execution_receipt.json").read_text(encoding="utf-8")
-        )
+        receipt = json.loads((bundle_dir / "05_execution_receipt.json").read_text(encoding="utf-8"))
         assert receipt["execution"]["executed_command_count"] == 1
         assert receipt["execution"]["network_execution_performed"] is False
     finally:
         server.stop()
 
 
-def test_apply_restart_and_rollback_drill_on_staging_http(tmp_path: Path) -> None:
+def test_staging_mutation_stops_before_http_without_bound_approval(tmp_path: Path) -> None:
     server = StagingHttpServer()
     server.start()
     env_path = tmp_path / "staging-apply.yaml"
     env_data = _staging_environment(server)
-    env_data["environment"]["connectors"]["fixture_source"]["actions"][
-        "apply_fixture_change"
-    ] = {
+    env_data["environment"]["connectors"]["fixture_source"]["actions"]["apply_fixture_change"] = {
         "method": "POST",
         "path": "/fixture/change",
         "mutating": True,
@@ -113,14 +109,9 @@ def test_apply_restart_and_rollback_drill_on_staging_http(tmp_path: Path) -> Non
         )
         assert operation.state == OperationState.APPROVED.value
         completed = controller.start(operation.id)
-        assert completed.state == OperationState.COMPLETED.value
-        assert server.change_calls == 1
-
-        failed = controller.get_operation(operation.id)
-        failed.state = OperationState.FAILED.value
-        store.save_operation(failed)
-        rollback = controller.rollback(operation.id)
-        assert rollback["success"] is True
-        assert "rollback_marker" in rollback["executed_steps"]
+        assert completed.state == OperationState.FAILED.value
+        admission = completed.metadata["shared_state"]["typed_execution_admissions"]["apply_change"]
+        assert admission["reason_code"] == "mutation_requires_approval_attestation"
+        assert server.change_calls == 0
     finally:
         server.stop()

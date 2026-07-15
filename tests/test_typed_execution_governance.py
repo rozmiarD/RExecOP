@@ -60,10 +60,35 @@ def test_build_typed_execution_governance_request_from_fixture_spec() -> None:
 
     assert request["schema_version"] == "v0.1"
     assert request["step_execution_spec_digest"] == spec["digest"]
-    assert request["capability_descriptor_digest"] == spec["capability_descriptor"]["digest"]
+    assert request["capability_descriptor_digest"].startswith("sha256:")
+    assert request["capability_descriptor_digest"] != spec["capability_descriptor"]["digest"]
     assert request["payload_digest"] == spec["payload"]["action_digest"]
     assert request["side_effect_class"] == "read_only"
     assert request["allowed_network_egress"] == ["no_network"]
+    assert request["required_capability_descriptors"] == ["connector.fixture.static"]
+
+
+def test_governance_request_does_not_derive_requirements_from_backend() -> None:
+    spec = _fixture_spec()
+    spec["required_capability_descriptors"] = []
+
+    request = build_typed_execution_governance_request(
+        spec=spec,
+        operation_id="op-no-requirements",
+        mode="dry_run",
+    )
+    result = evaluate_typed_execution_governance(
+        spec=spec,
+        operation_id="op-no-requirements",
+        mode="dry_run",
+    )
+
+    assert request["required_capability_descriptors"] == []
+    assert result["status"] == "blocked"
+    assert (
+        "operation_capability_requirements_missing"
+        in result["compatibility"]["blockers"]
+    )
 
 
 def test_evaluate_typed_execution_governance_passes_for_readonly_fixture() -> None:

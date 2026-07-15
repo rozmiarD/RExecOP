@@ -52,7 +52,7 @@ def test_approval_required_stops_before_mutation(tmp_path: Path) -> None:
         controller.start(operation.id)
 
 
-def test_approved_apply_completes_on_static_fixture(tmp_path: Path) -> None:
+def test_operation_admission_is_not_mutation_approval(tmp_path: Path) -> None:
     controller = _controller(tmp_path, GovEngineDecisionType.ALLOWED)
     operation = controller.plan(
         profile_path=PROFILE,
@@ -62,13 +62,15 @@ def test_approved_apply_completes_on_static_fixture(tmp_path: Path) -> None:
         mode="apply",
     )
     completed = controller.start(operation.id)
-    assert completed.state == OperationState.COMPLETED.value
-    mutation = completed.metadata["shared_state"]["mutation_states"]["apply_change"]
-    assert mutation["before_state"]["changed"] is False
-    assert mutation["after_state"]["changed"] is True
+    assert completed.state == OperationState.FAILED.value
+    shared = completed.metadata["shared_state"]
+    assert shared["typed_execution_admissions"]["apply_change"]["reason_code"] == (
+        "mutation_requires_approval_attestation"
+    )
+    assert "mutation_states" not in shared
 
 
-def test_manual_approval_path_completes(tmp_path: Path) -> None:
+def test_legacy_manual_approval_is_not_bound_attestation(tmp_path: Path) -> None:
     controller = _controller(tmp_path, GovEngineDecisionType.APPROVAL_REQUIRED)
     operation = controller.plan(
         profile_path=PROFILE,
@@ -81,11 +83,19 @@ def test_manual_approval_path_completes(tmp_path: Path) -> None:
     assert approved.state == OperationState.APPROVED.value
     assert controller.allows_mutating_execution(operation.id)
     completed = controller.start(operation.id)
-    assert completed.state == OperationState.COMPLETED.value
+    assert completed.state == OperationState.FAILED.value
+    shared = completed.metadata["shared_state"]
+    assert shared["typed_execution_admissions"]["apply_change"]["reason_code"] == (
+        "mutation_requires_approval_attestation"
+    )
+    assert "mutation_states" not in shared
     assert controller.store.load_approval(operation.id)["approved_by"] == "oncall"
 
 
-def test_before_and_after_state_in_evidence(tmp_path: Path) -> None:
+def test_before_and_after_state_in_evidence(
+    tmp_path: Path,
+    allow_mutation_without_governance_for_runtime_test: None,
+) -> None:
     controller = _controller(tmp_path, GovEngineDecisionType.ALLOWED)
     operation = controller.plan(
         profile_path=PROFILE,
@@ -99,8 +109,7 @@ def test_before_and_after_state_in_evidence(tmp_path: Path) -> None:
     change_completed = next(
         event
         for event in events
-        if event.get("event_type") == "step_completed"
-        and event.get("step_id") == "apply_change"
+        if event.get("event_type") == "step_completed" and event.get("step_id") == "apply_change"
     )
     payload = change_completed["sanitized_payload"]
     assert payload["output"]["before_state"]["projection"] == "digest_only"

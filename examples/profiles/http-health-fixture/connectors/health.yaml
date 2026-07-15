@@ -3,3 +3,13 @@ connector:
   backend: http_api
   capabilities:
     - ping
+  required_capability_descriptors:
+    - connector.http.rest.read
+  network_policy_binding:
+    allowed_network_egress:
+      - outbound_http
+    allowed_network_schemes:
+      - http
+      - https
+    allowed_address_classes:
+      - loopback
