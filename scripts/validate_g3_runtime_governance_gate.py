@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = (
     "tests/test_g3_runtime_governance.py",
+    "tests/test_typed_execution_governance.py",
     "tests/test_m95_execution_permit.py",
     "tests/test_m9_attempts.py",
     "tests/test_m95_runtime_ports.py",
@@ -30,7 +31,8 @@ def main() -> int:
         "g3_runtime_governance_gate_ok:attempt_preallocation=OK:"
         "trusted_decision=OK:runtime_binding=OK:atomic_claim=OK:"
         "runtime_attempt_permit=OK:pre_io_attempt_journal=OK:"
-        "receipt_conformance=OK:sclite_receipt_projection=OK"
+        "receipt_conformance=OK:sclite_receipt_projection=OK:"
+        "legacy_fallbacks_removed=OK:post_io_output_digest=OK"
     )
     return 0
 

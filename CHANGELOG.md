@@ -2,6 +2,12 @@
 
 ## Unreleased — explicit orchestration contract ownership
 
+- Removes the remaining typed-governance compatibility fallbacks: policy
+  admission digests, manual-approval summaries and legacy admission summaries
+  can no longer be projected as approval evidence; host plugin-registration
+  hints and capability-derived network allowlists are no longer sent to
+  GovEngine. Operation requirements now come only from the profile-owned typed
+  execution spec, while output-digest obligations are enforced after I/O.
 - Emits a digest-bound runtime receipt per governed connector attempt and runs
   GovEngine receipt conformance after I/O. Decision, runtime permit, attempt,
   runtime, lease, fencing, scope, inventory and policy bindings are checked

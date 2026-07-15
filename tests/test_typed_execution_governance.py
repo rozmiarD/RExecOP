@@ -64,8 +64,9 @@ def test_build_typed_execution_governance_request_from_fixture_spec() -> None:
     assert request["capability_descriptor_digest"] != spec["capability_descriptor"]["digest"]
     assert request["payload_digest"] == spec["payload"]["action_digest"]
     assert request["side_effect_class"] == "read_only"
-    assert request["allowed_network_egress"] == ["no_network"]
+    assert request["allowed_network_egress"] == []
     assert request["required_capability_descriptors"] == ["connector.fixture.static"]
+    assert "registered_plugin_backend" not in request["metadata"]
 
 
 def test_governance_request_does_not_derive_requirements_from_backend() -> None:
@@ -160,7 +161,7 @@ def test_blocked_unsupported_backend_via_governance_request() -> None:
     assert "unsupported_backend_class" in result["compatibility"]["blockers"]
 
 
-def test_blocked_missing_output_digest_ref() -> None:
+def test_output_digest_obligation_does_not_require_pre_io_digest() -> None:
     spec = _fixture_spec()
     result = evaluate_typed_execution_governance(
         spec=spec,
@@ -172,8 +173,8 @@ def test_blocked_missing_output_digest_ref() -> None:
         },
     )
 
-    assert result["status"] == "blocked"
-    assert "missing_output_digest_ref" in result["governance"]["blockers"]
+    assert result["status"] == "passed"
+    assert "missing_output_digest_ref" not in result["governance"]["blockers"]
 
 
 def test_blocked_network_boundary_mismatch() -> None:
@@ -374,6 +375,44 @@ def test_policy_enforcement_controls_flow_into_typed_execution_overlay() -> None
     assert "output_digest_required" not in overlay["evidence_requirements"]
     assert overlay["allowed_network_egress"] == ["no_network"]
     assert overlay["no_raw_shell"] is True
+    assert "approval_evidence_ref" not in overlay["evidence_requirements"]
+
+
+def test_legacy_records_cannot_manufacture_approval_evidence() -> None:
+    overlay = typed_execution_governance_overlay(
+        {
+            "id": "op-no-approval-fallback",
+            "metadata": {
+                "policy_enforcement": {
+                    "admission_digest": "sha256:" + "a" * 64,
+                },
+                "manual_approval": {"approved_by": "operator:test"},
+                "govengine_admission": {
+                    "decision_type": "allow",
+                    "summary": "legacy admission",
+                },
+            },
+        }
+    )
+
+    assert overlay["evidence_requirements"] == {"receipt_required": True}
+
+
+def test_shared_state_admission_cannot_manufacture_approval_evidence() -> None:
+    spec = _fixture_spec()
+    request = build_typed_execution_governance_request(
+        spec=spec,
+        operation_id="op-no-shared-state-approval",
+        mode="dry_run",
+        shared_state={
+            "execution_request": {
+                "policy_binding": {"admission_digest": "sha256:" + "b" * 64},
+            },
+            "manual_approval": {"approved_by": "operator:test"},
+        },
+    )
+
+    assert "approval_evidence_ref" not in request["evidence_requirements"]
 
 
 def test_policy_output_digest_required_does_not_block_pre_io_governance() -> None:

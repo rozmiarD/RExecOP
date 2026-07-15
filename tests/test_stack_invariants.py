@@ -131,7 +131,7 @@ def test_typed_execution_governance_binds_spec_and_capability_digests() -> None:
     assert request["capability_descriptor_digest"] != spec["capability_descriptor"]["digest"]
 
 
-def test_typed_execution_binding_blocks_missing_output_digest_when_required() -> None:
+def test_typed_execution_binding_defers_output_digest_to_receipt() -> None:
     spec = _fixture_spec()
     result = evaluate_typed_execution_governance(
         spec=spec,
@@ -142,8 +142,14 @@ def test_typed_execution_binding_blocks_missing_output_digest_when_required() ->
             "output_digest_required": True,
         },
     )
-    assert result["status"] == "blocked"
-    assert "missing_output_digest_ref" in result["governance"]["blockers"]
+    assert result["status"] == "passed"
+    assert "missing_output_digest_ref" not in result["governance"]["blockers"]
+    control = next(
+        item
+        for item in result["compatibility"]["policy_controls"]
+        if item["control"] == "output_digest_required"
+    )
+    assert control["details"]["enforcement_phase"] == "post_io_receipt_conformance"
 
 
 # --- public_projection_allowlist ---

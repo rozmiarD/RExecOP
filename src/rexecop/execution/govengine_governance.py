@@ -18,9 +18,7 @@ from govengine.typed_execution_governance import (
     runtime_capability_descriptor_digest,
 )
 
-from rexecop.catalog.digest import canonical_digest
 from rexecop.connectors.errors import READ_ONLY_MODES
-from rexecop.connectors.fixture_loader import list_registered_connector_backends
 from rexecop.errors import RExecOpValidationError
 from rexecop.execution.typed_spec import (
     COMMAND_EXECUTION_SPEC_SCHEMA,
@@ -85,36 +83,19 @@ def evaluate_typed_execution_stack_compatibility(
 
 
 def typed_execution_governance_overlay(operation: Mapping[str, Any]) -> dict[str, Any]:
-    """Seed shared_state overlay from operation-level admission and approvals."""
+    """Project policy controls without manufacturing approval evidence."""
     metadata = operation.get("metadata")
     if not isinstance(metadata, Mapping):
         metadata = operation if isinstance(operation, Mapping) else {}
     overlay: dict[str, Any] = {"evidence_requirements": {"receipt_required": True}}
     record = metadata.get("policy_enforcement")
     if isinstance(record, Mapping):
-        digest = str(record.get("admission_digest") or "").strip()
-        if digest.startswith("sha256:"):
-            overlay["evidence_requirements"]["approval_evidence_ref"] = digest
         plan = record.get("plan")
         if isinstance(plan, Mapping):
             controls = plan.get("controls")
             if isinstance(controls, Mapping):
                 policy_overlay = project_typed_execution_policy_overlay(controls)
                 _merge_typed_execution_policy_overlay(overlay, policy_overlay)
-    manual = metadata.get("manual_approval")
-    evidence = overlay["evidence_requirements"]
-    if isinstance(manual, Mapping) and not evidence.get("approval_evidence_ref"):
-        evidence["approval_evidence_ref"] = "sha256:" + canonical_digest(dict(manual))
-    if not evidence.get("approval_evidence_ref"):
-        admission = metadata.get("govengine_admission")
-        if isinstance(admission, Mapping):
-            evidence["approval_evidence_ref"] = "sha256:" + canonical_digest(
-                {
-                    "operation_id": str(operation.get("id") or metadata.get("operation_id") or ""),
-                    "decision_type": str(admission.get("decision_type") or ""),
-                    "summary": str(admission.get("summary") or ""),
-                }
-            )
     return overlay
 
 
@@ -126,7 +107,6 @@ def build_typed_execution_governance_request(
     shared_state: Mapping[str, Any] | None = None,
     evidence_requirements: Mapping[str, Any] | None = None,
     allowed_network_egress: list[str] | None = None,
-    required_capability_descriptors: list[str] | None = None,
 ) -> dict[str, Any]:
     """Project one digest-bound typed execution spec into a GovEngine G5 request."""
     step_id = str(spec.get("step_id") or "").strip()
@@ -141,31 +121,20 @@ def build_typed_execution_governance_request(
         evidence.update(dict(evidence_requirements))
     if "receipt_required" not in evidence:
         evidence["receipt_required"] = True
-    if not evidence.get("approval_evidence_ref"):
-        approval_ref = _approval_evidence_ref_from_shared_state(shared_state)
-        if approval_ref:
-            evidence["approval_evidence_ref"] = approval_ref
     policy_egress = allowed_network_egress or overlay.get("allowed_network_egress")
     network_policy_raw = spec.get("network_policy_binding")
     network_policy = dict(network_policy_raw) if isinstance(network_policy_raw, Mapping) else {}
-    if policy_egress:
+    if policy_egress and network_policy:
         requested_egress = [str(item) for item in policy_egress]
         profile_egress = network_policy.get("allowed_network_egress")
         if isinstance(profile_egress, list):
             network_policy["allowed_network_egress"] = [
                 item for item in profile_egress if item in requested_egress
             ]
-        else:
-            network_policy["allowed_network_egress"] = requested_egress
     egress = network_policy.get("allowed_network_egress")
     if not isinstance(egress, list):
-        actual_egress = _default_allowed_egress(capability)
-        egress = [actual_egress] if actual_egress in {"no_network", "local_subprocess"} else []
-    if required_capability_descriptors is not None:
-        required = list(required_capability_descriptors)
-    elif isinstance(overlay.get("required_capability_descriptors"), list):
-        required = list(overlay["required_capability_descriptors"])
-    elif isinstance(spec.get("required_capability_descriptors"), list):
+        egress = [str(item) for item in policy_egress] if policy_egress else []
+    if isinstance(spec.get("required_capability_descriptors"), list):
         required = list(spec["required_capability_descriptors"])
     else:
         required = []
@@ -173,9 +142,6 @@ def build_typed_execution_governance_request(
     allowed_backends = overlay.get("allowed_backend_classes")
     if isinstance(allowed_backends, list) and allowed_backends:
         request_metadata["allowed_backend_classes"] = list(allowed_backends)
-    backend_class = str(spec.get("backend_class") or "").strip()
-    if backend_class in list_registered_connector_backends():
-        request_metadata["registered_plugin_backend"] = True
     payload = spec.get("payload")
     destination = payload.get("destination_binding") if isinstance(payload, Mapping) else None
     destination_fields: dict[str, Any] = {}
@@ -224,7 +190,6 @@ def evaluate_typed_execution_governance(
     shared_state: Mapping[str, Any] | None = None,
     evidence_requirements: Mapping[str, Any] | None = None,
     allowed_network_egress: list[str] | None = None,
-    required_capability_descriptors: list[str] | None = None,
 ) -> dict[str, Any]:
     request = build_typed_execution_governance_request(
         spec=spec,
@@ -233,7 +198,6 @@ def evaluate_typed_execution_governance(
         shared_state=shared_state,
         evidence_requirements=evidence_requirements,
         allowed_network_egress=allowed_network_egress,
-        required_capability_descriptors=required_capability_descriptors,
     )
     bundle = explain_typed_execution_governance(request)
     payload = bundle.as_dict()
@@ -258,7 +222,6 @@ def enforce_typed_execution_governance(
     shared_state: dict[str, Any],
     evidence_requirements: Mapping[str, Any] | None = None,
     allowed_network_egress: list[str] | None = None,
-    required_capability_descriptors: list[str] | None = None,
 ) -> dict[str, Any]:
     """Fail-closed typed execution admission before connector backend IO."""
     request = build_typed_execution_governance_request(
@@ -268,7 +231,6 @@ def enforce_typed_execution_governance(
         shared_state=shared_state,
         evidence_requirements=evidence_requirements,
         allowed_network_egress=allowed_network_egress,
-        required_capability_descriptors=required_capability_descriptors,
     )
     admission = admit_typed_execution(request)
     payload = admission.as_dict()
@@ -292,24 +254,6 @@ def enforce_typed_execution_governance(
             binding["admission_digest"] = admissions[step_id]["admission_digest"]
             binding["governance_request_digest"] = admissions[step_id]["request_digest"]
     return admissions[step_id]
-
-
-def _approval_evidence_ref_from_shared_state(
-    shared_state: Mapping[str, Any] | None,
-) -> str:
-    if not isinstance(shared_state, Mapping):
-        return ""
-    execution_request = shared_state.get("execution_request")
-    if isinstance(execution_request, Mapping):
-        binding = execution_request.get("policy_binding")
-        if isinstance(binding, Mapping):
-            digest = str(binding.get("admission_digest") or "").strip()
-            if digest.startswith("sha256:"):
-                return digest
-    manual = shared_state.get("manual_approval")
-    if isinstance(manual, Mapping):
-        return "sha256:" + canonical_digest(dict(manual))
-    return ""
 
 
 def _governance_overlay(shared_state: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -391,12 +335,3 @@ def _merge_typed_execution_policy_overlay(
         value = policy_overlay.get(key)
         if value:
             overlay[key] = value
-
-
-def _default_allowed_egress(descriptor: Mapping[str, Any]) -> str:
-    network_boundary = descriptor.get("network_boundary")
-    if isinstance(network_boundary, Mapping):
-        egress = str(network_boundary.get("egress") or "").strip()
-        if egress:
-            return egress
-    return str(descriptor.get("egress_class") or "no_network").strip() or "no_network"

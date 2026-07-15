@@ -111,7 +111,7 @@ def test_staging_mutation_stops_before_http_without_bound_approval(tmp_path: Pat
         completed = controller.start(operation.id)
         assert completed.state == OperationState.FAILED.value
         admission = completed.metadata["shared_state"]["typed_execution_admissions"]["apply_change"]
-        assert admission["reason_code"] == "mutation_requires_approval_attestation"
+        assert admission["reason_code"] == "mutation_requires_approval_evidence"
         assert server.change_calls == 0
     finally:
         server.stop()

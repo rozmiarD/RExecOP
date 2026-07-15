@@ -67,7 +67,7 @@ def test_operation_admission_is_not_mutation_approval(tmp_path: Path) -> None:
     assert completed.state == OperationState.FAILED.value
     shared = completed.metadata["shared_state"]
     assert shared["typed_execution_admissions"]["apply_change"]["reason_code"] == (
-        "mutation_requires_approval_attestation"
+        "mutation_requires_approval_evidence"
     )
     assert "mutation_states" not in shared
 
@@ -88,7 +88,7 @@ def test_legacy_manual_approval_is_not_bound_attestation(tmp_path: Path) -> None
     assert completed.state == OperationState.FAILED.value
     shared = completed.metadata["shared_state"]
     assert shared["typed_execution_admissions"]["apply_change"]["reason_code"] == (
-        "mutation_requires_approval_attestation"
+        "mutation_requires_approval_evidence"
     )
     assert "mutation_states" not in shared
     assert controller.store.load_approval(operation.id)["approved_by"] == "oncall"
