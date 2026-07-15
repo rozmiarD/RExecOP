@@ -11,6 +11,7 @@ from rexecop.connectors.static_fixture import StaticFixtureRuntime
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
+from runtime_governance_support import governance_runtime_kwargs
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
@@ -28,6 +29,7 @@ def _controller(tmp_path: Path) -> OperationController:
     return OperationController(
         store=FileStore(tmp_path / ".rexecop"),
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
+        **governance_runtime_kwargs(),
     )
 
 

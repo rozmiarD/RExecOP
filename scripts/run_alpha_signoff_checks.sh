@@ -47,6 +47,9 @@ echo "==> validate_m9_runtime_gate"
 echo "==> validate_m95n_gate"
 "$PYTHON" scripts/validate_m95n_gate.py
 
+echo "==> validate_g3_runtime_governance_gate"
+"$PYTHON" scripts/validate_g3_runtime_governance_gate.py
+
 echo "==> core boundary grep"
 if rg -il '\b(tecrax|proxmox|pbs|zabbix|adguard|frigate|hillstone|docker|ubuntu|ntp)\b' src/rexecop --glob '!**/connectors/command_shape.py'; then
   echo "domain token detected in rexecop core"
@@ -83,5 +86,5 @@ else
 fi
 
 printf '%s\n' \
-  'GATE_REPORT: public_truth=OK stack_contracts=OK profile_conformance=OK first_run_smoke=OK operator_journeys=OK cross_repo_golden_fixture=OK stack_invariants=OK external_review=OK m86_security=OK m9_runtime=OK m95n=OK core_boundary=OK secret_scan=OK ruff=OK mypy=OK delivery_pytest=OK'
+  'GATE_REPORT: public_truth=OK stack_contracts=OK profile_conformance=OK first_run_smoke=OK operator_journeys=OK cross_repo_golden_fixture=OK stack_invariants=OK external_review=OK m86_security=OK m9_runtime=OK m95n=OK g3_runtime_governance=OK core_boundary=OK secret_scan=OK ruff=OK mypy=OK delivery_pytest=OK'
 echo "alpha_signoff_checks_ok"

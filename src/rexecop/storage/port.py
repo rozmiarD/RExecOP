@@ -74,6 +74,8 @@ class RuntimeStore(OperationStoragePort, Protocol):
 
     def queue_complete_claim(self, operation_id: str, lease: dict[str, Any]) -> None: ...
 
+    def allocate_execution_attempt_id(self) -> str: ...
+
     def start_execution_attempt(self, **binding: Any) -> dict[str, Any]: ...
 
     def finish_execution_attempt(
@@ -94,3 +96,18 @@ class RuntimeStore(OperationStoragePort, Protocol):
     def save_execution_permit(self, permit: dict[str, Any]) -> Path: ...
 
     def load_execution_permit(self, operation_id: str, step_id: str) -> dict[str, Any]: ...
+
+    def load_execution_permit_for_attempt(
+        self,
+        operation_id: str,
+        attempt_id: str,
+    ) -> dict[str, Any]: ...
+
+    def claim_governance_decision_once(
+        self,
+        *,
+        decision_digest: str,
+        nonce: str,
+        attempt_id: str,
+        runtime_instance_id: str,
+    ) -> bool: ...

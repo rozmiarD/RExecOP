@@ -136,6 +136,9 @@ class InMemoryStore:
     def start_execution_attempt(self, **binding: Any) -> dict[str, Any]:
         return self._file_store.start_execution_attempt(**binding)
 
+    def allocate_execution_attempt_id(self) -> str:
+        return self._file_store.allocate_execution_attempt_id()
+
     def finish_execution_attempt(
         self,
         attempt: dict[str, Any],
@@ -170,6 +173,16 @@ class InMemoryStore:
 
     def load_execution_permit(self, operation_id: str, step_id: str) -> dict[str, Any]:
         return self._file_store.load_execution_permit(operation_id, step_id)
+
+    def load_execution_permit_for_attempt(
+        self,
+        operation_id: str,
+        attempt_id: str,
+    ) -> dict[str, Any]:
+        return self._file_store.load_execution_permit_for_attempt(operation_id, attempt_id)
+
+    def claim_governance_decision_once(self, **claim: Any) -> bool:
+        return self._file_store.claim_governance_decision_once(**claim)
 
     def dump_state(self) -> dict[str, Any]:
         return {

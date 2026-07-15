@@ -124,8 +124,9 @@ Ravenclaw is legacy and out of scope for RExecOp.
 - Host-owned scheduling: `queue`, `worker run`, `trigger` (see operator scheduler pattern)
 - Certified runtime: one fenced executor per `FileStore` root, operation CAS, atomic FIFO
   queue claims, durable connector attempts and `outcome_indeterminate` recovery
-- Execution-kernel stabilization: store-backed runtime ports, a fresh pre-IO execution permit,
-  stable reason codes, trusted-plugin inventory/allowlist and cycle-safe public imports
+- Execution-kernel stabilization: store-backed runtime ports, a preallocated attempt,
+  atomic GovEngine decision claim, attempt-bound pre-IO runtime permit, stable reason
+  codes, trusted-plugin inventory/allowlist and cycle-safe public imports
 - Advisory escalation proposal handling: validate `escalation_proposal.v0.1`,
   review without printing raw explanation text, and record `accept_for_planning`/`reject`
   decisions without planning, approval or execution

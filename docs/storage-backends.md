@@ -41,6 +41,9 @@ Factory: `rexecop.storage.factory.create_store()`.
 | `evidence/<op>/*.json` | Internal evidence events | atomic replace |
 | `receipts/*.json` | Non-authoritative export summaries | atomic replace |
 | `approvals/*.json` | Manual approval stubs | atomic replace |
+| `governance_claims/*.json` | Consumed decision-digest and nonce indexes | process-locked claim-once plus atomic replace |
+| `permits/<op>/attempts/*.json` | Immutable runtime attempt permits | create once after governance claim |
+| `permits/<op>/<step>.json` | Latest-per-step permit compatibility view | atomic replace |
 | `sclite/<op>/` | Authoritative SCLite artifact bundles | directory per operation |
 | `queue/`, `locks/`, `inbox/` | Runtime coordination (not in StoragePort JSON API) | file drops |
 

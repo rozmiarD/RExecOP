@@ -128,6 +128,27 @@ does not bypass PolicyEngine or enforcement-plan validation.
 
 Evidence events: `govengine_decision_requested`, `govengine_decision_received`.
 
+## Canonical attempt decision boundary
+
+The pre-I/O canonical path is configured with four host-owned inputs on
+`OperationController`: `AttemptGovernanceAuthority`, `VerifierPort`, `SigningPolicy`,
+and `TrustPolicy`. Partial configuration is rejected. For every connector attempt,
+RExecOp:
+
+1. preallocates `attempt_id`;
+2. projects current runtime instance, lease epoch, hashed lease/fencing bindings,
+   execution and payload digests, requested-scope digest, and connector inventory epoch;
+3. asks the authority for a signed GovEngine `GovernanceDecision`;
+4. verifies the signed record and exact runtime bindings;
+5. atomically consumes both decision digest and nonce;
+6. issues `rexecop.runtime_attempt_permit.v0.1` and persists `attempt started` before IO.
+
+RExecOp never evaluates policy or signs the decision. The authority/signer/verifier and
+trust anchors remain host-owned. A mutating connector attempt without this complete
+configuration fails before an attempt journal record is created. Existing read-only
+execution may use the explicit `legacy_read_only` compatibility binding; it is not a
+signed-decision claim.
+
 ## Apply hard rule
 
 Mutating modes (`apply`, `recovery`) require:
@@ -135,6 +156,7 @@ Mutating modes (`apply`, `recovery`) require:
 1. Positive GovEngine `allowed` decision recorded on the operation
 2. Operation in `approved` state (manual `rexecop approve` when `approval_required`)
 3. Connector-level check: `http_api` mutating actions also verify `mutating_allowed` at runtime
+4. A trusted signed canonical `GovernanceDecision`, atomically claimed for the exact attempt
 
 Read-only modes (`dry_run`, `observe`, `emergency_readonly`) auto-approve at start and refuse
 mutating connector actions at the connector runtime layer.

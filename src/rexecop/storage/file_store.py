@@ -22,6 +22,7 @@ class FileStore:
         self.approvals_dir = self.root / "approvals"
         self.observability_dir = self.root / "observability" / "events"
         self.permits_dir = self.root / "permits"
+        self.governance_claims_dir = self.root / "governance_claims"
 
     def ensure_layout(self) -> None:
         secure_directory(self.root)
@@ -34,6 +35,7 @@ class FileStore:
             self.approvals_dir,
             self.observability_dir,
             self.permits_dir,
+            self.governance_claims_dir,
         ):
             secure_directory(path)
 
@@ -239,6 +241,11 @@ class FileStore:
 
         return AttemptJournal(self.root).start(**binding)
 
+    def allocate_execution_attempt_id(self) -> str:
+        from rexecop.runtime_ops.attempts import AttemptJournal
+
+        return AttemptJournal.allocate_id()
+
     def finish_execution_attempt(
         self,
         attempt: dict[str, Any],
@@ -278,14 +285,85 @@ class FileStore:
         self.ensure_layout()
         operation_id = str(permit["operation_id"])
         step_id = str(permit["step_id"])
+        attempt_id = str(permit["attempt_id"])
         operation_dir = self.permits_dir / operation_id
         secure_directory(operation_dir)
+        attempts_dir = operation_dir / "attempts"
+        secure_directory(attempts_dir)
+        attempt_path = attempts_dir / f"{attempt_id}.json"
+        if attempt_path.exists():
+            raise RExecOpValidationError("runtime attempt permit already exists")
+        self._write_json(attempt_path, permit)
         path = operation_dir / f"{step_id}.json"
         self._write_json(path, permit)
-        return path
+        return attempt_path
 
     def load_execution_permit(self, operation_id: str, step_id: str) -> dict[str, Any]:
         path = self.permits_dir / operation_id / f"{step_id}.json"
         if not path.is_file():
             raise RExecOpValidationError(f"execution permit not found: {operation_id}/{step_id}")
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def load_execution_permit_for_attempt(
+        self,
+        operation_id: str,
+        attempt_id: str,
+    ) -> dict[str, Any]:
+        path = self.permits_dir / operation_id / "attempts" / f"{attempt_id}.json"
+        if not path.is_file():
+            raise RExecOpValidationError(
+                f"runtime attempt permit not found: {operation_id}/{attempt_id}"
+            )
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def claim_governance_decision_once(
+        self,
+        *,
+        decision_digest: str,
+        nonce: str,
+        attempt_id: str,
+        runtime_instance_id: str,
+    ) -> bool:
+        """Atomically reject reuse of either a decision digest or its nonce."""
+        from hashlib import sha256
+
+        digest_value = decision_digest.removeprefix("sha256:")
+        if (
+            len(digest_value) != 64
+            or any(char not in "0123456789abcdef" for char in digest_value)
+            or not nonce.strip()
+            or len(nonce) > 256
+            or not attempt_id.startswith("attempt-")
+            or len(attempt_id) > 96
+            or not runtime_instance_id.strip()
+            or len(runtime_instance_id) > 256
+        ):
+            raise RExecOpValidationError("invalid governance decision claim")
+        self.ensure_layout()
+        digest_key = sha256(decision_digest.encode("utf-8")).hexdigest()
+        nonce_key = sha256(nonce.encode("utf-8")).hexdigest()
+        digest_path = self.governance_claims_dir / f"decision-{digest_key}.json"
+        nonce_path = self.governance_claims_dir / f"nonce-{nonce_key}.json"
+        lock_path = self.governance_claims_dir / ".claim.lock"
+        with lock_path.open("a+", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            if digest_path.exists() or nonce_path.exists():
+                return False
+            record = {
+                "schema": "rexecop.governance_decision_claim.v0.1",
+                "decision_digest": decision_digest,
+                "nonce_digest": f"sha256:{nonce_key}",
+                "attempt_id": attempt_id,
+                "runtime_instance_id": runtime_instance_id,
+            }
+            self._write_json(digest_path, record)
+            self._write_json(
+                nonce_path,
+                {
+                    "schema": "rexecop.governance_nonce_claim.v0.1",
+                    "decision_claim_ref": f"sha256:{digest_key}",
+                    "attempt_id": attempt_id,
+                    "runtime_instance_id": runtime_instance_id,
+                },
+            )
+            return True

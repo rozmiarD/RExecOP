@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from govengine.signing import SigningPolicy, TrustPolicy, VerifierPort
 from sclite.integrity import artifact_descriptor
 
 from rexecop.adapters.govengine_port.adapter import default_govengine_adapter
@@ -20,6 +21,10 @@ from rexecop.adapters.govengine_port.contracts import (
     GovEngineDecisionType,
     GovEngineRequest,
     is_mutating_mode,
+)
+from rexecop.adapters.govengine_port.runtime_authority import (
+    AttemptGovernanceAuthority,
+    TrustedGovernanceDecisionConsumer,
 )
 from rexecop.adapters.sclite_port.contracts import SCLITE_ARTIFACT_AUTHORITY
 from rexecop.catalog.service import CatalogService
@@ -79,11 +84,40 @@ class OperationController:
         self,
         store: RuntimeStore | None = None,
         govengine_adapter: GovEngineAdapter | None = None,
+        attempt_governance_authority: AttemptGovernanceAuthority | None = None,
+        governance_decision_verifier: VerifierPort | None = None,
+        governance_signing_policy: SigningPolicy | None = None,
+        governance_trust_policy: TrustPolicy | None = None,
+        capability_inventory_epoch: int = 0,
     ) -> None:
         self.store = store or create_store()
         self.structured_log = StructuredLogEmitter(self.store)
         self.evidence = ObservabilityEvidenceManager(self.store, self.structured_log)
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
+        governance_components = (
+            attempt_governance_authority,
+            governance_decision_verifier,
+            governance_signing_policy,
+            governance_trust_policy,
+        )
+        if any(item is not None for item in governance_components) and not all(
+            item is not None for item in governance_components
+        ):
+            raise RExecOpValidationError(
+                "canonical_governance_configuration_incomplete"
+            )
+        governance_decision_consumer = None
+        if attempt_governance_authority is not None:
+            assert governance_decision_verifier is not None
+            assert governance_signing_policy is not None
+            assert governance_trust_policy is not None
+            governance_decision_consumer = TrustedGovernanceDecisionConsumer(
+                store=self.store,
+                authority=attempt_governance_authority,
+                verifier=governance_decision_verifier,
+                signing_policy=governance_signing_policy,
+                trust_policy=governance_trust_policy,
+            )
         from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
         from rexecop.runtime_ops.coordinator import RuntimeCoordinator
         from rexecop.runtime_ops.rollback import RollbackExecutor
@@ -98,6 +132,8 @@ class OperationController:
             transition=self._transition,
             export_receipt=self.export_receipt,
             auto_reaction_handler=self._maybe_plan_auto_reaction,
+            governance_decision_consumer=governance_decision_consumer,
+            inventory_epoch=capability_inventory_epoch,
         )
         self._execution_lease: dict[str, Any] | None = None
 

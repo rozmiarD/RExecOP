@@ -6,6 +6,13 @@ from rexecop.adapters.govengine_port.contracts import (
     GovEngineDecisionType,
     GovEngineRequest,
 )
+from rexecop.adapters.govengine_port.runtime_authority import (
+    AttemptGovernanceAuthority,
+    ClaimedGovernanceDecision,
+    RuntimeAttemptGovernanceFacts,
+    SignedGovernanceDecisionBundle,
+    TrustedGovernanceDecisionConsumer,
+)
 from rexecop.adapters.govengine_port.static_adapter import StaticGovEngineAdapter
 
 __all__ = [
@@ -16,4 +23,9 @@ __all__ = [
     "GovEngineRequest",
     "StaticGovEngineAdapter",
     "default_govengine_adapter",
+    "AttemptGovernanceAuthority",
+    "ClaimedGovernanceDecision",
+    "RuntimeAttemptGovernanceFacts",
+    "SignedGovernanceDecisionBundle",
+    "TrustedGovernanceDecisionConsumer",
 ]

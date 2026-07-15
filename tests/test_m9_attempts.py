@@ -21,6 +21,7 @@ ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 def _leave_started_attempt(root: str, operation_id: str, plan: dict[str, object]) -> None:
     AttemptJournal(Path(root)).start(
+        attempt_id=AttemptJournal.allocate_id(),
         operation_id=operation_id,
         operation_revision=3,
         step_id="crash-after-io",
@@ -71,6 +72,7 @@ def test_recovery_marks_started_attempt_indeterminate_and_blocks_effect_retry(
     plan = controller.store.load_plan(operation.id)
     journal = AttemptJournal(controller.store.root)
     attempt = journal.start(
+        attempt_id=journal.allocate_id(),
         operation_id=operation.id,
         operation_revision=operation.operation_revision,
         step_id="effect-step",

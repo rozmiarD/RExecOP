@@ -2,6 +2,17 @@
 
 ## Unreleased — explicit orchestration contract ownership
 
+- Adds the canonical runtime consumer for signed GovEngine `GovernanceDecision`
+  records. RExecOp verifies issuer trust and exact attempt/lease/fencing/spec/
+  payload/scope/inventory bindings before atomically claiming the decision.
+- Preallocates `attempt_id` before requesting governance and replaces the old
+  freshness record with attempt-bound `rexecop.runtime_attempt_permit.v0.1`.
+  Mutating connector I/O has no unsigned fallback; read-only compatibility is
+  explicitly recorded as `legacy_read_only` and makes no signed-authority claim.
+- Adds durable digest-and-nonce claim indexes and
+  `validate_g3_runtime_governance_gate.py`, including real multiprocess replay
+  exclusion and negative expiry/binding/trust cases.
+
 - Projects a GovEngine-owned digest over the bounded runtime capability
   descriptor instead of reusing the digest of RExecOp's larger source record.
 - Removes the fallback that treated backend-declared capabilities as operation

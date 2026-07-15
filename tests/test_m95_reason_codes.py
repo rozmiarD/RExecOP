@@ -76,6 +76,7 @@ def test_retry_cli_emits_outcome_indeterminate_without_internal_message(
     )
     plan = store.load_plan(operation.id)
     attempt = store.start_execution_attempt(
+        attempt_id=store.allocate_execution_attempt_id(),
         operation_id=operation.id,
         operation_revision=operation.operation_revision,
         step_id="effect",

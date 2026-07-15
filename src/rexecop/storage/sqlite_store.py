@@ -149,6 +149,9 @@ class SqliteStore:
     def start_execution_attempt(self, **binding: Any) -> dict[str, Any]:
         return self._files.start_execution_attempt(**binding)
 
+    def allocate_execution_attempt_id(self) -> str:
+        return self._files.allocate_execution_attempt_id()
+
     def finish_execution_attempt(
         self,
         attempt: dict[str, Any],
@@ -183,6 +186,16 @@ class SqliteStore:
 
     def load_execution_permit(self, operation_id: str, step_id: str) -> dict[str, Any]:
         return self._files.load_execution_permit(operation_id, step_id)
+
+    def load_execution_permit_for_attempt(
+        self,
+        operation_id: str,
+        attempt_id: str,
+    ) -> dict[str, Any]:
+        return self._files.load_execution_permit_for_attempt(operation_id, attempt_id)
+
+    def claim_governance_decision_once(self, **claim: Any) -> bool:
+        return self._files.claim_governance_decision_once(**claim)
 
     def save_operation(self, operation: Operation) -> None:
         with self._connection(immediate=True) as conn:

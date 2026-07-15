@@ -24,10 +24,16 @@ class AttemptJournal:
         self.root = root
         self.attempts_dir = root / "attempts"
 
+    @staticmethod
+    def allocate_id() -> str:
+        """Allocate an attempt identity before governance is requested."""
+        return f"attempt-{uuid.uuid4().hex}"
+
     def start(
         self,
         *,
         operation_id: str,
+        attempt_id: str,
         operation_revision: int,
         step_id: str,
         plan: dict[str, Any],
@@ -39,8 +45,11 @@ class AttemptJournal:
     ) -> dict[str, Any]:
         operation_dir = self.attempts_dir / operation_id
         secure_directory(operation_dir)
-        attempt_id = f"attempt-{uuid.uuid4().hex}"
+        if not attempt_id.startswith("attempt-") or len(attempt_id) > 96:
+            raise RExecOpValidationError("invalid execution attempt id")
         path = operation_dir / f"{attempt_id}.json"
+        if path.exists():
+            raise RExecOpValidationError("execution attempt already exists")
         record = {
             "schema": ATTEMPT_SCHEMA,
             "attempt_id": attempt_id,

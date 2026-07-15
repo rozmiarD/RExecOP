@@ -9,6 +9,9 @@ from rexecop.adapters.govengine_port.contracts import (
     WAITING_DECISIONS,
     is_mutating_mode,
 )
+from rexecop.adapters.govengine_port.runtime_authority import (
+    TrustedGovernanceDecisionConsumer,
+)
 from rexecop.catalog.digest import canonical_digest
 from rexecop.connectors.composite_runtime import build_connector_runtime
 from rexecop.connectors.runtime import ConnectorDispatcher
@@ -31,6 +34,7 @@ from rexecop.policy.enforcement import (
 )
 from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import LoadedProfile, load_profile
+from rexecop.runtime_ops.governance_facts import build_runtime_attempt_governance_facts
 from rexecop.runtime_ops.permit import ExecutionPermitManager
 from rexecop.storage.port import RuntimeStore
 from rexecop.validation.validator import validate_operation_result
@@ -105,6 +109,8 @@ class OperationOrchestrator:
         transition: Any,
         export_receipt: Any,
         auto_reaction_handler: Callable[[Operation], dict[str, Any] | None] | None = None,
+        governance_decision_consumer: TrustedGovernanceDecisionConsumer | None = None,
+        inventory_epoch: int = 0,
     ) -> None:
         self.store = store
         self.evidence = evidence
@@ -112,6 +118,8 @@ class OperationOrchestrator:
         self._transition = transition
         self._export_receipt = export_receipt
         self._auto_reaction_handler = auto_reaction_handler
+        self._governance_decision_consumer = governance_decision_consumer
+        self._inventory_epoch = inventory_epoch
         self.execution_lease_record: dict[str, Any] | None = None
         self.permits = ExecutionPermitManager(store)
 
@@ -146,6 +154,7 @@ class OperationOrchestrator:
         lease = self.execution_lease_record
         if lease is None:
             raise RExecOpValidationError("execution attempt requires active execution lease")
+        self.store.validate_execution_lease(lease)
         operation = self.store.load_operation(context.operation_id)
         plan = self.store.load_plan(context.operation_id)
         governance = operation.metadata.get("governance_admission")
@@ -160,30 +169,65 @@ class OperationOrchestrator:
                     step_admission.get("admission_digest") or governance_admission_digest
                 )
         execution_spec = dict(spec or {})
+        attempt_id = self.store.allocate_execution_attempt_id()
+        governance_claim = None
+        if self._governance_decision_consumer is not None:
+            facts = build_runtime_attempt_governance_facts(
+                operation_id=operation.id,
+                step_id=str(context.step.get("id") or ""),
+                attempt_id=attempt_id,
+                target=context.target,
+                execution_spec=execution_spec,
+                lease=lease,
+                inventory_epoch=self._inventory_epoch,
+            )
+            governance_claim = self._governance_decision_consumer.authorize_and_claim(facts)
+            current_facts = build_runtime_attempt_governance_facts(
+                operation_id=operation.id,
+                step_id=str(context.step.get("id") or ""),
+                attempt_id=attempt_id,
+                target=context.target,
+                execution_spec=execution_spec,
+                lease=lease,
+                inventory_epoch=self._inventory_epoch,
+            )
+            if current_facts != facts:
+                raise RExecOpValidationError("governance_runtime_facts_drift")
+        execution_payload = execution_spec.get("payload")
+        destination = (
+            execution_payload.get("destination_binding")
+            if isinstance(execution_payload, dict)
+            else None
+        )
         target_binding = {
             "target": context.target,
-            "destination": dict(execution_spec.get("destination") or {}),
+            "destination": dict(destination) if isinstance(destination, dict) else {},
         }
         permit = self.permits.issue(
             operation=operation,
             plan=plan,
             step_id=str(context.step.get("id") or ""),
+            attempt_id=attempt_id,
             execution_spec=execution_spec,
             target_binding=target_binding,
             lease=lease,
             governance_admission_digest=governance_admission_digest,
+            governance_claim=governance_claim,
         )
         self.permits.require_fresh(
             permit,
             operation=self.store.load_operation(operation.id),
             plan=self.store.load_plan(operation.id),
+            attempt_id=attempt_id,
             execution_spec=execution_spec,
             target_binding=target_binding,
             lease=lease,
             governance_admission_digest=governance_admission_digest,
+            governance_claim=governance_claim,
         )
         return self.store.start_execution_attempt(
             operation_id=operation.id,
+            attempt_id=attempt_id,
             operation_revision=operation.operation_revision,
             step_id=str(context.step.get("id") or ""),
             plan=plan.as_dict(),

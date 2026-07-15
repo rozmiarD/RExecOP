@@ -10,6 +10,7 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
+from runtime_governance_support import governance_runtime_kwargs
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
@@ -20,6 +21,7 @@ def _controller(tmp_path: Path, decision: GovEngineDecisionType) -> OperationCon
     return OperationController(
         store=FileStore(tmp_path / ".rexecop"),
         govengine_adapter=StaticGovEngineAdapter(decision),
+        **governance_runtime_kwargs(),
     )
 
 

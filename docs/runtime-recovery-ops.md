@@ -56,11 +56,20 @@ invocation. Connector attempts are persisted before IO. A process loss after IO 
 the durable result becomes `outcome_indeterminate`; side-effectful work is never retried
 automatically and requires explicit reconciliation.
 
-Immediately before connector IO, RExecOp writes and verifies
-`rexecop.execution_permit.v0.1`. The permit binds the current operation revision,
-plan/spec digests, recorded GovEngine decision/admission digest, target binding, mode,
-lease epoch and expiry. It is a freshness record only: it does not evaluate policy,
-grant governance authority or create SCLite truth.
+Immediately before connector IO, RExecOp preallocates `attempt_id`, then writes and
+verifies `rexecop.runtime_attempt_permit.v0.1`. The permit binds the current operation
+revision, attempt, plan/spec digests, target, mode, lease and expiry. When a canonical
+GovEngine authority is configured, RExecOp first verifies the signed
+`GovernanceDecision`, checks exact attempt/runtime/lease/fencing/spec/payload/scope/
+inventory bindings, and atomically claims both the decision digest and nonce. Only then
+does it persist `attempt started` before connector IO.
+
+Mutating connector IO has no unsigned compatibility fallback. Read-only operations may
+still use the explicitly labelled `legacy_read_only` binding while callers migrate to
+the signed-decision authority port; that label is not a governance authenticity claim.
+Recovery never clears governance claims, so an indeterminate attempt cannot reuse its
+old decision. The runtime permit remains a RExecOp freshness/binding record, not a
+GovEngine policy decision or SCLite truth artifact.
 
 ## Runtime-store reconstruction status
 

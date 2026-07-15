@@ -36,10 +36,12 @@ def test_execution_permit_binds_fresh_runtime_facts(tmp_path: Path) -> None:
     spec = {"digest": "sha256:" + "a" * 64}
     target_binding = {"target": operation.target, "destination": {}}
     manager = ExecutionPermitManager(store)
+    attempt_id = store.allocate_execution_attempt_id()
     permit = manager.issue(
         operation=operation,
         plan=plan,
         step_id="inspect_state",
+        attempt_id=attempt_id,
         execution_spec=spec,
         target_binding=target_binding,
         lease=lease,
@@ -51,6 +53,7 @@ def test_execution_permit_binds_fresh_runtime_facts(tmp_path: Path) -> None:
         permit,
         operation=operation,
         plan=plan,
+        attempt_id=attempt_id,
         execution_spec=spec,
         target_binding=target_binding,
         lease=lease,
@@ -73,10 +76,12 @@ def test_execution_permit_rejects_expiry_and_revision_drift(tmp_path: Path) -> N
     spec = {"digest": "sha256:" + "c" * 64}
     binding = {"target": operation.target, "destination": {}}
     manager = ExecutionPermitManager(store)
+    attempt_id = store.allocate_execution_attempt_id()
     permit = manager.issue(
         operation=operation,
         plan=plan,
         step_id="inspect_state",
+        attempt_id=attempt_id,
         execution_spec=spec,
         target_binding=binding,
         lease=lease,
@@ -90,6 +95,7 @@ def test_execution_permit_rejects_expiry_and_revision_drift(tmp_path: Path) -> N
             permit,
             operation=operation,
             plan=plan,
+            attempt_id=attempt_id,
             execution_spec=spec,
             target_binding=binding,
             lease=lease,
@@ -104,6 +110,7 @@ def test_execution_permit_rejects_expiry_and_revision_drift(tmp_path: Path) -> N
             permit,
             operation=operation,
             plan=plan,
+            attempt_id=attempt_id,
             execution_spec=spec,
             target_binding=binding,
             lease=lease,
@@ -124,3 +131,10 @@ def test_connector_attempt_references_just_checked_permit(tmp_path: Path) -> Non
     attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
     assert attempt["execution_permit_ref"] == permit["permit_digest"]
     assert permit["execution_spec_digest"] == attempt["execution_spec_digest"]
+    assert permit["attempt_id"] == attempt["attempt_id"]
+    assert permit["governance_binding_mode"] == "legacy_read_only"
+    immutable = controller.store.load_execution_permit_for_attempt(
+        operation.id,
+        attempt["attempt_id"],
+    )
+    assert immutable["permit_digest"] == attempt["execution_permit_ref"]
