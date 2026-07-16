@@ -48,7 +48,8 @@ The script runs:
 CI on `main` runs the same validators (except the optional build step), **ruff**, **mypy**,
 and the full **pytest** suite on Python **3.11**, **3.12**, and **3.13**, plus the
 `package-dry-run` job. PyPI publication uses `.github/workflows/publish.yml`
-(manual) or operator `twine upload` after sign-off.
+(manual), the named `pypi` environment and PyPI Trusted Publishing OIDC after
+sign-off. Local/operator token uploads are not an accepted release path.
 
 ## Human acceptance checklist
 

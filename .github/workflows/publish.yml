@@ -6,14 +6,14 @@ on:
       version:
         description: Package version to publish (must match pyproject.toml)
         required: true
-        default: "0.2.11a0"
+        default: "0.3.0rc3"
       govengine_ref:
         description: Exact GovEngine commit SHA for this release train
         required: true
       sclite_ref:
         description: Exact SCLite commit SHA for this release train
         required: true
-        default: "42d6d77ab95ee793efb0cde5459aa279c5a99016"
+        default: "2470373c6384c284ab48df7ce763f0938797d155"
       tecrax_ref:
         description: Exact Tecrax commit SHA for this release train
         required: true
@@ -30,6 +30,9 @@ permissions:
 jobs:
   publish-rexecop:
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/rexecop/
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
@@ -104,11 +107,8 @@ jobs:
       - name: Supply-chain gate
         run: python scripts/validate_supply_chain_gate.py dist
 
-      - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: python -m twine upload dist/*
+      - name: Publish to PyPI with trusted publishing
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
 
       - name: Public-index release smoke
         env:

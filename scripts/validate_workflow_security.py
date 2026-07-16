@@ -18,6 +18,9 @@ REQUIRED_PINS = {
     "actions/attest-build-provenance": (
         "977bb373ede98d70efdf65b84cb5f73e068dcc2a"
     ),
+    "pypa/gh-action-pypi-publish": (
+        "cef221092ed1bacb1cc03d23a2d87d1d172e277b"
+    ),
 }
 
 
@@ -44,6 +47,24 @@ def validate_workflow_security() -> dict[str, int]:
     missing = sorted(set(REQUIRED_PINS) - seen)
     if missing:
         raise AssertionError(f"workflow_required_action_missing:{','.join(missing)}")
+    publish = (WORKFLOWS / "publish.yml").read_text(encoding="utf-8")
+    for marker in (
+        "name: pypi",
+        "id-token: write",
+        "pypa/gh-action-pypi-publish@",
+        'default: "0.3.0rc3"',
+        'default: "2470373c6384c284ab48df7ce763f0938797d155"',
+    ):
+        if marker not in publish:
+            raise AssertionError(f"workflow_publish_missing:{marker}")
+    for forbidden in (
+        "PYPI_" + "API_TOKEN",
+        "TWINE_PASSWORD",
+        "twine upload",
+        "skip-existing:",
+    ):
+        if forbidden in publish:
+            raise AssertionError(f"workflow_publish_unsafe_setting:{forbidden}")
     return {"workflows": len(paths), "actions": action_count}
 
 

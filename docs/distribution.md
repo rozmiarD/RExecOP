@@ -89,14 +89,20 @@ local wheelhouse and pass it with `--candidate-wheel-dir`. The isolated install 
 resolves and checks the complete wheel environment; it does not require those
 candidates to exist on PyPI first.
 
-### PyPI trusted publishing (preferred)
+### PyPI trusted publishing
 
-Long-lived `PYPI_API_TOKEN` upload remains supported in `publish.yml`, but the preferred
-path is **PyPI trusted publishing (OIDC)** from GitHub Actions:
+`.github/workflows/publish.yml` uses **PyPI trusted publishing (OIDC)** from
+GitHub Actions. The registered publisher tuple is:
 
-1. Configure a trusted publisher for `rozmiarD/RExecOP` on PyPI.
-2. Replace the `twine upload` step with `pypa/gh-action-pypi-publish@release/v1`.
-3. Keep workflow permissions that allow GitHub OIDC token mint (already enabled).
+- owner: `rozmiarD`;
+- repository: `RExecOP`;
+- workflow: `publish.yml`;
+- environment: `pypi`;
+- PyPI project: `rexecop`.
+
+The official publisher action is pinned to a reviewed full commit SHA. The
+workflow carries no long-lived PyPI credential and rejects token-based upload
+settings through `scripts/validate_workflow_security.py`.
 
 Do not store upload tokens in the repository, handoffs, or agent memory.
 

@@ -128,6 +128,11 @@ def _require(errors: list[str], path: str, expected: str) -> None:
         errors.append(f"{path}:missing:{expected}")
 
 
+def _forbid(errors: list[str], path: str, forbidden: str) -> None:
+    if forbidden in _read(path):
+        errors.append(f"{path}:forbidden:{forbidden}")
+
+
 def _reject_stale_operator_versions(errors: list[str], path: str, text: str, current: str) -> None:
     for stale in STALE_OPERATOR_VERSIONS:
         if stale == current:
@@ -330,7 +335,15 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/ci.yml", "twine check")
     _require(errors, ".github/workflows/ci.yml", "validate_distribution.py")
     _require(errors, ".github/workflows/publish.yml", "workflow_dispatch")
-    _require(errors, ".github/workflows/publish.yml", "twine upload")
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        "pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b",
+    )
+    _require(errors, ".github/workflows/publish.yml", "name: pypi")
+    _forbid(errors, ".github/workflows/publish.yml", "PYPI_" + "API_TOKEN")
+    _forbid(errors, ".github/workflows/publish.yml", "TWINE_PASSWORD")
+    _forbid(errors, ".github/workflows/publish.yml", "twine upload")
     _require(errors, ".github/workflows/publish.yml", "validate_distribution.py")
     _require(errors, ".github/workflows/publish.yml", "govengine_ref:")
     _require(errors, ".github/workflows/publish.yml", "sclite_ref:")
