@@ -6,7 +6,7 @@ import pytest
 
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest
-from rexecop.connectors.command_shape import normalize_allowlisted_argv
+from rexecop.connectors.command_shape import normalize_allowlisted_argv, normalize_argv
 from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 
 
@@ -45,6 +45,47 @@ def test_readonly_command_matrix_remains_allowed(tool: str, args: list[str]) -> 
         args=args,
         allowed_tools=[tool],
     ) == [tool, *args]
+
+
+def test_runtime_owned_normalizer_adds_curl_disable_config_flag() -> None:
+    assert normalize_allowlisted_argv(
+        tool="curl",
+        args=["https://example.invalid"],
+        allowed_tools=["curl"],
+    ) == ["curl", "-q", "https://example.invalid"]
+
+
+@pytest.mark.parametrize(
+    ("approved_spec", "reason"),
+    [
+        (False, "tool_not_allowed:curl"),
+        (True, "tool_not_allowed_for_approved_spec:curl"),
+    ],
+)
+def test_runtime_owned_normalizer_rejects_unlisted_tools(
+    approved_spec: bool,
+    reason: str,
+) -> None:
+    with pytest.raises(ValueError, match=reason):
+        normalize_argv(
+            "curl",
+            (),
+            allowed_tools=("cat",),
+            contains_tool_restricted_patterns=lambda _tool, _args: (False, ""),
+            normalize_tool=lambda value: str(value).strip().lower(),
+            approved_spec=approved_spec,
+        )
+
+
+def test_runtime_owned_normalizer_rejects_missing_tool() -> None:
+    with pytest.raises(ValueError, match="missing_tool"):
+        normalize_argv(
+            " ",
+            (),
+            allowed_tools=(),
+            contains_tool_restricted_patterns=lambda _tool, _args: (False, ""),
+            normalize_tool=lambda value: str(value).strip().lower(),
+        )
 
 
 def test_restricted_local_shell_never_calls_subprocess() -> None:

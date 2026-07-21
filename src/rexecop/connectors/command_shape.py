@@ -1,10 +1,55 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import PurePath
 from typing import Any
 
-from govengine.execution.command_shape import normalize_argv
+RestrictedPatternCheck = Callable[[Any, Iterable[Any]], tuple[bool, str]]
+NormalizeTool = Callable[[Any], str]
+
+
+def normalize_argv(
+    tool: Any,
+    args: Iterable[Any],
+    *,
+    allowed_tools: Iterable[str],
+    contains_tool_restricted_patterns: RestrictedPatternCheck,
+    normalize_tool: NormalizeTool,
+    approved_spec: bool = False,
+) -> list[str]:
+    """Normalize one runtime-owned tool invocation without executing it."""
+
+    normalized_tool = normalize_tool(tool)
+    if not normalized_tool:
+        raise ValueError("missing_tool")
+    allowed = {
+        str(item).strip().lower()
+        for item in allowed_tools
+        if str(item).strip()
+    }
+    if normalized_tool not in allowed:
+        reason = (
+            "tool_not_allowed_for_approved_spec"
+            if approved_spec
+            else "tool_not_allowed"
+        )
+        raise ValueError(f"{reason}:{normalized_tool}")
+    normalized_args = [str(item) for item in (args or [])]
+    if (
+        normalized_tool == "curl"
+        and "-q" not in normalized_args
+        and "--disable" not in normalized_args
+    ):
+        normalized_args = ["-q", *normalized_args]
+    restricted, restricted_pattern = contains_tool_restricted_patterns(
+        normalized_tool,
+        normalized_args,
+    )
+    if restricted:
+        raise ValueError(
+            f"tool_restricted_pattern:{normalized_tool}:{restricted_pattern}"
+        )
+    return [normalized_tool, *normalized_args]
 
 
 def _contains_no_restricted_patterns(
@@ -66,7 +111,7 @@ def normalize_allowlisted_argv(
     args: Iterable[Any],
     allowed_tools: Iterable[str],
 ) -> list[str]:
-    """Validate allowlisted shell invocation via GovEngine command_shape."""
+    """Validate an allowlisted shell invocation at the RExecOp I/O boundary."""
     return normalize_argv(
         tool,
         args,

@@ -2,6 +2,10 @@
 
 ## Unreleased — explicit orchestration contract ownership
 
+- Moves allowlisted argv normalization into RExecOp's connector boundary and
+  removes the deep import of GovEngine's legacy command-shape helper. Tool
+  normalization and restricted command-pattern enforcement now have one runtime
+  owner immediately before subprocess construction.
 - Consumes the 33-case wheel-shipped GovEngine v1 conformance corpus. RExecOp
   executes all GovEngine-owned cases through the shared runner and owns six
   atomic decision-consumption cases covering valid claim, runtime/attempt/

@@ -136,8 +136,8 @@ connectors:
 ```
 
 Refuses mutating operation modes. Only allowlisted `action` / `command` pairs may run.
-Allowlist entries are validated with `govengine.execution.command_shape.normalize_argv`.
-RExecOp additionally rejects structured mutation patterns before subprocess execution:
+RExecOp owns allowlist argv normalization and rejects structured mutation patterns before
+subprocess execution:
 shell `-c`, `sudo`, service/systemd lifecycle mutations, Docker mutations, and Docker
 Compose `up`/`down`/`restart`. Matching uses argv tokens and command families, not
 substring scanning.
