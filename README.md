@@ -114,6 +114,8 @@ Ravenclaw is legacy and out of scope for RExecOp.
   command groups, `format_matrix` and `exit_code_matrix`
 - Candidate 1.x public API: `rexecop.public_api.v1` lists the exact supported
   Python imports, stable CLI registry commands and explicit alpha CLI remainder
+- Release evidence v2 binds public wheel/sdist identity, CycloneDX SBOM and
+  GitHub provenance-attestation subjects before durable evidence persistence
 - CLI error envelope: registry commands emit `rexecop.cli_error.v0.1` on exit
   code `1` with normalized class, reason code, redacted message and safe next actions
 - Observability: bounded structured logs with correlation IDs and artifact refs;

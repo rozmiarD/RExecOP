@@ -34,14 +34,17 @@ The script runs:
     single executor, mutation posture, plugin inventory and runtime security blockers
 15. `python scripts/validate_m10_public_api_gate.py` — fresh Python imports, full
     CLI stability classification, schema fail-closed and alpha-to-1.0 new-root policy
-16. `python scripts/validate_g3_runtime_governance_gate.py`
-17. `python scripts/validate_governance_conformance.py`
-18. `python scripts/validate_g6_release_candidate_gate.py`
-19. Core boundary greps (`tecrax` / domain strings forbidden in core) and
+16. `python scripts/validate_m10_release_gate.py` — pinned actions, OIDC workflow,
+    SBOM/attestation-bound release evidence and fail-closed release regressions;
+    add `--live-github` before publication to verify ref/environment protection
+17. `python scripts/validate_g3_runtime_governance_gate.py`
+18. `python scripts/validate_governance_conformance.py`
+19. `python scripts/validate_g6_release_candidate_gate.py`
+20. Core boundary greps (`tecrax` / domain strings forbidden in core) and
     `scripts/secret_scan.sh`
-20. Ruff and mypy
-21. `pytest -m delivery` — canonical delivery-scope suite from `tests/delivery_scope.py`
-22. Optional `python -m build` + `twine check` + `validate_artifact_install_smoke.py`
+21. Ruff and mypy
+22. `pytest -m delivery` — canonical delivery-scope suite from `tests/delivery_scope.py`
+23. Optional `python -m build` + `twine check` + `validate_artifact_install_smoke.py`
    when `REXECOP_SIGNOFF_BUILD=1` and `build` is installed
 
 The release workflow additionally runs
@@ -49,7 +52,8 @@ The release workflow additionally runs
 <downloaded-json>` before upload. Post-publish it runs
 `python scripts/validate_public_index_release_smoke.py --write-evidence --verify-post-publish`
     (wraps `validate_clean_install_smoke.py`, `rexecop version`, `rexecop --json doctor`, creates
-    digest-bound `rexecop.release_evidence.v1`, then verifies it before release-asset upload).
+    SBOM/attestation-bound `rexecop.release_evidence.v2`, then verifies it before
+    durable evidence persistence).
 Package supply-chain validation is `python scripts/validate_supply_chain_gate.py dist`
 after build (`pip-audit` + CycloneDX SBOM; exceptions in
 `docs/supply-chain-audit-exceptions.json`).

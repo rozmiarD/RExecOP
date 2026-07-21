@@ -2,6 +2,15 @@
 
 ## Unreleased — explicit orchestration contract ownership
 
+- Upgrades new-publication release evidence to
+  `rexecop.release_evidence.v2`. Wheel, sdist and CycloneDX SBOM digests must
+  exactly match one GitHub provenance attestation; the evidence record carries
+  its ID/URL and fails closed on missing SBOM or subject drift. Historical v1
+  evidence remains accepted only for the preceding public line.
+- The publish and bounded repair workflows now attest wheel, sdist and SBOM
+  before producing evidence, attest the evidence record itself, and persist the
+  SBOM with the record on the `release-evidence` branch.
+
 - Freezes the candidate M10 public surface in `rexecop.public_api.v1`: exact
   supported Python symbols, 23 `stable_v1` CLI contracts and a complete explicit
   alpha classification for every other installed CLI leaf. Fresh-subprocess

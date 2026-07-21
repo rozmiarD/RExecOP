@@ -25,28 +25,38 @@ def _load_validator():
     return module
 
 
-def _write_evidence(path: Path, version: str, *, supersedes: str = "") -> Path:
+def _write_evidence(
+    path: Path,
+    version: str,
+    *,
+    supersedes: str = "",
+    legacy: bool = False,
+) -> Path:
     validator = _load_validator()
     release_evidence = validator._load_module(
         "rexecop_release_evidence_test",
         ROOT / "scripts" / "release_evidence.py",
     )
+    artifacts = {
+        f"rexecop-{version}-py3-none-any.whl": "b" * 64,
+        f"rexecop-{version}.tar.gz": "c" * 64,
+    }
+    sbom = {
+        "filename": f"rexecop-{version}.cdx.json",
+        "sha256": "d" * 64,
+        "format": "CycloneDX",
+        "spec_version": "1.6",
+    }
     record = {
-        "schema": "rexecop.release_evidence.v1",
+        "schema": release_evidence.LEGACY_SCHEMA if legacy else release_evidence.SCHEMA,
         "status": "passed",
         "version": version,
         "recorded_at": "2026-07-12T00:00:00+00:00",
         "source_commit": "a" * 40,
         "workflow_run_id": "123",
         "workflow_run_url": "https://github.com/rozmiarD/RExecOP/actions/runs/123",
-        "artifacts": {
-            f"rexecop-{version}-py3-none-any.whl": "b" * 64,
-            f"rexecop-{version}.tar.gz": "c" * 64,
-        },
-        "public_artifacts": {
-            f"rexecop-{version}-py3-none-any.whl": "b" * 64,
-            f"rexecop-{version}.tar.gz": "c" * 64,
-        },
+        "artifacts": artifacts,
+        "public_artifacts": dict(artifacts),
         "installed_versions": {
             "rexecop": version,
             "govengine": "0.16.11",
@@ -57,6 +67,14 @@ def _write_evidence(path: Path, version: str, *, supersedes: str = "") -> Path:
         "surface_marker": f"clean_install_smoke_ok:rexecop=={version}",
         "supersedes": supersedes,
     }
+    if not legacy:
+        record["sbom"] = sbom
+        record["attestation"] = {
+            "id": "456",
+            "url": "https://github.com/rozmiarD/RExecOP/attestations/456",
+            "predicate_type": release_evidence.ATTESTATION_PREDICATE_TYPE,
+            "subjects": {**artifacts, sbom["filename"]: sbom["sha256"]},
+        }
     record["record_digest"] = release_evidence.record_digest(record)
     path.write_text(json.dumps(record), encoding="utf-8")
     return path
@@ -197,6 +215,20 @@ def test_release_train_preflight_post_publish_accepts_valid_record(
     assert not any(error.startswith("release_evidence_") for error in errors)
 
 
+def test_release_train_preflight_post_publish_rejects_legacy_schema(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validator()
+    version = validator._validator_modules()[0].current_version()
+    monkeypatch.setattr(validator, "RELEASE_EVIDENCE_DIR", tmp_path)
+    _write_evidence(tmp_path / f"{version}.json", version, legacy=True)
+
+    errors = validator.collect_errors(post_publish=True, stack_repos={})
+
+    assert any(error.startswith("release_evidence_current_schema_required:") for error in errors)
+
+
 def test_release_preflight_rejects_missing_previous_evidence() -> None:
     validator = _load_validator()
     errors = validator.collect_errors(release_mode=True, stack_repos={})
@@ -227,4 +259,18 @@ def test_release_preflight_accepts_superseded_repair(tmp_path: Path) -> None:
         previous_evidence=path,
         stack_repos={},
     )
+    assert not any(error.startswith("release_evidence_") for error in errors)
+
+
+def test_release_preflight_accepts_legacy_previous_line_evidence(tmp_path: Path) -> None:
+    validator = _load_validator()
+    previous = validator._validator_modules()[0].PUBLISHED_PYPI_VERSION
+    path = _write_evidence(tmp_path / "legacy.json", previous, legacy=True)
+
+    errors = validator.collect_errors(
+        release_mode=True,
+        previous_evidence=path,
+        stack_repos={},
+    )
+
     assert not any(error.startswith("release_evidence_") for error in errors)

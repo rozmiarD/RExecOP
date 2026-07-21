@@ -100,6 +100,15 @@ GitHub Actions. The registered publisher tuple is:
 - environment: `pypi`;
 - PyPI project: `rexecop`.
 
+The GitHub `pypi` environment accepts deployments only from protected refs.
+`main` has strict required CI checks, and the active `Protect release tags`
+ruleset prevents update or deletion of `v*` tags without a bypass actor. Verify
+the live state before publication:
+
+```bash
+python scripts/validate_m10_release_gate.py --live-github
+```
+
 The official publisher action is pinned to a reviewed full commit SHA. The
 workflow carries no long-lived PyPI credential and rejects token-based upload
 settings through `scripts/validate_workflow_security.py`.

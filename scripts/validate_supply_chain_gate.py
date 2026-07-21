@@ -170,6 +170,7 @@ def install_wheel_venv(
 def collect_errors(
     dist_dir: Path,
     *,
+    version: str | None = None,
     pip_audit_cmd: list[str] | None = None,
     cyclonedx_cmd: list[str] | None = None,
     exceptions_path: Path = EXCEPTIONS_PATH,
@@ -177,7 +178,7 @@ def collect_errors(
     candidate_wheel_dirs: Sequence[Path] = (),
 ) -> list[str]:
     errors: list[str] = []
-    version = project_version()
+    selected_version = version or project_version()
     try:
         allowed = load_exceptions(exceptions_path)
     except RuntimeError as exc:
@@ -211,7 +212,7 @@ def collect_errors(
                 )
 
             if write_sbom:
-                output = sbom_output_path(dist_dir, version)
+                output = sbom_output_path(dist_dir, selected_version)
                 try:
                     generate_sbom(venv_python, output, cyclonedx_cmd=cyclonedx_cmd)
                 except (RuntimeError, json.JSONDecodeError, OSError) as exc:
@@ -233,6 +234,7 @@ def success_line(version: str, *, vulnerability_count: int, sbom_path: Path) -> 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run pip-audit and SBOM gate for dist artifacts.")
     parser.add_argument("dist", type=Path, nargs="?", default=ROOT / "dist")
+    parser.add_argument("--version", default="", help="Version encoded in the SBOM filename.")
     parser.add_argument("--no-sbom", action="store_true", help="Skip CycloneDX SBOM generation.")
     parser.add_argument(
         "--candidate-wheel-dir",
@@ -247,9 +249,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     dist_dir = args.dist.resolve()
-    version = project_version()
+    version = args.version or project_version()
     errors = collect_errors(
         dist_dir,
+        version=version,
         write_sbom=not args.no_sbom,
         candidate_wheel_dirs=args.candidate_wheel_dir,
     )

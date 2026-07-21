@@ -18,6 +18,7 @@ permissions:
   contents: write
   id-token: write
   attestations: write
+  artifact-metadata: write
 
 jobs:
   repair-evidence:
@@ -37,11 +38,29 @@ jobs:
           python -m pip download --no-deps --no-binary rexecop \
             --dest dist "rexecop==${{ inputs.version }}"
 
+      - name: Install supply-chain tooling
+        run: python -m pip install --upgrade pip pip-audit cyclonedx-bom
+
+      - name: Rebuild CycloneDX SBOM from the exact public wheel
+        run: python scripts/validate_supply_chain_gate.py dist --version "${{ inputs.version }}"
+
+      - name: Attest wheel, sdist, and CycloneDX SBOM
+        id: release_subject_attestation
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.cdx.json
+
       - name: Re-run public-index smoke and create evidence
         run: |
           python scripts/validate_public_index_release_smoke.py \
             --version "${{ inputs.version }}" \
             --dist-dir dist \
+            --sbom "dist/rexecop-${{ inputs.version }}.cdx.json" \
+            --attestation-id "${{ steps.release_subject_attestation.outputs.attestation-id }}" \
+            --attestation-url "${{ steps.release_subject_attestation.outputs.attestation-url }}" \
             --evidence-output ".release-train/rexecop-release-evidence-${{ inputs.version }}.json" \
             --source-commit "${{ inputs.source_commit }}" \
             --supersedes "${{ inputs.supersedes }}" \
@@ -73,6 +92,8 @@ jobs:
           fi
           mkdir -p /tmp/rexecop-release-evidence/release-evidence
           cp ".release-train/rexecop-release-evidence-${{ inputs.version }}.json" \
+            /tmp/rexecop-release-evidence/release-evidence/
+          cp "dist/rexecop-${{ inputs.version }}.cdx.json" \
             /tmp/rexecop-release-evidence/release-evidence/
           git -C /tmp/rexecop-release-evidence add release-evidence
           git -C /tmp/rexecop-release-evidence commit \

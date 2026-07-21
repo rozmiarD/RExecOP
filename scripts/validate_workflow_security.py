@@ -51,7 +51,11 @@ def validate_workflow_security() -> dict[str, int]:
     for marker in (
         "name: pypi",
         "id-token: write",
+        "artifact-metadata: write",
         "pypa/gh-action-pypi-publish@",
+        "dist/*.cdx.json",
+        "steps.release_subject_attestation.outputs.attestation-id",
+        "steps.release_subject_attestation.outputs.attestation-url",
         'default: "0.3.0rc3"',
         'default: "2470373c6384c284ab48df7ce763f0938797d155"',
     ):
@@ -65,6 +69,16 @@ def validate_workflow_security() -> dict[str, int]:
     ):
         if forbidden in publish:
             raise AssertionError(f"workflow_publish_unsafe_setting:{forbidden}")
+    repair = (WORKFLOWS / "repair-release-evidence.yml").read_text(encoding="utf-8")
+    for marker in (
+        "artifact-metadata: write",
+        "validate_supply_chain_gate.py dist --version",
+        "dist/*.cdx.json",
+        "steps.release_subject_attestation.outputs.attestation-id",
+        "steps.release_subject_attestation.outputs.attestation-url",
+    ):
+        if marker not in repair:
+            raise AssertionError(f"workflow_repair_missing:{marker}")
     return {"workflows": len(paths), "actions": action_count}
 
 

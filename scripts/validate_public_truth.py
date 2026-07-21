@@ -385,6 +385,10 @@ def collect_errors() -> list[str]:
         ".github/workflows/publish.yml",
         "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
     )
+    _require(errors, ".github/workflows/publish.yml", "artifact-metadata: write")
+    _require(errors, ".github/workflows/publish.yml", "dist/*.cdx.json")
+    _require(errors, ".github/workflows/publish.yml", "--attestation-id")
+    _require(errors, ".github/workflows/publish.yml", "--attestation-url")
     _require(errors, ".github/workflows/publish.yml", "HEAD:release-evidence")
     _require(errors, ".github/workflows/publish.yml", "?ref=release-evidence")
     _require(errors, ".github/workflows/publish.yml", 'test "$GITHUB_REF" = "refs/heads/main"')
@@ -393,9 +397,18 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         ".github/workflows/repair-release-evidence.yml",
+        "validate_supply_chain_gate.py dist --version",
+    )
+    _require(errors, ".github/workflows/repair-release-evidence.yml", "dist/*.cdx.json")
+    _require(
+        errors,
+        ".github/workflows/repair-release-evidence.yml",
         "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
     )
-    _require(errors, "docs/release-evidence/README.md", "rexecop.release_evidence.v1")
+    _require(errors, "docs/release-evidence/README.md", "rexecop.release_evidence.v2")
+    _require(errors, "docs/release-evidence/README.md", "gh attestation verify")
+    _require(errors, "docs/distribution.md", "validate_m10_release_gate.py --live-github")
+    _require(errors, "docs/alpha-sign-off.md", "validate_m10_release_gate.py")
 
     init_text = _read("src/rexecop/__init__.py")
     if f'__version__ = "{version}"' not in init_text:

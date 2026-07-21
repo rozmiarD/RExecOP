@@ -27,6 +27,7 @@ if str(SRC) not in sys.path:
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+from release_evidence import SCHEMA as CURRENT_EVIDENCE_SCHEMA  # noqa: E402
 from release_evidence import load_record, validate_record  # noqa: E402
 
 _STACK_REPO_ENV: dict[str, str] = {
@@ -98,7 +99,13 @@ def _changelog_section(path: Path, version: str) -> str:
     return tail if next_heading < 0 else tail[:next_heading]
 
 
-def _evidence_errors(path: Path, *, expected_version: str, allow_supersedes: bool) -> list[str]:
+def _evidence_errors(
+    path: Path,
+    *,
+    expected_version: str,
+    allow_supersedes: bool,
+    require_current_schema: bool = False,
+) -> list[str]:
     if not path.is_file():
         return [f"release_evidence_missing:{path}"]
     try:
@@ -109,7 +116,13 @@ def _evidence_errors(path: Path, *, expected_version: str, allow_supersedes: boo
     supersedes = str(record.get("supersedes") or "")
     if version != expected_version and not (allow_supersedes and supersedes == expected_version):
         return [f"release_evidence_version_mismatch:{version}!={expected_version}"]
-    return validate_record(record, expected_version=version)
+    errors = validate_record(record, expected_version=version)
+    if require_current_schema and record.get("schema") != CURRENT_EVIDENCE_SCHEMA:
+        errors.append(
+            f"release_evidence_current_schema_required:{record.get('schema')}!="
+            f"{CURRENT_EVIDENCE_SCHEMA}"
+        )
+    return errors
 
 
 def _validator_modules() -> tuple[Any, Any]:
@@ -227,6 +240,7 @@ def collect_errors(
                 current_evidence or RELEASE_EVIDENCE_DIR / f"{version}.json",
                 expected_version=version,
                 allow_supersedes=False,
+                require_current_schema=True,
             )
         )
     if release_mode:

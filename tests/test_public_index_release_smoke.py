@@ -13,6 +13,15 @@ CLEAN_INSTALL = ROOT / "scripts" / "validate_clean_install_smoke.py"
 PREFLIGHT = ROOT / "scripts" / "validate_release_train_preflight.py"
 
 
+def _write_sbom(dist: Path, version: str) -> Path:
+    path = dist / f"rexecop-{version}.cdx.json"
+    path.write_text(
+        json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6"}) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _load(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
@@ -98,6 +107,7 @@ def test_public_index_release_smoke_writes_evidence(
     dist.mkdir()
     (dist / f"rexecop-{version}-py3-none-any.whl").write_bytes(b"wheel")
     (dist / f"rexecop-{version}.tar.gz").write_bytes(b"sdist")
+    sbom = _write_sbom(dist, version)
     public_artifacts = release.distribution_digests(dist)
 
     path = release.write_release_evidence(
@@ -118,10 +128,15 @@ def test_public_index_release_smoke_writes_evidence(
         source_commit="a" * 40,
         workflow_run_id="123",
         workflow_run_url="https://github.com/rozmiarD/RExecOP/actions/runs/123",
+        sbom_path=sbom,
+        attestation_id="456",
+        attestation_url="https://github.com/rozmiarD/RExecOP/attestations/456",
         public_artifacts=public_artifacts,
     )
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema"] == "rexecop.release_evidence.v1"
+    assert payload["schema"] == "rexecop.release_evidence.v2"
+    assert payload["sbom"]["sha256"]
+    assert payload["attestation"]["subjects"][sbom.name] == payload["sbom"]["sha256"]
     assert payload["installed_versions"]["rexecop"] == version
     assert len(payload["record_digest"]) == 64
 
@@ -155,6 +170,7 @@ def test_public_index_release_smoke_verify_post_publish(
     dist.mkdir()
     (dist / f"rexecop-{version}-py3-none-any.whl").write_bytes(b"wheel")
     (dist / f"rexecop-{version}.tar.gz").write_bytes(b"sdist")
+    sbom = _write_sbom(dist, version)
     monkeypatch.setattr(
         release,
         "pypi_release_digests",
@@ -194,6 +210,12 @@ def test_public_index_release_smoke_verify_post_publish(
                 "--verify-post-publish",
                 "--dist-dir",
                 str(dist),
+                "--sbom",
+                str(sbom),
+                "--attestation-id",
+                "456",
+                "--attestation-url",
+                "https://github.com/rozmiarD/RExecOP/attestations/456",
                 "--source-commit",
                 "a" * 40,
                 "--workflow-run-id",

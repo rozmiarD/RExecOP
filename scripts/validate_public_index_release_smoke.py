@@ -22,11 +22,16 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from release_evidence import (  # noqa: E402
+    ATTESTATION_PREDICATE_TYPE,
     distribution_digests,
     load_record,
     pypi_release_digests,
+    sbom_descriptor,
     validate_record,
     write_record,
+)
+from release_evidence import (  # noqa: E402
+    SCHEMA as RELEASE_EVIDENCE_SCHEMA,
 )
 
 RELEASE_EVIDENCE_DIR = ROOT / "docs" / "release-evidence"
@@ -130,6 +135,9 @@ def write_release_evidence(
     source_commit: str,
     workflow_run_id: str,
     workflow_run_url: str,
+    sbom_path: Path,
+    attestation_id: str,
+    attestation_url: str,
     supersedes: str = "",
     public_artifacts: dict[str, str] | None = None,
 ) -> Path:
@@ -137,8 +145,11 @@ def write_release_evidence(
     public = public_artifacts or pypi_release_digests("rexecop", version)
     if artifacts != public:
         raise ValueError("release_evidence_public_artifact_identity_mismatch")
+    sbom = sbom_descriptor(sbom_path)
+    attested_subjects = dict(artifacts)
+    attested_subjects[str(sbom["filename"])] = str(sbom["sha256"])
     record = {
-        "schema": "rexecop.release_evidence.v1",
+        "schema": RELEASE_EVIDENCE_SCHEMA,
         "status": "passed",
         "version": version,
         "recorded_at": datetime.now(UTC).isoformat(),
@@ -147,6 +158,13 @@ def write_release_evidence(
         "workflow_run_url": workflow_run_url,
         "artifacts": artifacts,
         "public_artifacts": public,
+        "sbom": sbom,
+        "attestation": {
+            "id": attestation_id,
+            "url": attestation_url,
+            "predicate_type": ATTESTATION_PREDICATE_TYPE,
+            "subjects": attested_subjects,
+        },
         "installed_versions": details["installed_versions"],
         "doctor_status": details["doctor_status"],
         "surface_marker": details["surface_marker"],
@@ -181,6 +199,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Write a digest-bound JSON release evidence record.",
     )
     parser.add_argument("--dist-dir", type=Path, default=ROOT / "dist")
+    parser.add_argument("--sbom", type=Path, default=None)
+    parser.add_argument("--attestation-id", default="")
+    parser.add_argument("--attestation-url", default="")
     parser.add_argument("--evidence-output", type=Path, default=None)
     parser.add_argument("--source-commit", default=os.environ.get("GITHUB_SHA", ""))
     parser.add_argument("--workflow-run-id", default=os.environ.get("GITHUB_RUN_ID", ""))
@@ -210,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.write_evidence:
         evidence_output = args.evidence_output or RELEASE_EVIDENCE_DIR / f"{version}.json"
+        sbom_path = args.sbom or args.dist_dir / f"rexecop-{version}.cdx.json"
         try:
             evidence_path = write_release_evidence(
                 version,
@@ -219,6 +241,9 @@ def main(argv: list[str] | None = None) -> int:
                 source_commit=args.source_commit,
                 workflow_run_id=args.workflow_run_id,
                 workflow_run_url=args.workflow_run_url,
+                sbom_path=sbom_path,
+                attestation_id=args.attestation_id,
+                attestation_url=args.attestation_url,
                 supersedes=args.supersedes,
             )
         except (KeyError, ValueError) as exc:
