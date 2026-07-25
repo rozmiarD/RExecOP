@@ -2,6 +2,10 @@
 
 ## Unreleased — explicit orchestration contract ownership
 
+- Removes the `tecrax` optional extra from the 1.x core release boundary.
+  Tecrax remains a separately versioned external consumer/plugin and is tested
+  from source in cross-repository CI without becoming a RExecOp installation or
+  post-publish dependency.
 - Records the M10 operational qualification as bounded public evidence: exact
   source/artifact identities, a real `GovEngineClient` read-only journey,
   deterministic indeterminate-outcome and projection recovery, and zero private

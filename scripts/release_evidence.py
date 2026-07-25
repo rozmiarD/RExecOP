@@ -10,7 +10,7 @@ from typing import Any
 
 LEGACY_SCHEMA = "rexecop.release_evidence.v1"
 SCHEMA = "rexecop.release_evidence.v2"
-REQUIRED_PACKAGES = ("rexecop", "govengine", "sclite-core", "tecrax")
+REQUIRED_PACKAGES = ("rexecop", "govengine", "sclite-core")
 ATTESTATION_PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")

@@ -21,7 +21,8 @@ The published wheel contains full B2, R4c, watchdog decision truth, and manual r
 - Network access to install pinned dependencies:
   - `govengine==1.0.0rc1`
   - `sclite-core==2.0.0`
-- Optional domain profile: [`tecrax`](https://pypi.org/project/tecrax/) or Git
+- Optional domain profile consumer: [`tecrax`](https://github.com/rozmiarD/tecrax),
+  installed and released separately
 
 ## Install from PyPI
 
@@ -32,11 +33,15 @@ python -m pip install "rexecop==0.2.24a0"
 rexecop version
 ```
 
-With the compatible Tecrax profile:
+Tecrax is not a RExecOp extra. For coordinated source integration:
 
 ```bash
-python -m pip install "rexecop[tecrax]==0.2.24a0"
+git clone https://github.com/rozmiarD/tecrax.git ../tecrax
+python -m pip install -e ../tecrax
 ```
+
+This keeps the public RExecOp core install independent of a domain package
+release. Tecrax remains an external source consumer and plugin.
 
 ## Coordinated editable install
 

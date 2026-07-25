@@ -27,9 +27,6 @@ dev = [
 sclite = [
     "sclite-core==2.0.0",
 ]
-tecrax = [
-    "tecrax==0.4.0rc3",
-]
 
 [project.scripts]
 rexecop = "rexecop.cli:app"

@@ -14,9 +14,6 @@ on:
         description: Exact SCLite commit SHA for this release train
         required: true
         default: "2470373c6384c284ab48df7ce763f0938797d155"
-      tecrax_ref:
-        description: Exact Tecrax commit SHA for this release train
-        required: true
       previous_version:
         description: Previous evidence-backed public version; leave blank for the first line
         required: false
@@ -60,13 +57,6 @@ jobs:
           ref: ${{ inputs.sclite_ref }}
           path: .govstack/sclite
 
-      - name: Checkout exact Tecrax release-train source
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-        with:
-          repository: rozmiarD/tecrax
-          ref: ${{ inputs.tecrax_ref }}
-          path: .govstack/tecrax
-
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12"
@@ -86,14 +76,12 @@ jobs:
         env:
           GOVSTACK_REPO_GOVENGINE: ${{ github.workspace }}/.govstack/govengine
           GOVSTACK_REPO_SCLITE: ${{ github.workspace }}/.govstack/sclite
-          GOVSTACK_REPO_TECRAX: ${{ github.workspace }}/.govstack/tecrax
           PREVIOUS_VERSION: ${{ inputs.previous_version }}
           VERSION: ${{ inputs.version }}
         run: |
           test "$GITHUB_REF" = "refs/heads/main"
           test "${{ inputs.govengine_ref }}" = "$(printf '%s' '${{ inputs.govengine_ref }}' | grep -E '^[0-9a-f]{40}$')"
           test "${{ inputs.sclite_ref }}" = "$(printf '%s' '${{ inputs.sclite_ref }}' | grep -E '^[0-9a-f]{40}$')"
-          test "${{ inputs.tecrax_ref }}" = "$(printf '%s' '${{ inputs.tecrax_ref }}' | grep -E '^[0-9a-f]{40}$')"
           python scripts/validate_public_truth.py
           python scripts/validate_stack_contracts.py
           preflight_args=()
@@ -141,7 +129,6 @@ jobs:
         env:
           GOVSTACK_REPO_GOVENGINE: ${{ github.workspace }}/.govstack/govengine
           GOVSTACK_REPO_SCLITE: ${{ github.workspace }}/.govstack/sclite
-          GOVSTACK_REPO_TECRAX: ${{ github.workspace }}/.govstack/tecrax
         run: |
           python scripts/validate_public_index_release_smoke.py \
             --version "${{ inputs.version }}" \

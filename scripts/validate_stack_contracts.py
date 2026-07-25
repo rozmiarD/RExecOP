@@ -23,7 +23,7 @@ from rexecop.runtime.contract_compatibility import (  # noqa: E402
 EXPECTED_REXECOP = "0.3.0rc3"
 EXPECTED_GOVENGINE = "govengine==1.0.0rc1"
 EXPECTED_SCLITE = "sclite-core==2.0.0"
-EXPECTED_TECRAX = "tecrax==0.4.0rc3"
+EXPECTED_TECRAX_CONSUMER = "0.4.0rc3"
 
 ACTIVE_READINESS = (
     "alpha_readonly",
@@ -39,7 +39,8 @@ REQUIRED_DOC_MARKERS = (
     "sclite-core==2.0.0",
     "govengine==1.0.0rc1",
     "rexecop` | `0.3.0rc3`",
-    "tecrax==0.4.0rc3",
+    "`0.4.0rc3`",
+    "external source consumer",
     "observation_envelope.v0.1",
     "PolicyEnforcementPlan",
     "ExecutionRequest` / `ExecutionReceipt` schema `v0.2`",
@@ -69,14 +70,6 @@ def _dependency(project: dict, name: str) -> str:
     raise AssertionError(f"missing_dependency:{name}")
 
 
-def _optional_extra(project: dict, extra: str) -> list[str]:
-    optional = project.get("optional-dependencies") or {}
-    items = optional.get(extra)
-    if not isinstance(items, list):
-        raise AssertionError(f"missing_optional_extra:{extra}")
-    return [str(item) for item in items]
-
-
 def _require(errors: list[str], path: str, text: str, marker: str) -> None:
     if marker not in text:
         errors.append(f"{path}:missing:{marker}")
@@ -101,8 +94,8 @@ def collect_errors() -> list[str]:
         errors.append("govengine_dependency_mismatch")
     if _dependency(project, "sclite-core") != EXPECTED_SCLITE:
         errors.append("sclite_dependency_mismatch")
-    if EXPECTED_TECRAX not in _optional_extra(project, "tecrax"):
-        errors.append("tecrax_extra_mismatch")
+    if "tecrax" in (project.get("optional-dependencies") or {}):
+        errors.append("tecrax_extra_must_not_ship_in_v1_core")
 
     matrix = docs["docs/stack-contract-compatibility.md"]
     for marker in REQUIRED_DOC_MARKERS:
@@ -147,7 +140,8 @@ def main() -> int:
         f"readiness={','.join(ACTIVE_READINESS)}:"
         f"blocked={','.join(NON_ACTIVE_READINESS)}:"
         f"rexecop=={EXPECTED_REXECOP}:"
-        f"{EXPECTED_GOVENGINE}:{EXPECTED_SCLITE}:{EXPECTED_TECRAX}"
+        f"{EXPECTED_GOVENGINE}:{EXPECTED_SCLITE}:"
+        f"tecrax_consumer={EXPECTED_TECRAX_CONSUMER}"
     )
     return 0
 

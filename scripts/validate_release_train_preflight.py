@@ -33,7 +33,6 @@ from release_evidence import load_record, validate_record  # noqa: E402
 _STACK_REPO_ENV: dict[str, str] = {
     "govengine": "GOVSTACK_REPO_GOVENGINE",
     "sclite": "GOVSTACK_REPO_SCLITE",
-    "tecrax": "GOVSTACK_REPO_TECRAX",
 }
 _DEFAULT_STACK_PARENT = ROOT.parent
 
@@ -79,14 +78,6 @@ def _dependency(project: dict[str, Any], name: str) -> str | None:
         if text.startswith(f"{name}==") or text.startswith(name):
             return text
     return None
-
-
-def _optional_extra(project: dict[str, Any], extra: str) -> list[str]:
-    optional = project.get("optional-dependencies") or {}
-    items = optional.get(extra)
-    if not isinstance(items, list):
-        return []
-    return [str(item) for item in items]
 
 
 def _changelog_section(path: Path, version: str) -> str:
@@ -146,7 +137,11 @@ def _assert_validator_constants_align(errors: list[str]) -> None:
     pairs = (
         ("EXPECTED_GOVENGINE", public_truth.EXPECTED_GOVENGINE, stack_contracts.EXPECTED_GOVENGINE),
         ("EXPECTED_SCLITE", public_truth.EXPECTED_SCLITE, stack_contracts.EXPECTED_SCLITE),
-        ("EXPECTED_TECRAX", public_truth.EXPECTED_TECRAX_EXTRA, stack_contracts.EXPECTED_TECRAX),
+        (
+            "EXPECTED_TECRAX_CONSUMER",
+            public_truth.EXPECTED_TECRAX_CONSUMER,
+            stack_contracts.EXPECTED_TECRAX_CONSUMER,
+        ),
     )
     for label, left, right in pairs:
         if left != right:
@@ -163,10 +158,7 @@ def _assert_validator_constants_align(errors: list[str]) -> None:
 def _collect_sibling_repo_errors(
     errors: list[str],
     *,
-    rexecop_version: str,
-    expected_govengine: str,
     expected_sclite: str,
-    expected_tecrax: str,
     stack_repos: dict[str, Path],
 ) -> None:
     for name in _STACK_REPO_ENV:
@@ -177,8 +169,6 @@ def _collect_sibling_repo_errors(
             errors.append(f"sibling_repo_invalid:{name}:{repo}")
 
     sclite_pin = expected_sclite.split("==", 1)[1]
-    tecrax_pin = expected_tecrax.split("==", 1)[1]
-
     sclite_repo = stack_repos.get("sclite")
     if sclite_repo and (sclite_repo / "pyproject.toml").is_file():
         project = _read_toml_project(sclite_repo / "pyproject.toml")
@@ -192,23 +182,6 @@ def _collect_sibling_repo_errors(
         dep = _dependency(project, "sclite-core")
         if dep != expected_sclite:
             errors.append(f"govengine_repo_sclite_pin_mismatch:{dep}!={expected_sclite}")
-
-    tecrax_repo = stack_repos.get("tecrax")
-    if tecrax_repo and (tecrax_repo / "pyproject.toml").is_file():
-        project = _read_toml_project(tecrax_repo / "pyproject.toml")
-        checks = (
-            ("govengine", expected_govengine),
-            ("sclite-core", expected_sclite),
-            ("rexecop", f"rexecop=={rexecop_version}"),
-        )
-        for name, expected in checks:
-            dep = _dependency(project, name)
-            if dep != expected:
-                errors.append(f"tecrax_repo_{name}_pin_mismatch:{dep}!={expected}")
-        tecrax_version = str(project.get("version", ""))
-        if tecrax_version != tecrax_pin:
-            errors.append(f"tecrax_repo_version_mismatch:{tecrax_version}!={tecrax_pin}")
-
 
 def collect_errors(
     *,
@@ -227,10 +200,7 @@ def collect_errors(
     errors.extend(stack_contracts.collect_errors())
     _collect_sibling_repo_errors(
         errors,
-        rexecop_version=version,
-        expected_govengine=public_truth.EXPECTED_GOVENGINE,
         expected_sclite=public_truth.EXPECTED_SCLITE,
-        expected_tecrax=public_truth.EXPECTED_TECRAX_EXTRA,
         stack_repos=stack_repos if stack_repos is not None else stack_repos_from_env(),
     )
 
@@ -268,13 +238,13 @@ def success_line(
     post_publish: bool,
     govengine: str,
     sclite: str,
-    tecrax: str,
+    profile_consumer: str,
 ) -> str:
     mode = "post_publish" if post_publish else "preflight"
     return (
         f"release_train_preflight_ok:{mode}:"
         f"rexecop=={version}:"
-        f"{govengine}:{sclite}:{tecrax}"
+        f"{govengine}:{sclite}:profile_consumer={profile_consumer}"
     )
 
 
@@ -312,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
             post_publish=args.post_publish,
             govengine=public_truth.EXPECTED_GOVENGINE,
             sclite=public_truth.EXPECTED_SCLITE,
-            tecrax=public_truth.EXPECTED_TECRAX_EXTRA,
+            profile_consumer=f"tecrax@{public_truth.EXPECTED_TECRAX_CONSUMER}",
         )
     )
     return 0

@@ -185,7 +185,8 @@ catalog drift binding, watchdog decision truth and manual recovery record paths.
 An older PyPI line does not contain the watchdog decision truth path or manual recovery
 record path guarantees bundled in `0.2.24a0`.
 
-See [docs/distribution.md](docs/distribution.md) for Tecrax extra, wheels, Git URL, and private index notes.
+See [docs/distribution.md](docs/distribution.md) for core wheels, Git installs,
+private indexes, and the separate Tecrax consumer path.
 
 From source (development):
 
@@ -201,11 +202,13 @@ pip install -e ".[dev]"
 With the Tecrax profile package:
 
 ```bash
-pip install "rexecop[tecrax]==0.2.24a0"
-# or, for coordinated development: pip install -e /path/to/tecrax
+git clone https://github.com/rozmiarD/tecrax.git ../tecrax
+pip install -e ../tecrax
 ```
 
-CI also checks out [`tecrax`](https://github.com/rozmiarD/tecrax) for integration tests.
+RExecOp 1.x does not ship a `tecrax` extra. Tecrax is a separate external
+consumer/plugin with its own release line. CI checks out its source for
+cross-repository compatibility tests without making it a core install dependency.
 
 ## Quick start
 

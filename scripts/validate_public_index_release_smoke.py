@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-publish public-index release gate for rexecop[tecrax] on PyPI.
+"""Post-publish public-index release gate for the RExecOP core on PyPI.
 
 Runs clean PyPI install smoke, CLI version/doctor checks, optional release
 evidence recording, and emits a release-train marker for preflight --post-publish.
@@ -64,13 +64,11 @@ def _run_cli_json(command: list[str], *, cwd: Path) -> dict:
 def run_public_index_checks(
     version: str,
     *,
-    no_tecrax_extra: bool = False,
     tmp_parent: Path | None = None,
 ) -> dict[str, Any]:
     clean_install = _load_module("rexecop_validate_clean_install_smoke", _CLEAN_INSTALL)
     with clean_install.isolated_pypi_install(
         version,
-        no_tecrax_extra=no_tecrax_extra,
         tmp_parent=tmp_parent,
     ) as (venv, venv_python, rexecop_bin):
         surface_marker = clean_install.run_surface_smoke(venv_python, version)
@@ -104,7 +102,7 @@ def run_public_index_checks(
                 (
                     "import importlib.metadata as m,json;"
                     "print(json.dumps({n:m.version(n) for n in "
-                    "('rexecop','govengine','sclite-core','tecrax')}))"
+                    "('rexecop','govengine','sclite-core')}))"
                 ),
             ],
             cwd=venv,
@@ -192,7 +190,6 @@ def collect_errors(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Public-index release smoke gate for rexecop.")
     parser.add_argument("--version", default="", help="Published version (defaults to pyproject).")
-    parser.add_argument("--no-tecrax-extra", action="store_true")
     parser.add_argument(
         "--write-evidence",
         action="store_true",
@@ -224,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     clean_install = _load_module("rexecop_validate_clean_install_smoke", _CLEAN_INSTALL)
     version = args.version or clean_install.project_version()
     try:
-        details = run_public_index_checks(version, no_tecrax_extra=args.no_tecrax_extra)
+        details = run_public_index_checks(version)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
