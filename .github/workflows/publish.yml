@@ -187,9 +187,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: |
+          prerelease_flag="$(python scripts/github_release_prerelease_flag.py "$VERSION")"
+          release_args=()
+          if [ -n "$prerelease_flag" ]; then
+            release_args+=("$prerelease_flag")
+          fi
           gh release create "v${VERSION}" \
             ".release-train/rexecop-release-evidence-${VERSION}.json" \
             "dist/rexecop-${VERSION}.cdx.json" \
             --verify-tag \
             --title "RExecOP ${VERSION}" \
-            --generate-notes
+            --generate-notes \
+            "${release_args[@]}"

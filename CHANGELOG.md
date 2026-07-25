@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Derive the GitHub Release prerelease flag from the validated PEP 440 package
+  version in both publish and repair workflows. Invalid versions fail closed,
+  while final and post-release versions remain ordinary GitHub Releases.
+
 ## [1.0.0rc1] - 2026-07-25
 
 - Removes the `tecrax` optional extra from the 1.x core release boundary.

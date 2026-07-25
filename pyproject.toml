@@ -19,6 +19,7 @@ Documentation = "https://github.com/rozmiarD/RExecOP#readme"
 
 [project.optional-dependencies]
 dev = [
+    "packaging>=24.0",
     "pytest>=8.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
