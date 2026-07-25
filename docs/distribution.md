@@ -115,9 +115,11 @@ python scripts/validate_m10_release_gate.py --live-github
 ```
 
 Before dispatching publish, create `v<version>` at the exact green `main`
-commit. The workflow resolves the tag to `GITHUB_SHA` and fails before upload on
-missing or mismatched binding. After PyPI upload and public-index smoke it
-creates the corresponding GitHub Release and attaches:
+commit. The workflow resolves the protected tag, requires its commit to be an
+ancestor of the dispatch commit, then checks out and builds that immutable
+tagged source. Release evidence records the tag commit rather than the workflow
+dispatch commit. After PyPI upload and public-index smoke it creates the
+corresponding GitHub Release and attaches:
 
 - `rexecop-release-evidence-<version>.json`;
 - `rexecop-<version>.cdx.json`.
