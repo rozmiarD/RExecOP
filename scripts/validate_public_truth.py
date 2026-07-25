@@ -401,7 +401,26 @@ def collect_errors() -> list[str]:
         ".github/workflows/publish.yml",
         '--source-commit "${{ steps.release_source.outputs.commit }}"',
     )
-    _require(errors, ".github/workflows/publish.yml", "PYTHONPATH:")
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        "Install release validation dependencies",
+    )
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        "python -m pip install -e .govstack/sclite",
+    )
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        "python -m pip install -e .govstack/govengine",
+    )
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        'python -m pip install -e ".[dev]"',
+    )
     _require(errors, ".github/workflows/publish.yml", "gh release download")
     _require(errors, ".github/workflows/publish.yml", "gh release create")
     _require(errors, ".github/workflows/publish.yml", "--verify-tag")
