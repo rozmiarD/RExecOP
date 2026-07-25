@@ -388,6 +388,20 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/publish.yml", "--attestation-url")
     _require(errors, ".github/workflows/publish.yml", "git check-ref-format")
     _require(errors, ".github/workflows/publish.yml", "git rev-list -n 1")
+    _require(errors, ".github/workflows/publish.yml", "git merge-base --is-ancestor")
+    _require(errors, ".github/workflows/publish.yml", "fetch-depth: 0")
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        "Checkout immutable RExecOP release source",
+    )
+    _require(errors, ".github/workflows/publish.yml", "refs/tags/v${{ inputs.version }}")
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        '--source-commit "${{ steps.release_source.outputs.commit }}"',
+    )
+    _require(errors, ".github/workflows/publish.yml", "PYTHONPATH:")
     _require(errors, ".github/workflows/publish.yml", "gh release download")
     _require(errors, ".github/workflows/publish.yml", "gh release create")
     _require(errors, ".github/workflows/publish.yml", "--verify-tag")

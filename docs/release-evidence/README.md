@@ -22,12 +22,13 @@ python scripts/validate_public_index_release_smoke.py \
   --verify-post-publish
 ```
 
-`publish.yml` first requires the protected `v<version>` tag to resolve to the
-exact workflow source commit. It then generates one provenance attestation whose
-subjects are the exact wheel, sdist and SBOM. The v2 record must contain the same
-filenames and SHA-256 digests plus that attestation's GitHub ID/URL. The workflow
-attests the record itself and publishes the record and SBOM as GitHub Release assets
-attached to that tag.
+`publish.yml` first resolves the protected `v<version>` tag, requires its commit
+to be an ancestor of the workflow dispatch commit, and checks out that immutable
+tagged source before validation and build. It then generates one provenance
+attestation whose subjects are the exact wheel, sdist and SBOM. The v2 record
+binds the tag commit and must contain the same filenames and SHA-256 digests plus
+that attestation's GitHub ID/URL. The workflow attests the record itself and
+publishes the record and SBOM as GitHub Release assets attached to that tag.
 
 For the first evidence-backed line there is no artificial dependency on an
 older alpha record. A later train can explicitly name its preceding

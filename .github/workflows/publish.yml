@@ -33,15 +33,26 @@ jobs:
       url: https://pypi.org/project/rexecop/
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 0
 
       - name: Validate immutable release tag
+        id: release_source
         env:
           VERSION: ${{ inputs.version }}
         run: |
           release_tag="v${VERSION}"
           git check-ref-format "refs/tags/${release_tag}"
           git fetch --force origin "refs/tags/${release_tag}:refs/tags/${release_tag}"
-          test "$(git rev-list -n 1 "${release_tag}")" = "$GITHUB_SHA"
+          source_commit="$(git rev-list -n 1 "${release_tag}")"
+          test "$source_commit" = "$(printf '%s' "$source_commit" | grep -E '^[0-9a-f]{40}$')"
+          git merge-base --is-ancestor "$source_commit" "$GITHUB_SHA"
+          printf 'commit=%s\n' "$source_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout immutable RExecOP release source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: refs/tags/v${{ inputs.version }}
 
       - name: Checkout exact GovEngine release-train source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
@@ -76,6 +87,7 @@ jobs:
         env:
           GOVSTACK_REPO_GOVENGINE: ${{ github.workspace }}/.govstack/govengine
           GOVSTACK_REPO_SCLITE: ${{ github.workspace }}/.govstack/sclite
+          PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}/.govstack/govengine/src:${{ github.workspace }}/.govstack/sclite/src
           PREVIOUS_VERSION: ${{ inputs.previous_version }}
           VERSION: ${{ inputs.version }}
         run: |
@@ -137,6 +149,7 @@ jobs:
             --attestation-id "${{ steps.release_subject_attestation.outputs.attestation-id }}" \
             --attestation-url "${{ steps.release_subject_attestation.outputs.attestation-url }}" \
             --evidence-output ".release-train/rexecop-release-evidence-${{ inputs.version }}.json" \
+            --source-commit "${{ steps.release_source.outputs.commit }}" \
             --supersedes "${{ inputs.previous_version }}" \
             --write-evidence \
             --verify-post-publish
