@@ -33,6 +33,43 @@ def test_public_truth_validator_passes() -> None:
     assert result.stdout.strip().startswith(f"public_truth_ok:rexecop=={version}:")
 
 
+def test_markdown_discovery_excludes_nested_dependency_checkouts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validator()
+    (tmp_path / "README.md").write_text("# Project\n", encoding="utf-8")
+    (tmp_path / "docs" / "archive").mkdir(parents=True)
+    (tmp_path / "docs" / "current.md").write_text("# Current\n", encoding="utf-8")
+    (tmp_path / "docs" / "archive" / "old.md").write_text(
+        "# Archived\n",
+        encoding="utf-8",
+    )
+    dependency = tmp_path / "ci-deps" / "govengine"
+    dependency.mkdir(parents=True)
+    (dependency / "CHANGELOG.md").write_text(
+        "SCLite `automation_chain\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(validator, "ROOT", tmp_path)
+
+    current = {
+        path.relative_to(tmp_path).as_posix()
+        for path in validator._current_markdown_paths()
+    }
+    all_docs = {
+        path.relative_to(tmp_path).as_posix()
+        for path in validator._all_markdown_paths()
+    }
+
+    assert current == {"README.md", "docs/current.md"}
+    assert all_docs == {
+        "README.md",
+        "docs/archive/old.md",
+        "docs/current.md",
+    }
+
+
 def test_public_truth_rejects_package_version_drift(monkeypatch: pytest.MonkeyPatch) -> None:
     validator = _load_validator()
     monkeypatch.setattr(validator.rexecop, "__version__", "9.9.9a0")

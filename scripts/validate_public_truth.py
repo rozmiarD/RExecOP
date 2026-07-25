@@ -105,22 +105,25 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def _current_markdown_paths() -> list[Path]:
-    ignored_parts = {".git", ".venv", ".pytest_cache", "build", "dist", "archive"}
+def _project_markdown_paths(*, include_archive: bool) -> list[Path]:
+    candidates = [*ROOT.glob("*.md"), *(ROOT / "docs").rglob("*.md")]
     return sorted(
         path
-        for path in ROOT.rglob("*.md")
-        if not ignored_parts.intersection(path.relative_to(ROOT).parts)
+        for path in candidates
+        if path.is_file()
+        and (
+            include_archive
+            or "archive" not in path.relative_to(ROOT).parts
+        )
     )
+
+
+def _current_markdown_paths() -> list[Path]:
+    return _project_markdown_paths(include_archive=False)
 
 
 def _all_markdown_paths() -> list[Path]:
-    ignored_parts = {".git", ".venv", ".pytest_cache", "build", "dist"}
-    return sorted(
-        path
-        for path in ROOT.rglob("*.md")
-        if not ignored_parts.intersection(path.relative_to(ROOT).parts)
-    )
+    return _project_markdown_paths(include_archive=True)
 
 
 def _github_anchors(text: str) -> set[str]:
