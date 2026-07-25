@@ -10,8 +10,8 @@ canonical evidence verifier.
 | Component | Owns | Does not own |
 | --- | --- | --- |
 | Domain profiles | Intent meaning, workflows, target taxonomy, domain validation and required capabilities | Runtime lifecycle, policy decisions, canonical evidence verification |
-| GovEngine | Policy, governance, admission, approvals, obligations, constraints and execution permits | Queueing, leases, retries, connector I/O or artifact persistence |
-| RExecOp | Planning, operation lifecycle, attempts, queue claims, leases, fencing, retries, recovery, connector dispatch and orchestration contracts | Domain meaning, organization policy, secret custody or SCLite contract authority |
+| GovEngine | Policy, governance, admission, approvals, obligations, constraints and attempt-bound governance authorization | Runtime permits, queueing, leases, retries, connector I/O or artifact persistence |
+| RExecOp | Planning, operation lifecycle, attempts, queue claims, leases, fencing, runtime permits, retries, recovery, connector dispatch and orchestration contracts | Domain meaning, organization policy, secret custody or SCLite contract authority |
 | SCLite | Canonical evidence contracts, canonicalization, integrity, tickets, receipts, review bundles and verification | Runtime scheduling, connector execution, governance or orchestration semantics |
 
 RExecOp owns the following orchestration contract families because it creates

@@ -8,7 +8,8 @@ not unconstrained automation.
 1. **Stable means read-only** — the default `stable_read_only` runtime posture blocks
    `apply` and `recovery` before execution and again before connector I/O.
 2. **No apply without governance** — the explicit `lab_only` mechanics posture does not
-   bypass GovEngine admission, approval, permit, lease or fencing checks.
+   bypass GovEngine admission/approval/authorization or RExecOp runtime-permit,
+   lease and fencing checks.
 3. **No ad hoc workflows** — only profile-declared steps may run; the workflow runner never
    invents steps.
 4. **Evidence is mandatory** — state transitions and step boundaries emit internal evidence events.

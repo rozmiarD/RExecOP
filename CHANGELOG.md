@@ -29,6 +29,8 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Fixed
 
+- Clarified that GovEngine owns attempt-bound governance authorization while
+  RExecOp owns the runtime permit, lease and fencing enforcement.
 - Removed universal-GovEngine-admission wording for the explicit
   `legacy_read_only` path.
 - Corrected ownership of observation, finding, reaction, trigger, watchdog and
