@@ -49,7 +49,6 @@ def test_public_artifact_identity_mismatch_is_rejected() -> None:
             "rexecop": "1.0.0",
             "govengine": "1.0.0",
             "sclite-core": "2.0.0",
-            "tecrax": "1.0.0",
         },
         "doctor_status": "passed",
     }
@@ -91,7 +90,6 @@ def _v2_record(evidence) -> dict:
             "rexecop": "1.0.0",
             "govengine": "1.0.0",
             "sclite-core": "2.0.0",
-            "tecrax": "1.0.0",
         },
         "doctor_status": "passed",
     }

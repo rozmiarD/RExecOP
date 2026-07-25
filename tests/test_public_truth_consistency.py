@@ -40,6 +40,19 @@ def test_public_truth_rejects_package_version_drift(monkeypatch: pytest.MonkeyPa
     assert any("package_version_mismatch" in item for item in errors)
 
 
+def test_public_truth_rejects_reintroduced_tecrax_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validator()
+    project = validator._pyproject()
+    project.setdefault("optional-dependencies", {})["tecrax"] = ["tecrax==9.9.9"]
+    monkeypatch.setattr(validator, "_pyproject", lambda: project)
+
+    errors = validator.collect_errors()
+
+    assert "tecrax_extra_must_not_ship_in_v1_core" in errors
+
+
 def test_public_truth_rejects_stale_govengine_public_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

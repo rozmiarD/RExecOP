@@ -1,12 +1,12 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 0.2.24a0](https://img.shields.io/badge/package-rexecop%200.2.24a0-blueviolet.svg)](https://pypi.org/project/rexecop/0.2.24a0/)
+[![Package: rexecop 1.0.0rc1](https://img.shields.io/badge/package-rexecop%201.0.0rc1-blueviolet.svg)](https://pypi.org/project/rexecop/1.0.0rc1/)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
 [![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
 [![Profile: tecrax](https://img.shields.io/badge/profile-tecrax-informational.svg)](https://github.com/rozmiarD/tecrax)
-[![Status: alpha](https://img.shields.io/badge/status-alpha-green.svg)](#status)
+[![Status: release candidate](https://img.shields.io/badge/status-release%20candidate-green.svg)](#status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 **Regulated Execution Operations** control-plane for profile-defined workflows, bound to
@@ -21,12 +21,12 @@ policy engine or a parallel truth layer.
 
 | Item | Value |
 | --- | --- |
-| Current source line | `0.3.0rc3` |
+| Current source line | `1.0.0rc1` |
 | Main branch | May include unreleased changes listed under `CHANGELOG.md` / Unreleased |
-| Maturity | **alpha** — operator evaluation with documented limits |
-| Delivery | Unpublished coordinated candidate; published `0.2.24a0` remains the public alpha line |
+| Maturity | **release candidate** — stable read-only core with documented limits |
+| Delivery | `1.0.0rc1` release candidate through the protected OIDC release workflow |
 | Tests | CI reruns the current suite; `pytest -m delivery` runs the sign-off scope |
-| Latest PyPI | [`rexecop==0.2.24a0`](https://pypi.org/project/rexecop/0.2.24a0/) |
+| Latest PyPI | [`rexecop==1.0.0rc1`](https://pypi.org/project/rexecop/1.0.0rc1/) |
 | Exact dependencies | Public `govengine==1.0.0rc1`, public `sclite-core==2.0.0` (see `pyproject.toml`) |
 | Stack compatibility | [`docs/stack-contract-compatibility.md`](docs/stack-contract-compatibility.md) |
 | Default posture | `stable_read_only`; `apply` / `recovery` execution is mechanically blocked even after GovEngine allow |
@@ -171,21 +171,20 @@ Ravenclaw is legacy and out of scope for RExecOp.
 
 ## Installation
 
-Published alpha package:
+Release candidate package:
 
 ```bash
-python -m pip install "rexecop==0.2.24a0"
+python -m pip install "rexecop==1.0.0rc1"
 rexecop version
 ```
 
-The published `0.2.24a0` wheel is the single supported alpha stack line for readonly
-evaluation, M2–M8 operator UX (CLI contracts, error envelope, observability,
-explain/review/diff, triage/recovery, profile developer surface, action metadata),
-catalog drift binding, watchdog decision truth and manual recovery record paths.
-An older PyPI line does not contain the watchdog decision truth path or manual recovery
-record path guarantees bundled in `0.2.24a0`.
+The `1.0.0rc1` wheel is the first stable read-only 1.x candidate. It freezes the
+documented public API subset, requires a new runtime root instead of migrating
+alpha state, and retains explicit non-claims for mutation readiness, distributed
+execution and production-wide security guarantees.
 
-See [docs/distribution.md](docs/distribution.md) for Tecrax extra, wheels, Git URL, and private index notes.
+See [docs/distribution.md](docs/distribution.md) for core wheels, Git installs,
+private indexes, and the separate Tecrax consumer path.
 
 From source (development):
 
@@ -201,11 +200,13 @@ pip install -e ".[dev]"
 With the Tecrax profile package:
 
 ```bash
-pip install "rexecop[tecrax]==0.2.24a0"
-# or, for coordinated development: pip install -e /path/to/tecrax
+git clone https://github.com/rozmiarD/tecrax.git ../tecrax
+pip install -e ../tecrax
 ```
 
-CI also checks out [`tecrax`](https://github.com/rozmiarD/tecrax) for integration tests.
+RExecOp 1.x does not ship a `tecrax` extra. Tecrax is a separate external
+consumer/plugin with its own release line. CI checks out its source for
+cross-repository compatibility tests without making it a core install dependency.
 
 ## Quick start
 

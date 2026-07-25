@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a clean PyPI install of rexecop[tecrax] exposes M6/M7/M8 surfaces."""
+"""Verify a clean PyPI install of the RExecOP core exposes its supported surfaces."""
 
 from __future__ import annotations
 
@@ -84,11 +84,10 @@ def clean_install_marker(version: str) -> str:
 def isolated_pypi_install(
     version: str,
     *,
-    no_tecrax_extra: bool = False,
     tmp_parent: Path | None = None,
 ) -> Iterator[tuple[Path, Path, Path]]:
     """Yield (venv_dir, venv_python, rexecop_bin) after PyPI install and pip check."""
-    requirement = f"rexecop=={version}" if no_tecrax_extra else f"rexecop[tecrax]=={version}"
+    requirement = f"rexecop=={version}"
     python = sys.executable
     with tempfile.TemporaryDirectory(prefix="rexecop-clean-install-", dir=tmp_parent) as tmp:
         venv = Path(tmp) / "venv"
@@ -140,8 +139,8 @@ def run_surface_smoke(venv_python: Path, version: str) -> str:
     return marker
 
 
-def run_clean_install_smoke(version: str, *, no_tecrax_extra: bool = False) -> str:
-    with isolated_pypi_install(version, no_tecrax_extra=no_tecrax_extra) as (
+def run_clean_install_smoke(version: str) -> str:
+    with isolated_pypi_install(version) as (
         _venv,
         venv_python,
         _bin,
@@ -156,16 +155,11 @@ def main() -> int:
         default="",
         help="Package version to install (defaults to pyproject version).",
     )
-    parser.add_argument(
-        "--no-tecrax-extra",
-        action="store_true",
-        help="Install rexecop without the tecrax extra.",
-    )
     args = parser.parse_args()
 
     version = args.version or project_version()
     try:
-        marker = run_clean_install_smoke(version, no_tecrax_extra=args.no_tecrax_extra)
+        marker = run_clean_install_smoke(version)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "0.3.0rc3"
+version = "1.0.0rc1"
 description = "Regulated Execution Operations control-plane for profile-defined workflows bound to GovEngine and SCLite."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,9 +26,6 @@ dev = [
 ]
 sclite = [
     "sclite-core==2.0.0",
-]
-tecrax = [
-    "tecrax==0.4.0rc3",
 ]
 
 [project.scripts]

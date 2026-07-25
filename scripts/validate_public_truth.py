@@ -14,9 +14,9 @@ import rexecop  # noqa: E402
 
 EXPECTED_GOVENGINE = "govengine==1.0.0rc1"
 EXPECTED_SCLITE = "sclite-core==2.0.0"
-EXPECTED_TECRAX_EXTRA = "tecrax==0.4.0rc3"
+EXPECTED_TECRAX_CONSUMER = "0.4.0rc3"
 EXPECTED_GOVENGINE_STATUS = "`1.0.0rc1` (public release candidate)"
-PUBLISHED_PYPI_VERSION = "0.2.24a0"
+PUBLISHED_PYPI_VERSION = "1.0.0rc1"
 
 VERSION_DOCS = (
     "README.md",
@@ -116,14 +116,6 @@ def _dependency(project: dict, name: str) -> str:
     raise AssertionError(f"missing_dependency:{name}")
 
 
-def _optional_extra(project: dict, extra: str) -> list[str]:
-    optional = project.get("optional-dependencies") or {}
-    items = optional.get(extra)
-    if not isinstance(items, list):
-        raise AssertionError(f"missing_optional_extra:{extra}")
-    return [str(item) for item in items]
-
-
 def _require(errors: list[str], path: str, expected: str) -> None:
     if expected not in _read(path):
         errors.append(f"{path}:missing:{expected}")
@@ -185,7 +177,7 @@ def collect_errors() -> list[str]:
     version = str(project["version"])
     govengine_dep = _dependency(project, "govengine")
     sclite_dep = _dependency(project, "sclite-core")
-    tecrax_extra = _optional_extra(project, "tecrax")
+    optional_dependencies = project.get("optional-dependencies") or {}
 
     if project["name"] != "rexecop":
         errors.append(f'distribution_name_mismatch:{project["name"]}')
@@ -195,8 +187,8 @@ def collect_errors() -> list[str]:
         errors.append(f"govengine_dependency_mismatch:{govengine_dep}!={EXPECTED_GOVENGINE}")
     if sclite_dep != EXPECTED_SCLITE:
         errors.append(f"sclite_dependency_mismatch:{sclite_dep}!={EXPECTED_SCLITE}")
-    if EXPECTED_TECRAX_EXTRA not in tecrax_extra:
-        errors.append(f"tecrax_extra_mismatch:{tecrax_extra}")
+    if "tecrax" in optional_dependencies:
+        errors.append("tecrax_extra_must_not_ship_in_v1_core")
 
     changelog = _read("CHANGELOG.md")
     if f"## [{version}]" not in changelog:
@@ -262,7 +254,12 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/ci.yml", "validate_artifact_install_smoke.py")
     _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_SCLITE)
     _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_GOVENGINE)
-    _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_TECRAX_EXTRA)
+    _require(
+        errors,
+        "docs/stack-contract-compatibility.md",
+        f"`{EXPECTED_TECRAX_CONSUMER}`",
+    )
+    _require(errors, "docs/stack-contract-compatibility.md", "external source consumer")
     _require(errors, "docs/stack-contract-compatibility.md", "`mutation_ready` | false")
     _require(errors, "docs/architecture.md", EXPECTED_GOVENGINE)
     _require(errors, "docs/architecture.md", "examples/first-run-demo")
@@ -370,10 +367,10 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/publish.yml", "validate_distribution.py")
     _require(errors, ".github/workflows/publish.yml", "govengine_ref:")
     _require(errors, ".github/workflows/publish.yml", "sclite_ref:")
-    _require(errors, ".github/workflows/publish.yml", "tecrax_ref:")
     _require(errors, ".github/workflows/publish.yml", "GOVSTACK_REPO_GOVENGINE:")
     _require(errors, ".github/workflows/publish.yml", "GOVSTACK_REPO_SCLITE:")
-    _require(errors, ".github/workflows/publish.yml", "GOVSTACK_REPO_TECRAX:")
+    _forbid(errors, ".github/workflows/publish.yml", "tecrax_ref:")
+    _forbid(errors, ".github/workflows/publish.yml", "GOVSTACK_REPO_TECRAX:")
     _require(errors, ".github/workflows/publish.yml", "--previous-evidence")
     _require(
         errors,
@@ -446,7 +443,7 @@ def main() -> int:
         return 1
     print(
         f"public_truth_ok:rexecop=={version}:"
-        f"{EXPECTED_GOVENGINE}:{EXPECTED_SCLITE}:{EXPECTED_TECRAX_EXTRA}"
+        f"{EXPECTED_GOVENGINE}:{EXPECTED_SCLITE}:tecrax_consumer={EXPECTED_TECRAX_CONSUMER}"
     )
     return 0
 

@@ -1,8 +1,8 @@
 # Alpha sign-off
 
-RExecOp `0.3.0rc3` source candidate — formal operator acceptance before
-production-adjacent use. This candidate is not published; `0.2.24a0` remains
-the latest PyPI alpha line.
+RExecOp `1.0.0rc1` release candidate — formal operator acceptance before
+production-adjacent use. The candidate remains stable read-only and retains the
+limitations documented below.
 
 This document separates **automated checks** (CI / script) from **human acceptance** (operator).
 
@@ -87,7 +87,7 @@ Record completion in [alpha-sign-off-record.md](alpha-sign-off-record.md).
 
 - Not a security audit or compliance certification
 - Not approval for unmanned apply on critical infrastructure
-- Not a promise of production-ready governance (alpha limits remain)
+- Not a promise of production-ready governance (release-candidate limits remain)
 
 ## Related
 

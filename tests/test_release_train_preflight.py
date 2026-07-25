@@ -61,7 +61,6 @@ def _write_evidence(
             "rexecop": version,
             "govengine": "0.16.11",
             "sclite-core": "1.0.9",
-            "tecrax": "0.3.21a0",
         },
         "doctor_status": "passed",
         "surface_marker": f"clean_install_smoke_ok:rexecop=={version}",
@@ -97,16 +96,6 @@ name = "sclite-core"
 version = "2.0.0"
 dependencies = []
 ''',
-        "tecrax": f'''
-[project]
-name = "tecrax"
-version = "0.4.0rc3"
-dependencies = [
-  "{public_truth.EXPECTED_GOVENGINE}",
-  "{public_truth.EXPECTED_SCLITE}",
-  "rexecop=={version}",
-]
-''',
     }
     env = os.environ.copy()
     for name, content in projects.items():
@@ -127,7 +116,7 @@ dependencies = [
         post_publish=False,
         govengine=public_truth.EXPECTED_GOVENGINE,
         sclite=public_truth.EXPECTED_SCLITE,
-        tecrax=public_truth.EXPECTED_TECRAX_EXTRA,
+        profile_consumer=f"tecrax@{public_truth.EXPECTED_TECRAX_CONSUMER}",
     )
 
 
@@ -142,29 +131,6 @@ def test_release_train_preflight_rejects_validator_constant_drift(
         error.startswith("validator_constant_mismatch:EXPECTED_GOVENGINE:")
         for error in errors
     )
-
-
-def test_release_train_preflight_rejects_tecrax_pin_drift(tmp_path: Path) -> None:
-    validator = _load_validator()
-    public_truth, _ = validator._validator_modules()
-    tecrax_root = tmp_path / "tecrax"
-    tecrax_root.mkdir()
-    (tecrax_root / "pyproject.toml").write_text(
-        """
-[project]
-name = "tecrax"
-version = "0.3.21a0"
-dependencies = [
-  "govengine==0.16.11",
-  "sclite-core==1.0.9",
-  "rexecop==9.9.9a0",
-]
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-    errors = validator.collect_errors(stack_repos={"tecrax": tecrax_root})
-    assert any("tecrax_repo_rexecop_pin_mismatch" in item for item in errors)
 
 
 def test_release_train_preflight_rejects_sclite_repo_version_drift(tmp_path: Path) -> None:
@@ -190,7 +156,6 @@ def test_release_train_preflight_rejects_missing_sibling_repos() -> None:
     errors = validator.collect_errors(stack_repos={})
     assert "sibling_repo_missing:govengine" in errors
     assert "sibling_repo_missing:sclite" in errors
-    assert "sibling_repo_missing:tecrax" in errors
 
 
 def test_release_train_preflight_post_publish_requires_evidence(

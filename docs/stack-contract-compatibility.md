@@ -1,6 +1,6 @@
 # Stack contract compatibility
 
-This matrix records the source contract baseline that RExecOp `0.3.0rc3`
+This matrix records the source contract baseline that RExecOp `1.0.0rc1`
 consumes. It is a compatibility guard, not a new source of truth.
 Document id: `stack-contract-compatibility`.
 
@@ -19,8 +19,8 @@ Document id: `stack-contract-compatibility`.
 | --- | --- | --- | --- |
 | `sclite-core` | `2.0.0` | `sclite-core==2.0.0` | Frozen SCLite lifecycle/evidence/review verification kernel; RExecOp owns reaction, trigger-decision, watchdog-decision and automation-chain schemas. |
 | `govengine` | `1.0.0rc1` | `govengine==1.0.0rc1` | Frozen `govengine.v1` governance facade, typed policy lifecycle, independently bound approval/scope/capabilities, signed attempt-bound decisions and receipt conformance. |
-| `rexecop` | `0.3.0rc3` | current package | Neutral runner, connectors, catalog and reaction mechanics. |
-| `tecrax` | `0.4.0rc3` | `tecrax==0.4.0rc3` via optional extra | Domain infrastructure profile. |
+| `rexecop` | `1.0.0rc1` | current package | Stable read-only neutral runner, connectors, catalog and reaction mechanics. |
+| `tecrax` | `0.4.0rc3` source candidate | external source consumer; no RExecOp package extra | Domain infrastructure profile tested through entry points and cross-repository fixtures. |
 
 ## Contract matrix
 

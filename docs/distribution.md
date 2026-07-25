@@ -1,16 +1,16 @@
 # Distribution and installation
 
-RExecOp `0.3.0rc3` is the current unpublished coordinated candidate; the
-published alpha line remains `0.2.24a0` on
-[PyPI](https://pypi.org/project/rexecop/).
-The published wheel contains full B2, R4c, watchdog decision truth, and manual recovery records while retaining the maturity limits in
+RExecOp `1.0.0rc1` is the stable read-only release candidate published through
+the protected OIDC workflow on [PyPI](https://pypi.org/project/rexecop/).
+The wheel contains the frozen v1 public subset, M10 operational qualification,
+watchdog decision truth, and manual recovery records while retaining the limits in
 [known-limitations.md](known-limitations.md).
 
 ## Supported install paths
 
 | Path | When to use |
 | --- | --- |
-| **PyPI** (`pip install rexecop==0.2.24a0`) | Evaluation of the single supported alpha line |
+| **PyPI** (`pip install rexecop==1.0.0rc1`) | Evaluation of the stable read-only release candidate |
 | Coordinated editable source (`pip install -e`) | Watchdog-decision truth binding development and operator lab |
 | Wheel from `dist/` after `python -m build` | Offline install, internal mirrors |
 | Git URL install | Pin a commit or tag without PyPI |
@@ -21,22 +21,27 @@ The published wheel contains full B2, R4c, watchdog decision truth, and manual r
 - Network access to install pinned dependencies:
   - `govengine==1.0.0rc1`
   - `sclite-core==2.0.0`
-- Optional domain profile: [`tecrax`](https://pypi.org/project/tecrax/) or Git
+- Optional domain profile consumer: [`tecrax`](https://github.com/rozmiarD/tecrax),
+  installed and released separately
 
 ## Install from PyPI
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "rexecop==0.2.24a0"
+python -m pip install "rexecop==1.0.0rc1"
 rexecop version
 ```
 
-With the compatible Tecrax profile:
+Tecrax is not a RExecOp extra. For coordinated source integration:
 
 ```bash
-python -m pip install "rexecop[tecrax]==0.2.24a0"
+git clone https://github.com/rozmiarD/tecrax.git ../tecrax
+python -m pip install -e ../tecrax
 ```
+
+This keeps the public RExecOp core install independent of a domain package
+release. Tecrax remains an external source consumer and plugin.
 
 ## Coordinated editable install
 
@@ -136,9 +141,8 @@ python -m pip install "govengine @ git+https://github.com/rozmiarD/GovEngine.git
 python -m pip install "rexecop @ git+https://github.com/rozmiarD/RExecOP.git@main"
 ```
 
-The current RExecOp source candidate requires public GovEngine `1.0.0rc1` and
-final public SCLite `2.0.0`; the published RExecOp `0.2.24a0` wheel remains on
-the prior public line.
+The RExecOp `1.0.0rc1` release candidate requires public GovEngine `1.0.0rc1`
+and final public SCLite `2.0.0`.
 
 ## Private index / GitHub Packages (operator-owned)
 
@@ -162,4 +166,4 @@ profile → GovEngine → SCLite lab path.
 
 - [README.md](../README.md) — project overview
 - [CHANGELOG.md](../CHANGELOG.md) — release history
-- [known-limitations.md](known-limitations.md) — alpha non-claims
+- [known-limitations.md](known-limitations.md) — release-candidate non-claims
