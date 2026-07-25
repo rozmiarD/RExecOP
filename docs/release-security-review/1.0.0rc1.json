@@ -2,7 +2,7 @@
   "schema": "rexecop.release_security_review.v0.1",
   "version": "1.0.0rc1",
   "review_mode": "independent_review",
-  "reviewed_at": "2026-07-24",
+  "reviewed_at": "2026-07-25",
   "reviewer_ref": "reviewer:ExatronOmega",
   "surfaces": [
     "governance_admission_binding",
@@ -11,5 +11,5 @@
     "release_train_scripts",
     "supply_chain_workflow"
   ],
-  "notes": "Independent review completed for release candidate source commit d688045ea49358043bfae78c1f10e9c0837dbf24. No open P0 or P1 findings remain."
+  "notes": "Independent delta review completed through release candidate source commit 03b8a160af5e8aed2cb4a645ee489ad277f3fa9a. No open P0 or P1 findings remain."
 }
