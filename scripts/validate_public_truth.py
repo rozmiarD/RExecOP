@@ -436,6 +436,16 @@ def collect_errors() -> list[str]:
     )
     _require(errors, ".github/workflows/publish.yml", "gh release download")
     _require(errors, ".github/workflows/publish.yml", "gh release create")
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        "github_release_prerelease_flag.py",
+    )
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        'release_args+=("$prerelease_flag")',
+    )
     _require(errors, ".github/workflows/publish.yml", "--verify-tag")
     _forbid(errors, ".github/workflows/publish.yml", "HEAD:release-evidence")
     _forbid(errors, ".github/workflows/publish.yml", "refs/heads/release-evidence")
@@ -443,6 +453,11 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/publish.yml", 'test "$GITHUB_REF" = "refs/heads/main"')
     _require(errors, ".github/workflows/publish.yml", "^[0-9a-f]{40}$")
     _require(errors, ".github/workflows/repair-release-evidence.yml", "--no-binary rexecop")
+    _require(
+        errors,
+        ".github/workflows/repair-release-evidence.yml",
+        "python -m pip install --upgrade pip packaging pip-audit cyclonedx-bom",
+    )
     _require(
         errors,
         ".github/workflows/repair-release-evidence.yml",
@@ -456,6 +471,16 @@ def collect_errors() -> list[str]:
     )
     _require(errors, ".github/workflows/repair-release-evidence.yml", "git rev-list -n 1")
     _require(errors, ".github/workflows/repair-release-evidence.yml", "gh release upload")
+    _require(
+        errors,
+        ".github/workflows/repair-release-evidence.yml",
+        "github_release_prerelease_flag.py",
+    )
+    _require(
+        errors,
+        ".github/workflows/repair-release-evidence.yml",
+        'release_args+=("$prerelease_flag")',
+    )
     _require(errors, ".github/workflows/repair-release-evidence.yml", "--clobber")
     _forbid(errors, ".github/workflows/repair-release-evidence.yml", "git worktree")
     _require(errors, "docs/release-evidence/README.md", "rexecop.release_evidence.v2")

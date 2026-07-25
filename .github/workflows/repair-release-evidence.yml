@@ -50,7 +50,7 @@ jobs:
             --dest dist "rexecop==${{ inputs.version }}"
 
       - name: Install supply-chain tooling
-        run: python -m pip install --upgrade pip pip-audit cyclonedx-bom
+        run: python -m pip install --upgrade pip packaging pip-audit cyclonedx-bom
 
       - name: Rebuild CycloneDX SBOM from the exact public wheel
         run: python scripts/validate_supply_chain_gate.py dist --version "${{ inputs.version }}"
@@ -102,8 +102,14 @@ jobs:
           if gh release view "$release_tag" >/dev/null 2>&1; then
             gh release upload "$release_tag" "$evidence" "$sbom" --clobber
           else
+            prerelease_flag="$(python scripts/github_release_prerelease_flag.py "$VERSION")"
+            release_args=()
+            if [ -n "$prerelease_flag" ]; then
+              release_args+=("$prerelease_flag")
+            fi
             gh release create "$release_tag" "$evidence" "$sbom" \
               --verify-tag \
               --title "RExecOP ${VERSION}" \
-              --generate-notes
+              --generate-notes \
+              "${release_args[@]}"
           fi

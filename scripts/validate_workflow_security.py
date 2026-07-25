@@ -73,6 +73,8 @@ def validate_workflow_security() -> dict[str, int]:
         'python -m pip install -e ".[dev]"',
         "gh release download",
         "gh release create",
+        "github_release_prerelease_flag.py",
+        'release_args+=("$prerelease_flag")',
         "--verify-tag",
         'default: "1.0.0rc1"',
         'default: "2470373c6384c284ab48df7ce763f0938797d155"',
@@ -94,6 +96,7 @@ def validate_workflow_security() -> dict[str, int]:
     repair = (WORKFLOWS / "repair-release-evidence.yml").read_text(encoding="utf-8")
     for marker in (
         "artifact-metadata: write",
+        "python -m pip install --upgrade pip packaging pip-audit cyclonedx-bom",
         "validate_supply_chain_gate.py dist --version",
         "dist/*.cdx.json",
         "steps.release_subject_attestation.outputs.attestation-id",
@@ -101,6 +104,8 @@ def validate_workflow_security() -> dict[str, int]:
         "git check-ref-format",
         "git rev-list -n 1",
         "gh release upload",
+        "github_release_prerelease_flag.py",
+        'release_args+=("$prerelease_flag")',
         "--clobber",
         "--verify-tag",
     ):

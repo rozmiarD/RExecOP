@@ -124,6 +124,10 @@ corresponding GitHub Release and attaches:
 - `rexecop-release-evidence-<version>.json`;
 - `rexecop-<version>.cdx.json`.
 
+The workflow parses the package version using PEP 440 semantics and marks
+alpha, beta, release-candidate, and development versions as GitHub
+prereleases. Invalid versions fail before Release creation.
+
 Wheel and sdist remain on PyPI. GitHub artifact attestations bind their digests
 with the SBOM and evidence. A later train may name a previous evidence-backed
 version; its record is then downloaded from `v<previous-version>` Release assets
