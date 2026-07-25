@@ -8,13 +8,13 @@ taxonomy, thresholds, summaries, and intent selection remain profile-owned.
 ## Runtime boundary
 
 ```text
-SCLite observation envelope
+RExecOp observation envelope
   -> profile reaction pack
   -> deterministic RExecOp evaluation
   -> GovEngine PolicyEngine admission
   -> optional GovEngine automation-transition admission
   -> normal RExecOp operation lifecycle
-  -> SCLite receipt, reaction chain and automation_chain projection
+  -> RExecOp reaction/automation records and SCLite-compatible evidence
 ```
 
 An executable candidate must resolve to a read-only intent in the same profile
@@ -52,9 +52,10 @@ rexecop reaction-proposal-validate --profile tecrax --proposal proposal.json
 only the already admitted child and uses the ordinary connector, validation,
 evidence, and receipt path. `reaction-replay` performs no execution.
 `reaction explain` verifies the persisted reaction-chain manifest and emits a
-bounded, redacted operator projection; SCLite remains the truth authority. When
-the reaction planned a child operation, RExecOp also writes
-`05_automation_chain.json` using SCLite `automation_chain.v0.1`. If the
+bounded, redacted operator projection. When the reaction planned a child
+operation, RExecOp also writes `05_automation_chain.json` using its
+`automation_chain.v0.1` contract. SCLite canonicalization and verification
+machinery verifies the persisted bytes; RExecOp owns the graph semantics. If the
 installed GovEngine line exposes `AutomationTransitionRequest`, the child edge
 stores the GovEngine automation admission digest; otherwise the binding reports
 `unavailable` without claiming a GovEngine digest.
@@ -94,21 +95,21 @@ applicability or digest drift before any child operation is created.
 
 `reaction-plan` accepts exactly one observation source:
 
-- `--observation` points at an already generated SCLite
+- `--observation` points at an already generated RExecOp
   `observation_envelope.v0.1` JSON file.
 - `--operation` loads `metadata.shared_state.reaction_observation` from a
   completed source operation.
 
 RExecOp does not construct profile facts or domain observations. The selected
-profile must produce the observation envelope. RExecOp only validates the SCLite
-schema, selected profile id/version/digest, source operation binding, and target
-binding before evaluating the profile-owned reaction pack.
+profile must produce the observation envelope. RExecOp validates its owned
+envelope contract, selected profile id/version/digest, source-operation binding
+and target binding before evaluating the profile-owned reaction pack.
 
 Profiles that want to use `--operation` should declare a neutral
 `reaction_observation` block in the producing intent metadata. RExecOp's
 `validate_profile_conformance()` checks the shared-state key, SCLite schema ref,
 source intent, completed-operation requirement, producer workflow step, operation
-catalog projection, connector contracts, and reaction pack shape. It does not
+catalog projection, connector contracts and reaction-pack shape. It does not
 interpret finding taxonomy or profile facts.
 
 ## LLM boundary
@@ -133,6 +134,6 @@ does not print the raw proposal explanation text.
 `reaction-proposal-submit` writes `rexecop.proposal_submission.v0.1` under the
 runtime root as an operator review record. `accept_for_planning` still has
 `may_execute=false`: it only means the operator may create a normal RExecOp plan
-with explicit profile, environment, target and mode. GovEngine admission and
-SCLite evidence remain required for later execution claims. No LLM adapter has
-connector or executor access.
+with explicit profile, environment, target and mode. Any later execution must
+pass the normal governance and evidence path for its mode and configuration.
+No LLM adapter has connector or executor access.

@@ -2,7 +2,8 @@
 
 RExecOp separates **what was approved to run** from **what actually ran** using
 bounded runtime records in workflow `shared_state`. These are operator/runtime
-contracts — not SCLite truth artifacts (see [sclite-integration.md](sclite-integration.md)).
+contracts — not canonical SCLite lifecycle/evidence artifacts (see
+[sclite-integration.md](sclite-integration.md)).
 
 ## Schemas (`v0.2`)
 
@@ -26,7 +27,7 @@ Module: `rexecop.execution.model`.
 
 `source` on the request is always `approved_workflow_plan`.
 
-## Typed execution projections (M6)
+## Typed execution projections
 
 Connector steps may compile digest-bound runtime projections before backend IO
 via `rexecop.execution.typed_spec`:
@@ -44,7 +45,7 @@ When an operation seeds `shared_state.execution_context` with `profile_root` and
 and fail-closes on schema major-version mismatch or digest drift. Each
 `StepExecutionSpec` may embed `rexecop.backend_capability_descriptor.v0.1`
 (identity class, egress boundary, secret-ref requirements, live-backend posture).
-These records are runtime projections only — not SCLite truth artifacts.
+These records are runtime projections only, not canonical SCLite artifacts.
 
 The independent runtime release gate is evaluated before attempt allocation and again
 at the composite connector boundary. Its default `stable_read_only` value rejects
@@ -137,13 +138,14 @@ Workflow plan (profile)
 | Layer | Record | Authority |
 | --- | --- | --- |
 | RExecOp runtime | `execution_request` / `execution_receipt` in `shared_state` | Operator debugging, GovEngine/receipt binding inputs |
-| SCLite | `execution_receipt.v0.2` bundle artifact | Auditable truth on completion export |
+| SCLite | `execution_receipt.v0.2` bundle artifact | Canonical receipt contract and verification input |
+| GovEngine | Runner request/receipt contracts | Governance and conformance checks |
 
 SCLite `execution_receipt` may include `rexecop_runtime_binding` with digest-only
 refs to the runtime receipt (`request_digest`, `receipt_digest`, `policy_binding`,
-`typed_execution_binding`, `governance_bindings`). RExecOp remains a runtime projection layer; SCLite
-retains truth authority.
-| GovEngine | runner request/receipt contracts | Governance — see [govengine-integration.md](govengine-integration.md) |
+`typed_execution_binding`, `governance_bindings`). RExecOp remains the runtime
+producer and persistence owner; SCLite retains canonical contract and
+verification authority.
 
 ## GovEngine PolicyEngine (wired)
 
@@ -172,13 +174,14 @@ Without `policy_pack`, connector allowlists and mode checks behave as before.
 
 ## GovEngine note
 
-Current GovEngine main provides the PolicyEngine enforcement-plan and existing-admission
-binding contracts. RExecOp uses them when `policy_pack` is configured. Without a pack, the legacy
-unbound runtime path remains available for compatibility and must not be described as
-policy-bound execution.
+The exact pinned GovEngine release provides the PolicyEngine enforcement-plan
+and existing-admission binding contracts. RExecOp uses them when `policy_pack`
+is configured. Without a pack, the legacy unbound read-only runtime path remains
+available for compatibility and must not be described as policy-bound
+execution.
 
 ## Related
 
 - [operation-lifecycle.md](operation-lifecycle.md) — when workflows run
-- [evidence-model.md](evidence-model.md) — `shared_state` linkage
+- [sclite-integration.md](sclite-integration.md) — evidence projection and authority
 - [connector-contract.md](connector-contract.md) — bounded output on shell backends

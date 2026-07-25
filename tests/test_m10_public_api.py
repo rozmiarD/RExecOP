@@ -66,6 +66,10 @@ def test_public_api_manifest_is_explicit_and_deterministic() -> None:
     assert manifest["python_api"]["stability"] == "stable_v1"
     assert manifest["schema_compatibility_policy"] == "unknown_major_fail_closed"
     assert manifest["runtime_root_upgrade_policy"] == "alpha_root_requires_new_v1_root"
+    assert (
+        "This manifest does not certify production or mutation readiness."
+        in manifest["non_claims"]
+    )
     assert manifest == public_api_manifest()
 
 

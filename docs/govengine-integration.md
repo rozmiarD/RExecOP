@@ -234,10 +234,11 @@ See [runtime-recovery-ops.md](runtime-recovery-ops.md) and GovEngine
 
 ## Automation transition admission
 
-Reaction-planned child operations are projected into SCLite
-`automation_chain.v0.1` artifacts. RExecOp owns runtime projection and
-child-operation plan mechanics; SCLite owns the chain artifact shape; GovEngine
-owns automation-transition admission through:
+Reaction-planned child operations are projected into RExecOp-owned
+`automation_chain.v0.1` artifacts. RExecOp owns their schema resources, graph
+semantics, runtime projection and child-operation planning. SCLite supplies
+canonical verification machinery. GovEngine owns automation-transition
+planning admission through:
 
 - `AutomationTransitionRequest`
 - `admit_automation_transition()`

@@ -10,7 +10,7 @@ This document states what the candidate does **not** provide so expectations sta
 | GovEngine is authority | RExecOp does not interpret organizational policy; `StaticGovEngineAdapter` is test-only |
 | Stable runtime is read-only | `REXECOP_MUTATION_POSTURE` defaults to `stable_read_only`; `apply` and `recovery` fail with `mutation_not_certified` before execution and are rechecked before connector IO, regardless of a positive GovEngine decision |
 | Signed-decision host adapter required for mutation | Source supports the canonical verify/bind/claim path programmatically; the CLI does not yet configure production signer/verifier/trust adapters, so mutating connector IO fails closed |
-| SCLite is truth | Receipt exports under `<root>/receipts/` are summaries; bundles under `<root>/sclite/` are authoritative |
+| SCLite contract authority | Receipt exports under `<root>/receipts/` are summaries; SCLite defines and verifies the canonical contracts projected into bundles under `<root>/sclite/`; RExecOp persists those bundles |
 | No second policy engine | Configured policy packs and all mutating admission go through GovEngine — no bypass API |
 
 ## Operations and runtime
@@ -67,7 +67,7 @@ This document states what the candidate does **not** provide so expectations sta
 | Source release line | `1.0.0rc1` is the current candidate on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
 | Public API | `rexecop.public_api.v1` identifies the supported 1.x import/CLI subset; unlisted CLI and deep implementation modules retain their documented alpha status |
 | Coordinated dependencies | Source line requires public `govengine==1.0.0rc1` and public `sclite-core==2.0.0`. RExecOp 1.x has no `tecrax` extra; Tecrax is a separately released external consumer/plugin. |
-| Operational qualification | The current source candidate passed the M10 isolated clean-install, live bounded read-only, restart/recovery and public-projection disclosure journey recorded in [`release-qualification/m10-operational.json`](release-qualification/m10-operational.json). This is not the independent security review, does not certify mutation, and does not make the private runtime root publishable. |
+| Operational qualification | The pre-release `0.3.0rc3` source at commit `9e1d13d947351c9904afd7d10b632eac041d6941`, targeting `1.0.0rc1`, passed the isolated clean-install, bounded live read-only, restart/recovery and public-projection journey recorded in [`release-qualification/m10-operational.json`](release-qualification/m10-operational.json). Later release-only deltas and the final tag are covered by separate release gates and review records. This qualification does not certify mutation or make the private runtime root publishable. |
 
 ## Stack readiness labels
 
@@ -81,12 +81,16 @@ The current public stack baseline is recorded in
 The labels `advisory_llm` and `mutation_ready` are not active. LLM output remains
 an untrusted proposal shape only. Mutation readiness is explicitly false and enforced
 by the default runtime posture, not merely documented as an operator expectation.
+`alpha_readonly` is a retained compatibility label, not the maturity label for
+the complete release candidate.
 
 ## What the release candidate **does** provide (allowed claims)
 
-- GovEngine-bound operations control-plane with default `GovEngineClient` adapter
+- Domain-neutral execution kernel with GovEngine governance binding on mutating
+  and explicitly configured policy paths
 - Profile-defined workflow execution and declarative validation
-- SCLite artifact emission on the completion path with honest execution receipt metrics
+- SCLite-compatible artifact emission on the completion path with bounded
+  execution-receipt metrics
 - Signed-decision receipt conformance is active only when the host configures
   the authority, verifier and trust policy. It validates deterministic bindings
   and postconditions but cannot prove an already compromised runtime reported
@@ -97,18 +101,20 @@ by the default runtime posture, not merely documented as an operator expectation
 - Host-owned worker, queue drain, and JSON `trigger` ingress
 - Runtime readiness CLI: explicit `--root`, named `--instance`, `init`, `doctor`, `env lint`, `profile lint`
 - Public-safe `examples/first-run-demo/` onboarding path with `scripts/validate_first_run_smoke.py`
-- §6 operator journey smoke with `scripts/validate_operator_journeys.py` (read-only execute, failure/triage, governance controls projection, audit CLI on fixtures)
+- Operator journey smoke with `scripts/validate_operator_journeys.py`
+  (read-only execution, failure/triage, governance controls and audit CLI on fixtures)
 - `rexecop governance controls` — operator-facing GovEngine typed-execution control catalog projection (non-authoritative)
 - Optional SQLite storage backend for operations, plans, and evidence
 - Wheel build + `twine check` validated in CI
 
 ## What the release candidate **does not** claim (forbidden marketing)
 
-- Production-ready governance (GovEngine remains authority)
+- Production-ready operation of arbitrary profiles, connectors or host adapters
 - Full Tecrax product or Ravenclaw merge
 - Built-in cron/recurrence scheduler, HA multi-tenant control plane, or web UI
 - Unmanned apply on critical targets
-- Guarantee of production support or long-term PyPI semver stability
+- Guarantee of production support or compatibility for explicitly alpha
+  surfaces
 
 ## Operator sign-off checklist
 
@@ -116,6 +122,7 @@ Before treating the release candidate as fit for your environment:
 
 - [ ] Read [OPERATOR_RUNBOOK.md](../OPERATOR_RUNBOOK.md) and [safety-model.md](safety-model.md)
 - [ ] Complete [OPERATOR_LAB_RUNBOOK.md](../OPERATOR_LAB_RUNBOOK.md) checklist
+- [ ] Complete [release-qualification.md](release-qualification.md) and its record
 - [ ] Confirm GovEngine and SCLite versions match `pyproject.toml` pins
 - [ ] Run a bounded read-only profile intent appropriate for the selected target
 - [ ] Verify runtime root exports contain no plaintext secrets

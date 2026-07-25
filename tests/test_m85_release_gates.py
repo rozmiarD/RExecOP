@@ -72,6 +72,98 @@ def test_validate_external_review_gate_rejects_incomplete_surfaces() -> None:
     assert any(error.startswith("review_surfaces_missing:") for error in errors)
 
 
+def test_release_candidate_requires_independent_review() -> None:
+    module = _load_gate_module("validate_external_review_gate")
+    record = {
+        "schema": "rexecop.release_security_review.v0.1",
+        "version": "1.0.0rc2",
+        "review_mode": "solo_reviewed_alpha_risk",
+        "reviewed_at": "2026-07-25",
+        "reviewer_ref": "reviewer:test",
+        "surfaces": sorted(module.REQUIRED_SURFACES),
+        "notes": "test fixture",
+    }
+
+    errors = module.validate_review_record(record, version="1.0.0rc2")
+
+    assert "independent_review_required:1.0.0rc2" in errors
+    assert "source_bound_review_schema_required:1.0.0rc2" in errors
+
+
+def test_final_release_requires_source_bound_schema() -> None:
+    module = _load_gate_module("validate_external_review_gate")
+    record = {
+        "schema": "rexecop.release_security_review.v0.1",
+        "version": "1.0.0",
+        "review_mode": "independent_review",
+        "reviewed_at": "2026-07-25",
+        "reviewer_ref": "reviewer:test",
+        "reviewed_source_commit": "a" * 40,
+        "surfaces": sorted(module.REQUIRED_SURFACES),
+        "notes": "test fixture",
+    }
+
+    errors = module.validate_review_record(record, version="1.0.0")
+
+    assert "source_bound_review_schema_required:1.0.0" in errors
+
+
+def test_external_review_rejects_invalid_version() -> None:
+    module = _load_gate_module("validate_external_review_gate")
+    record = {
+        "schema": "rexecop.release_security_review.v0.1",
+        "version": "not-a-version",
+        "review_mode": "solo_reviewed_alpha_risk",
+        "reviewed_at": "2026-07-25",
+        "reviewer_ref": "reviewer:test",
+        "surfaces": sorted(module.REQUIRED_SURFACES),
+        "notes": "test fixture",
+    }
+
+    errors = module.validate_review_record(record, version="not-a-version")
+
+    assert "review_version_invalid:not-a-version" in errors
+
+
+def test_release_commit_accepts_review_evidence_only_delta() -> None:
+    module = _load_gate_module("validate_external_review_gate")
+    record = module.load_review_record("1.0.0rc1")
+
+    errors = module.validate_release_commit_binding(
+        {
+            **record,
+            "reviewed_source_commit": "03b8a160af5e8aed2cb4a645ee489ad277f3fa9a",
+        },
+        version="1.0.0rc1",
+        release_commit="6b1f011a7e70f93a40858fbf7d6537c33572f558",
+    )
+
+    assert errors == []
+
+
+def test_release_commit_rejects_unreviewed_delta() -> None:
+    module = _load_gate_module("validate_external_review_gate")
+    record = module.load_review_record("1.0.0rc1")
+    release_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    errors = module.validate_release_commit_binding(
+        {
+            **record,
+            "reviewed_source_commit": "03b8a160af5e8aed2cb4a645ee489ad277f3fa9a",
+        },
+        version="1.0.0rc1",
+        release_commit=release_commit,
+    )
+
+    assert any(error.startswith("reviewed_source_commit_unreviewed_delta:") for error in errors)
+
+
 def _load_gate_module(name: str):
     import importlib.util
 

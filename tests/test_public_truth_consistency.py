@@ -57,21 +57,27 @@ def test_public_truth_rejects_stale_govengine_public_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     validator = _load_validator()
-    record = (ROOT / "docs/alpha-sign-off-record.md").read_text(encoding="utf-8")
+    record = (ROOT / "docs/release-qualification-record.md").read_text(
+        encoding="utf-8"
+    )
     stale_record = record.replace(
         validator.EXPECTED_GOVENGINE_STATUS,
         "`1.0.0rc1` (source candidate; published `0.16.11`)",
     )
 
     def fake_read(path: str) -> str:
-        if path == "docs/alpha-sign-off-record.md":
+        if path == "docs/release-qualification-record.md":
             return stale_record
         return (ROOT / path).read_text(encoding="utf-8")
 
     monkeypatch.setattr(validator, "_read", fake_read)
     errors = validator.collect_errors()
-    assert any("docs/alpha-sign-off-record.md:missing:" in item for item in errors)
-    assert any("docs/alpha-sign-off-record.md:forbidden:" in item for item in errors)
+    assert any(
+        "docs/release-qualification-record.md:missing:" in item for item in errors
+    )
+    assert any(
+        "docs/release-qualification-record.md:forbidden:" in item for item in errors
+    )
 
 
 def test_public_truth_rejects_stale_readme_operator_version(
@@ -80,9 +86,9 @@ def test_public_truth_rejects_stale_readme_operator_version(
     validator = _load_validator()
     version = validator.current_version()
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    stale_readme = readme.replace(version, version).replace(
-        f"| Current source line | `{version}`",
-        "| Current source line | `0.1.2a0`",
+    stale_readme = readme.replace(
+        f"package-rexecop%20{version}",
+        "package-rexecop%200.1.2a0",
     )
 
     def fake_read(path: str) -> str:
@@ -115,6 +121,28 @@ def test_policy_import_is_independent_of_connector_import_order() -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_cli_documentation_requires_exact_command_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validator()
+    cli_reference = (ROOT / "docs/cli-reference.md").read_text(encoding="utf-8")
+    without_status_row = cli_reference.replace(
+        "| `status --operation ID` | Current operation state |",
+        "The status command remains mentioned in prose.",
+    )
+
+    def fake_read(path: str) -> str:
+        if path == "docs/cli-reference.md":
+            return without_status_row
+        return (ROOT / path).read_text(encoding="utf-8")
+
+    monkeypatch.setattr(validator, "_read", fake_read)
+    errors: list[str] = []
+    validator._validate_document_semantics(errors)
+
+    assert "docs/cli-reference.md:command_missing:status" in errors
 
 
 def test_public_truth_tracks_m3_m4_cli_markers() -> None:

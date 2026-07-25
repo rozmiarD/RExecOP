@@ -197,7 +197,7 @@ rexecop capabilities list
 ```
 
 Built-in backends report `certification_tier: core` (or `bootstrap` for `mock`),
-plus M6 security posture fields: `identity_class`, `egress_class`,
+plus security-posture fields: `identity_class`, `egress_class`,
 `read_only_backend` and `live_backend_capable`. Per-connector env bindings
 compile digest-bound `rexecop.backend_capability_descriptor.v0.1` projections
 during typed execution (secret-ref requirements and redacted network boundary,

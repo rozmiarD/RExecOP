@@ -2,8 +2,10 @@
 
 Complete `rexecop` command reference for the current release candidate (`1.0.0rc1`).
 Only commands listed by `CLI_CONTRACTS` carry the candidate `stable_v1` JSON
-compatibility promise; all other command surfaces are explicitly alpha. Secret
-values, connector endpoints and raw backend payloads are never printed.
+compatibility promise; all other command surfaces are explicitly alpha. Stable
+JSON/error projections are designed to omit secret values, private connector
+endpoints and raw backend payloads. Redaction is finite, so review output before
+external sharing.
 
 For onboarding without backend IO, start with [first-run.md](first-run.md). For
 lifecycle semantics see [operation-lifecycle.md](operation-lifecycle.md).
@@ -68,7 +70,7 @@ See [secrets-operator.md](secrets-operator.md).
 
 See [profile-developer-surface.md](profile-developer-surface.md).
 
-## Action metadata (M5, no backend IO)
+## Action metadata (no backend I/O)
 
 | Command | Purpose |
 | --- | --- |
@@ -81,8 +83,9 @@ See [profile-developer-surface.md](profile-developer-surface.md).
 | `action configure INTENT --env PATH [--template ID] [--dry-run] [--write-patch PATH]` | Bounded dry-run patch operations; never mutates `--env` |
 | `action diff INTENT --env PATH` | Profile contract vs environment binding diff with shape digests and configure hint |
 
-Profile/env/catalog resolution matches `action list`. `action configure` supports
-`--dry-run` only in M5.
+Profile/env/catalog resolution matches `action list`. `action configure`
+supports dry-run patch generation only; it does not edit the selected
+environment file.
 
 See [environment-contract.md](environment-contract.md) and
 [profile-developer-surface.md](profile-developer-surface.md).
@@ -109,6 +112,7 @@ See [operator-catalog.md](operator-catalog.md).
 | `operation explain --operation ID` | Stored plan bindings, expected artifacts, safe next actions |
 | `operation review --operation ID [--format json\|table\|markdown]` | Decision screen for a stored plan |
 | `operation diff --operation ID [--format json\|table\|markdown]` | Stored plan bindings vs current profile/env/catalog |
+| `operation truth-path --operation ID` | Digest-bound governance, runtime receipt and SCLite-reference projection without execution |
 | `runbook show INTENT --profile PATH [--format json\|table\|markdown]` | Profile-owned runbook ref and bounded content |
 | `receipt show OPERATION_ID` | Redacted receipt export and SCLite refs with descriptor digest checks |
 | `evidence show OPERATION_ID` | Bounded, redacted internal evidence event summary |
@@ -117,7 +121,8 @@ See [operator-catalog.md](operator-catalog.md).
 | `support bundle OPERATION_ID --redacted` | Redacted diagnostic bundle combining receipt, evidence and chain projections |
 
 Inspection commands require a runtime store and an existing operation id from `plan`.
-Audit commands are projections only: SCLite remains the authoritative truth layer.
+Audit commands are projections only: SCLite remains the canonical
+lifecycle/evidence contract and verification layer.
 
 ## CLI Contract Registry
 
@@ -257,9 +262,11 @@ Automated subprocess smokes validate end-to-end CLI chains without private infra
 | Script | Scope |
 | --- | --- |
 | `scripts/validate_first_run_smoke.py` | Onboarding on `first-run-demo` |
-| `scripts/validate_operator_journeys.py` | §6 journeys: read-only execute, failure/triage/retry, governance, audit on `runtime-fixture` |
+| `scripts/validate_operator_journeys.py` | Read-only execution, failure/triage/retry, governance and audit journeys on `runtime-fixture` |
 
-See [OPERATOR_RUNBOOK.md](../OPERATOR_RUNBOOK.md#operator-journey-gates) for the manual equivalents.
+See the
+[standard read-only workflow](../OPERATOR_RUNBOOK.md#standard-read-only-workflow)
+for the manual equivalents.
 
 ## Command groups (quick index)
 
@@ -281,7 +288,7 @@ rexecop [--root] [--instance] [--storage]
   operation explain | review | diff | truth-path
   runbook show
   receipt show | evidence show | chain summary | chain explain | support bundle
-  runtime status | recover
+  runtime status | reconstruct-status | recover
   ops | explain-error
   observability logs list | diagnostics
   dead-letter list | show
@@ -293,5 +300,6 @@ rexecop [--root] [--instance] [--storage]
   queue [--drain]
   worker run
   trigger
-  reaction-plan | reaction-start | reaction-replay | reaction explain | reaction-proposal-validate
+  reaction-plan | reaction-start | reaction-replay | reaction explain
+  reaction-proposal-validate | reaction-proposal-review | reaction-proposal-submit
 ```

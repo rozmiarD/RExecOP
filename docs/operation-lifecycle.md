@@ -45,7 +45,7 @@ connector dispatch reject mutating modes with `mutation_not_certified`. The expl
 
 See [runtime-recovery-ops.md](runtime-recovery-ops.md) for triage, recovery and backup
 workflows. See [profile-developer-surface.md](profile-developer-surface.md) and
-[secrets-operator.md](secrets-operator.md) for M4 developer and secrets surfaces.
+[secrets-operator.md](secrets-operator.md) for developer and secret-resolution surfaces.
 
 ## Runtime policy
 
@@ -66,7 +66,7 @@ coordinator admits them after a slot frees.
 
 During `start`, `WorkflowRunner` writes:
 
-- `shared_state.execution_request` — planned steps, target, mode, resource limits (`v0.1`)
+- `shared_state.execution_request` — planned steps, target, mode, resource limits (`v0.2`)
 - `shared_state.execution_receipt` — per-step digest refs and success/failure summary
 
 These are runtime contracts for operator review and downstream binding — distinct from the

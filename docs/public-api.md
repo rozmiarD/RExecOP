@@ -2,12 +2,14 @@
 
 RExecOp `1.0.0rc1` freezes the Python and CLI compatibility surface for
 the 1.x line. This is an API compatibility decision, not a production
-readiness claim; security, release and operational M10 gates remain separate.
+readiness claim. The release, operational and independent-review gates completed
+for `1.0.0rc1`, but their evidence does not widen the API promise or certify
+production mutation.
 
 The machine-readable source of truth is
-`rexecop.public_api.public_api_manifest()` (`rexecop.public_api.v1`). The M10
-gate imports every listed symbol in a fresh Python subprocess and rejects any
-unclassified CLI command.
+`rexecop.public_api.public_api_manifest()` (`rexecop.public_api.v1`). The public
+API gate imports every listed symbol in a fresh Python subprocess and rejects
+any unclassified CLI command.
 
 ## Supported Python imports
 

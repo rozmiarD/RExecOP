@@ -1,158 +1,161 @@
 # Architecture
 
-RExecOp implements **Regulated Execution Operations**: profile-defined workflows executed under
-GovEngine admission with auditable outcomes projected into SCLite.
+RExecOp is a domain-neutral execution kernel and runtime. It coordinates
+profile-defined operations, enforces runtime safety controls, performs connector
+I/O and produces evidence. It is not the policy authority, domain model or
+canonical evidence verifier.
 
-## Layer boundaries
+## Ownership
 
-```text
-Profiles (tecrax, examples/first-run-demo, examples/runtime-fixture)
-  intents, workflows, connector contracts, validation_rules/
-
-RExecOp (this package)
-  runtime root, operation lifecycle, OperationPlan, orchestration,
-  connector dispatch, validation engine, escalation packaging
-
-GovEngine
-  admission, governance meaning, runner request/receipt contracts
-
-SCLite
-  auditable artifacts, scoped tickets, receipts, review bundles
-```
-
-| Layer | Owns | Does not own |
+| Component | Owns | Does not own |
 | --- | --- | --- |
-| **Profiles** | Domain semantics, success criteria YAML | Execution mechanics, policy meaning |
-| **RExecOp** | Runtime root, state machine, step order, retry/pause, locks/queue | Policy decisions, artifact schemas |
-| **GovEngine** | Allowed/blocked/approval_required | Connector calls, workflow invention |
-| **SCLite** | Truth records and review semantics | Operation scheduling, infra APIs |
+| Domain profiles | Intent meaning, workflows, target taxonomy, domain validation and required capabilities | Runtime lifecycle, policy decisions, canonical evidence verification |
+| GovEngine | Policy, governance, admission, approvals, obligations, constraints and execution permits | Queueing, leases, retries, connector I/O or artifact persistence |
+| RExecOp | Planning, operation lifecycle, attempts, queue claims, leases, fencing, retries, recovery, connector dispatch and orchestration contracts | Domain meaning, organization policy, secret custody or SCLite contract authority |
+| SCLite | Canonical evidence contracts, canonicalization, integrity, tickets, receipts, review bundles and verification | Runtime scheduling, connector execution, governance or orchestration semantics |
 
-## Normal execution path
+RExecOp owns the following orchestration contract families because it creates
+and interprets their runtime semantics:
+
+- observation and finding envelopes;
+- reaction plans and escalation proposals;
+- trigger and watchdog decisions;
+- automation chains.
+
+Their current resources live under `rexecop.contracts`, are resolved by
+`ORCHESTRATION_SCHEMA_RESOLVER`, and use the `rexecop.io/*@v0.1` owner
+namespace. Historical embedded `schema_ref` values are compatibility
+identifiers, not evidence that SCLite owns these contracts. SCLite verifies
+their canonical bytes and descriptors without interpreting their orchestration
+meaning.
+
+## Execution path
 
 ```text
-profile-defined intent
-  -> profile workflow (declared steps only)
-  -> RExecOp OperationPlan (runtime artifact, not SCLite truth)
-  -> [mutating modes] GovEngine admission / decision
-  -> RExecOp controlled execution (connectors, internal actions)
-  -> internal evidence events + shared workflow state
-  -> declarative profile validation
-  -> RExecOp emits SCLite artifact bundle (lifecycle + admission -> artifact shapes)
-  -> SCLite validates bundle / review semantics
-  -> completion | failure | escalation
+profile intent and target
+  -> validate profile, environment, catalog and workflow
+  -> create Operation and OperationPlan
+  -> [mutating mode] obtain and persist GovEngine decision
+  -> claim work and acquire the current execution lease
+  -> issue and validate an attempt-bound runtime permit
+  -> persist an attempt before connector I/O
+  -> recheck posture, permit, fencing and runtime bindings
+  -> dispatch a connector or internal action
+  -> persist result or outcome_indeterminate
+  -> run profile-declared validation
+  -> project lifecycle and evidence into SCLite-compatible artifacts
+  -> verify the resulting bundle
+  -> complete, fail, escalate or enter recovery
 ```
 
-GovEngine participates **before mutating execution**, not as a separate post-runner stage.
-RExecOp remains the sole executor; it **projects** execution outcomes and bridged admission
-metadata into SCLite fields (`policy_decision`, tickets, receipts).
+Mutating modes require GovEngine governance and remain blocked by the default
+`stable_read_only` posture even if governance allows them. A configured policy
+pack can also evaluate read-only work. The explicit `legacy_read_only` path has
+no signed per-attempt GovEngine decision and must not be represented as
+governance authenticity.
+
+External I/O is not deterministic. RExecOp's determinism claim applies to
+orchestration decisions over equivalent recorded inputs and state.
 
 ## Core invariants
 
-1. **RExecOp** decides operational mechanics (state, next step, retry, pause, queue).
-2. **GovEngine** decides governance meaning (allowed, blocked, approval required).
-3. **SCLite** records auditable truth.
-4. **Profiles** own domain semantics — zero domain imports in `src/rexecop`.
-5. **Domain plugins** register via `rexecop.internal_actions` and `rexecop.connector_backends` entry points (e.g. `tecrax`).
+1. An attempt is durable before connector I/O starts.
+2. A stale lease or fencing token cannot authorize the current attempt.
+3. Mutation posture and permit bindings are rechecked immediately before
+   mutating I/O.
+4. The post-I/O, pre-durable-result crash window is represented explicitly as
+   `outcome_indeterminate`; RExecOp does not claim exactly-once side effects.
+5. Unknown contract versions, unsupported controls and detected binding drift
+   fail closed.
+6. Profiles provide domain semantics without domain imports in `src/rexecop`.
+   The bundled `examples/first-run-demo` and runtime fixtures exercise this
+   boundary without becoming product profiles.
+7. Runtime events and receipt exports are not parallel SCLite truth formats.
+8. Secret values are host-owned and prohibited from profile/environment
+   configuration and public evidence projections.
 
-RExecOp must not become a second policy engine. Receipt exports under `<root>/receipts/`
-(default `./.rexecop/receipts/` when no explicit root is set) are operator summaries;
-authoritative bundles live under `<root>/sclite/<operation_id>/`.
-
-## Plugin boundaries
+## Runtime and plugin boundaries
 
 ```text
-src/rexecop/                         tecrax (or other domain packages)
-  internal_registry.py                 rexecop.internal_actions entry point
-  connector backends                   optional profile-owned plugin entry points
-  StaticFixtureRuntime (generic)       Tecrax internal actions via entry point
-  record_rollback_marker (builtin)     profile-owned normalizers/aggregators
+RExecOp core                         domain or host packages
+  connector and action ports          rexecop connector/action entry points
+  generic runtime fixture              profile-owned implementations
+  profile resolver                     profile declarations and validation
+  secret-resolution port               host-owned secret provider
+  storage ports                        host-selected storage implementation
+  signer/verifier ports                host trust configuration
 ```
 
-The bundled `first-run-demo` and `runtime-fixture` profiles use the generic
-`static_fixture` backend. Tecrax and other domain packages may register internal
-actions, but RExecOp core does not import or own their semantics.
+Installing RExecOp does not make a plugin, connector, secret provider, signer,
+verifier or storage adapter trustworthy for a particular environment.
+Capabilities and plugin inventory are inputs to governance and runtime checks,
+not self-authenticating safety claims.
 
 ## Storage boundary
 
 ```text
-OperationStoragePort (protocol)
-  ├── FileStore (default)     local JSON under selected runtime root
-  ├── SqliteStore (optional)  operations/plans/evidence in rexecop.db; aux dirs on disk
-  └── InMemoryStore (tests)   operations/plans/evidence in RAM; SCLite dir still on disk
+OperationStoragePort
+  ├── FileStore      stable, single-host default
+  ├── SqliteStore    alpha backend; auxiliary state remains on disk
+  └── InMemoryStore  tests only
 ```
 
-The selected runtime root is RExecOp operator storage, not parallel SCLite truth authority.
-It is chosen by global `--root`, `REXECOP_ROOT`, named `--instance` /
-`REXECOP_INSTANCE`, or fallback `./.rexecop`.
-See [storage-backends.md](../docs/storage-backends.md) for File vs SQLite boundaries.
-
-## Package map (current)
-
-```text
-src/rexecop/
-  operation/          model, plan, state machine, controller
-  orchestration/      workflow execution coordinator
-  workflow/           YAML loader, step runner
-  execution/          step executor, ExecutionRequest/Receipt model, bounded output helpers
-  connectors/         mock, http_api, local_shell, ssh_readonly, composite runtime, fixture loader
-  adapters/
-    govengine_port/   admission client + static test adapter
-    sclite_port/      artifact emitter, full bundle, fixture bundle (lab), placeholder (deprecated)
-  profile/            contract loader, resolver, validation_rules
-  environment/        environment loader, targets, policy criticality
-  policy/             GovEngine PolicyEngine pack compile + connector/operation gates
-  secrets/            secret_ref resolver port
-  evidence/           internal events, redaction
-  storage/            file store, sqlite store, factory, storage port protocol
-  runtime/            runtime root resolution, init, doctor
-  runtime_ops/        queue, target lock, maintenance, rollback, coordinator, worker, watchdog
-  validation/         declarative rule evaluator
-  escalation/         failure package assembly
-  cli.py              operator commands
-```
-
-## GovEngine relationship
-
-Exact governance dependency: public `govengine==1.0.0rc1` (see
-`pyproject.toml`).
-
-GovEngine composes and validates `RuntimeAdmissionResult` and runner request/receipt shapes.
-RExecOp calls the GovEngine adapter before mutating execution and maps admission metadata into
-SCLite lifecycle artifacts. GovEngine `1.0.0rc1` PolicyEngine evaluates
-`environment.policy_pack` at plan and on every
-connector invoke. At operation level, RExecOp consumes a digest-bound GovEngine
-`PolicyEnforcementPlan` plus its existing `GovAdmissionDecision` and mechanically
-enforces the supported neutral controls.
-Unsupported controls and drift fail closed before backend IO. Connector-level policy
-remains plain-allow-only. GovEngine does **not** execute operations or invoke connectors.
-
-Independently of governance, RExecOp owns the release-readiness boundary:
-`REXECOP_MUTATION_POSTURE` defaults to `stable_read_only`. Mutating modes are rejected
-before operation execution and the same gate is evaluated again at the composite
-connector boundary, so direct built-in or plugin dispatch cannot turn a positive
-GovEngine decision into stable live mutation. `lab_only` enables development mechanics
-but makes `doctor` return a blocker.
-
-Workflow execution additionally records `ExecutionRequest` / `ExecutionReceipt` in operation
-`shared_state` — see [execution-contract.md](execution-contract.md).
-
-## SCLite relationship
-
-RExecOp emits a full GovEngine-integration lifecycle bundle on the completion path (scoped
-ticket v0.3, trust/carrier sidecars, kernel guard manifest, `review_bundle` pass). Internal
-evidence events under `<root>/evidence/` are runtime telemetry, not long-term truth.
-
-## Storage layout
+The runtime root is selected by `--root`, `REXECOP_ROOT`, `--instance`,
+`REXECOP_INSTANCE`, or the `./.rexecop` fallback. It is operator-managed
+runtime state and should be treated as sensitive.
 
 | Path | Role |
 | --- | --- |
-| `<root>/operations/` | Operation envelope + OperationPlan JSON (`file` backend) |
-| `<root>/rexecop.db` | Operations, plans, evidence (`sqlite` backend) |
-| `<root>/evidence/` | Redacted internal lifecycle events |
-| `<root>/sclite/<op>/` | Authoritative SCLite artifact bundle |
-| `<root>/receipts/` | Non-authoritative export summary |
-| `<root>/approvals/` | Manual approval stub files |
-| `<root>/queue/`, `locks/`, `inbox/` | Queue drain, target lock, file-drop triggers |
+| `<root>/operations/` | Operation envelopes and plans for `FileStore` |
+| `<root>/rexecop.db` | Operations, plans and evidence for `SqliteStore` |
+| `<root>/evidence/` | Bounded internal runtime events |
+| `<root>/sclite/<operation_id>/` | Emitted SCLite-compatible artifact bundle |
+| `<root>/receipts/` | Non-authoritative operator receipt exports |
+| `<root>/approvals/` | Manual approval stubs |
+| `<root>/queue/`, `locks/`, `inbox/` | Queue, lock and host-trigger mechanics |
 
-All paths are gitignored. Queue, locks, SCLite bundles, and receipts stay on disk for both
-`file` and `sqlite` storage backends.
+See [Storage backends](storage-backends.md) and
+[SCLite integration](sclite-integration.md).
+
+## Package map
+
+```text
+src/rexecop/
+  action/            action metadata and projections
+  adapters/          GovEngine and SCLite integration ports
+  catalog/           target and operation catalog mechanics
+  cli_groups/        CLI command implementations
+  connectors/        connector implementations and dispatch
+  contracts/         RExecOp-owned orchestration contracts and schemas
+  environment/       environment and target validation
+  escalation/        bounded failure packages
+  evidence/          internal events and redaction
+  execution/         execution specs, requests, receipts and output bounds
+  governance/        runtime-side governance binding helpers
+  observability/     structured logs and diagnostics
+  operation/         model, plan, state machine and controller
+  orchestration/     workflow execution coordination
+  plugins/           plugin discovery and inventory
+  policy/            GovEngine policy-pack integration
+  profile/           profile loading, resolution and validation
+  reaction/          deterministic reaction mechanics
+  runtime/           root, posture, compatibility and readiness
+  runtime_ops/       queue, lease, worker, watchdog and recovery mechanics
+  secrets/           host secret-resolution port
+  storage/           storage protocol and implementations
+  triggers/          host-trigger planning mechanics
+  validation/        declarative validation evaluator
+  workflow/          workflow loading and step execution
+```
+
+## Exact stack baseline
+
+RExecOp `1.0.0rc1` pins:
+
+```text
+govengine==1.0.0rc1
+sclite-core==2.0.0
+```
+
+The exact contract and downstream-consumer baseline is maintained in
+[Stack contract compatibility](stack-contract-compatibility.md).

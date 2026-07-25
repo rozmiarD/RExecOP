@@ -193,7 +193,7 @@ def public_api_manifest() -> dict[str, Any]:
         "non_claims": [
             "Modules and symbols absent from python_api.imports are internal or alpha.",
             "Alpha CLI commands carry no 1.x output compatibility promise.",
-            "This manifest does not make the unreleased source candidate production-ready.",
+            "This manifest does not certify production or mutation readiness.",
         ],
     }
 

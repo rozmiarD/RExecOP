@@ -3,212 +3,213 @@
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
 [![Package: rexecop 1.0.0rc1](https://img.shields.io/badge/package-rexecop%201.0.0rc1-blueviolet.svg)](https://pypi.org/project/rexecop/1.0.0rc1/)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
-[![Dependency: GovEngine](https://img.shields.io/badge/dependency-GovEngine-informational.svg)](https://github.com/rozmiarD/GovEngine)
-[![Dependency: SCLite](https://img.shields.io/badge/dependency-SCLite-informational.svg)](https://github.com/rozmiarD/SCLite)
-[![Profile: tecrax](https://img.shields.io/badge/profile-tecrax-informational.svg)](https://github.com/rozmiarD/tecrax)
-[![Status: release candidate](https://img.shields.io/badge/status-release%20candidate-green.svg)](#status)
+[![Status: release candidate](https://img.shields.io/badge/status-release%20candidate-green.svg)](#release-status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**Regulated Execution Operations** control-plane for profile-defined workflows, bound to
-**GovEngine** governance and **SCLite** auditable truth.
+RExecOp is a domain-neutral execution kernel and runtime for controlled,
+auditable operations.
 
-RExecOp (package name: `rexecop`) is the deterministic **runner, orchestrator, and executor**
-for domain profiles. It plans and runs declared workflow steps, enforces operational lifecycle
-mechanics, and projects completed work into SCLite-compatible artifacts — without becoming a
-policy engine or a parallel truth layer.
+It turns an accepted operation into bounded execution attempts: it coordinates
+operation state, queues, leases, fencing, retries and recovery, dispatches
+connectors, and produces evidence describing what was attempted and observed.
 
-## Status
+RExecOp does not decide what an operation means or whether an organization
+should allow it. Domain semantics belong to profiles, governance decisions
+belong to [GovEngine](https://github.com/rozmiarD/GovEngine), and canonical
+evidence contracts and verification belong to
+[SCLite](https://github.com/rozmiarD/SCLite). RExecOp owns the runtime mechanics
+that connect those inputs and decisions to actual I/O.
 
-| Item | Value |
+## Release status
+
+| Item | Current value |
 | --- | --- |
-| Current source line | `1.0.0rc1` |
-| Main branch | May include unreleased changes listed under `CHANGELOG.md` / Unreleased |
-| Maturity | **release candidate** — stable read-only core with documented limits |
-| Delivery | `1.0.0rc1` release candidate through the protected OIDC release workflow |
-| Tests | CI reruns the current suite; `pytest -m delivery` runs the sign-off scope |
-| Latest PyPI | [`rexecop==1.0.0rc1`](https://pypi.org/project/rexecop/1.0.0rc1/) |
-| Exact dependencies | Public `govengine==1.0.0rc1`, public `sclite-core==2.0.0` (see `pyproject.toml`) |
-| Stack compatibility | [`docs/stack-contract-compatibility.md`](docs/stack-contract-compatibility.md) |
-| Default posture | `stable_read_only`; `apply` / `recovery` execution is mechanically blocked even after GovEngine allow |
+| Package | [`rexecop==1.0.0rc1`](https://pypi.org/project/rexecop/1.0.0rc1/) |
+| Maturity | Release candidate with a stable read-only core |
+| Python | 3.11 or newer |
+| Exact dependencies | `govengine==1.0.0rc1`, `sclite-core==2.0.0` |
+| Default posture | `stable_read_only` |
+| Mutating execution | Blocked by the stock stable posture |
+| Compatibility | [Stack contract compatibility](docs/stack-contract-compatibility.md) |
 
-## Project sentence
+The `main` branch may contain changes recorded under
+[Unreleased](CHANGELOG.md#unreleased). The public `1.0.0rc1` wheel is the
+current evaluation and integration release.
 
-> RExecOp runs profile-defined operations under GovEngine admission and records auditable outcomes through SCLite — profiles own meaning, GovEngine owns governance, SCLite owns proof, RExecOp owns execution mechanics.
+## Why RExecOp exists
 
-## Stack position
+Calling a connector is easy. Safely coordinating an operation around that call
+is harder.
 
-One operation crosses all layers. GovEngine owns policy and admission decisions;
-RExecOp enforces admitted neutral controls and executes the workflow; SCLite
-validates the **proof bundle** emitted after execution.
+Before and after I/O, a runtime may need to claim work atomically, bind it to
+the current executor, persist an attempt, enforce governance controls, recover
+after a crash, and produce evidence without intentionally persisting secret
+material or unbounded output. RExecOp provides those runtime mechanics without
+embedding the semantics of a particular business or infrastructure domain.
+
+## Where it fits
 
 ```text
-Profiles (tecrax, fixtures)
-  intents, workflows, connector contracts, validation rules
+Domain profile
+  intent, targets, workflow and validation semantics
         |
         v
-RExecOp  plan -> GovEngine policy/admission -> lifecycle FSM
-        |                  allowed | blocked | approval_required
-        v
-RExecOp  admitted controls -> step execution -> profile validation
-        v
-RExecOp  project runtime facts + GovEngine admission into SCLite artifact shapes
+RExecOp planning
+  validate inputs and build the operation plan
         |
         v
-SCLite   validate schemas, ticket binding, review_bundle (truth authority)
+GovEngine decision where required
+  policy, governance, admission and execution authorization
+        |
+        v
+RExecOp execution
+  lifecycle, queue/lease/fencing, connector I/O and recovery
+        |
+        v
+SCLite verification
+  canonical evidence contracts, integrity and verification
 ```
 
-| Layer | Responsibility |
-| --- | --- |
-| **Profiles** | Intents, workflows, connector contracts, declarative validation rules |
-| **RExecOp** | Runner: lifecycle, planning, step dispatch, pause/resume/retry, queue/lock; **projects** completed operations into SCLite bundles (does not decide policy) |
-| **GovEngine** | Governance: admission and runner request/receipt **contracts** — does not execute steps or emit SCLite files |
-| **SCLite** | Proof: auditable artifacts, scoped tickets, receipt-bounded evidence, review bundles |
+These are ownership boundaries, not a claim that every compatibility path uses
+every component identically. Mutating operations require GovEngine governance.
+Read-only operations can evaluate configured policy, but the explicit
+`legacy_read_only` compatibility path does not carry a signed per-attempt
+GovEngine decision and must not be presented as governance authenticity.
 
-For a configured signed-decision authority, each connector attempt receives an
-immutable runtime permit before I/O. After I/O, RExecOp emits a bounded receipt
-binding and requires GovEngine conformance for the same decision, permit,
-attempt, lease/fencing and inventory plus output postconditions. Only digest
-projections enter the existing SCLite receipt; SCLite remains truth authority.
+RExecOp owns the orchestration-specific observation, finding, reaction plan,
+escalation proposal, trigger decision, watchdog decision and automation-chain
+contracts. SCLite provides the canonicalization and verification machinery used
+for their evidence projections; it does not own their runtime semantics.
 
-RExecOp also owns the orchestration-specific observation, finding, reaction,
-trigger, watchdog and automation contract resources. They are exposed through
-the immutable `rexecop.contracts.orchestration` resolver under
-`rexecop.io/*@v0.1`. SCLite verifies their bytes and descriptors without
-discovering plugins or interpreting runtime semantics.
+Tecrax is a separate domain-profile package and downstream consumer. It is not
+part of the RExecOp distribution or release train. Ravenclaw is legacy and out
+of scope.
 
-Tecrax ships as the [`tecrax`](https://github.com/rozmiarD/tecrax) package (`rexecop.profiles:tecrax`).
-Ravenclaw is legacy and out of scope for RExecOp.
+See [Architecture](docs/architecture.md) for the complete ownership model.
 
-## What RExecOp includes now
+## What RExecOp claims
 
-**Core execution**
+Within its documented contracts and supported configuration, RExecOp provides:
 
-- Deterministic operation state machine and `OperationPlan` runtime artifact
-- GovEngine port: real `GovEngineClient` + bootstrap-only `StaticGovEngineAdapter`
-- SCLite port: GovEngine-integration bundle emission (scoped ticket, kernel guard, review pass)
-- Profile resolution by path or `rexecop.profiles` entry point (`tecrax`)
-- Declarative profile validation rules (YAML, not hardcoded domain logic in core)
-- Deterministic reaction interpreter (`reaction-plan`, `reaction-start`, `reaction-replay`,
-  `reaction explain`)
-- Reaction automation-chain projection for admitted child-operation planning
-  (`automation_chain.v0.1`) with GovEngine automation-transition admission refs
-- Connectors: `mock`, `http_api`, `local_shell_readonly`, `ssh_readonly` (bounded output + digests)
-- Execution contracts: digest-bound `ExecutionRequest` / `ExecutionReceipt` (schema `v0.2`)
-- GovEngine `PolicyEngine` when `environment.policy_pack` is set, plus
-  `rexecop.policy_pack_lifecycle.v0.1` projections for pack status, digest and enforcement binding
-- Operator target catalog and profile-derived operation catalog with drift rejection at start
-- Storage: stable-certified single-host `FileStore` (default); `SqliteStore` remains alpha-only
-  (`REXECOP_STORAGE` / `--storage`)
-- Secrets port: `REXECOP_SECRET_*` and `REXECOP_SECRETS_FILE` (no plaintext secrets in git or `.rexecop/`)
+- deterministic orchestration decisions for equivalent recorded inputs and
+  state;
+- durable operation and attempt records around connector execution;
+- atomic queue claims, leases and fencing against stale executors;
+- bounded retry, rollback and recovery transitions;
+- explicit `outcome_indeterminate` handling for the post-I/O,
+  pre-durable-result uncertainty window;
+- pre-I/O governance enforcement for mutating execution;
+- connector dispatch through declared runtime capabilities;
+- bounded, redacted audit projections for supported execution paths;
+- versioned stable and alpha public-interface classifications;
+- exact compatibility pins for the supported GovEngine and SCLite line.
 
-**Runtime readiness and operator UX**
+External I/O itself is not deterministic. The deterministic claim applies to
+RExecOp decisions over equivalent recorded inputs and state.
 
-- Runtime root: `--root` / `REXECOP_ROOT`, `--instance` / `REXECOP_INSTANCE`, `init`, `doctor`
-- Stable runtime qualification: `doctor` reports storage/executor/mutation/plugin checks and
-  a machine-readable `security_blockers` subset for configuration-level security failures
-- Input validation: `env lint`, `profile lint`, `secrets doctor`, `secrets suggest-ref`
-- Profile developer surface: `profiles list/show`, `connectors list/show`, `capabilities list`,
-  `profile manifest`, `profile harness`, operator metadata projection
-- CLI contract registry: `contracts cli` emits command schemas, formats, exit-code policy
-  and redaction/authority claims for operator-facing surfaces, including
-  command groups, `format_matrix` and `exit_code_matrix`
-- Candidate 1.x public API: `rexecop.public_api.v1` lists the exact supported
-  Python imports, stable CLI registry commands and explicit alpha CLI remainder
-- Release evidence v2 binds public wheel/sdist identity, CycloneDX SBOM and
-  GitHub provenance-attestation subjects before durable persistence as
-  versioned GitHub Release assets
-- CLI error envelope: registry commands emit `rexecop.cli_error.v0.1` on exit
-  code `1` with normalized class, reason code, redacted message and safe next actions
-- Observability: bounded structured logs with correlation IDs and artifact refs;
-  `observability diagnostics` uses the same failure classes as `explain-error`
-- M5 action metadata (no backend IO): `action list`, `action show`, `action preview`,
-  `action policy-preview`, `action validate`, `action diff --env`,
-  `action configure --dry-run`, `action templates list` (scope 1.0: `http.simple-get`,
-  shell/SSH allowlist skeletons)
-- Pre-run inspection: `policy explain`, `operations explain`, `operation explain`,
-  `operation review`, `operation diff`, `runbook show`, `operations unavailable`
-- Audit inspection: `receipt show`, `evidence show`, `chain summary`, `chain explain`,
-  `support bundle --redacted` for redacted, digest-bound runtime/SCLite projections
-- Runtime triage: `runtime status`, `runtime reconstruct-status`, `ops`, `explain-error`,
-  `dead-letter list/show`, `locks list`, `runtime recover`, `backup create/restore`,
-  `watchdog manual-record`
-- Lifecycle controls: `plan`, `approve`, `start`, `pause`/`resume`, `cancel`, `retry`,
-  `rollback`, `validate`, `escalate`, `status`, `history`
-- Host-owned scheduling: `queue`, `worker run`, `trigger` (see operator scheduler pattern)
-- Certified runtime: one fenced executor per `FileStore` root, operation CAS, atomic FIFO
-  queue claims, durable connector attempts and `outcome_indeterminate` recovery
-- Stable mutation posture: `REXECOP_MUTATION_POSTURE` defaults to `stable_read_only` and
-  is rechecked before operation execution and connector I/O; `doctor` blocks the explicit
-  `lab_only` mechanics posture
-- Execution-kernel stabilization: store-backed runtime ports, a preallocated attempt,
-  atomic GovEngine decision claim, attempt-bound pre-IO runtime permit, stable reason
-  codes, trusted-plugin inventory/allowlist and cycle-safe public imports
-- Advisory escalation proposal handling: validate `escalation_proposal.v0.1`,
-  review without printing raw explanation text, and record `accept_for_planning`/`reject`
-  decisions without planning, approval or execution
+## What RExecOp does not claim
 
-**Examples and fixtures**
+RExecOp does not claim that:
 
-- Domain-neutral `examples/first-run-demo/` and `examples/profiles/runtime-fixture/` for
-  onboarding, lifecycle, policy and connector regressions
-- Tecrax product semantics live only in the external `tecrax` package
+- arbitrary operations, profiles, plugins or connectors are safe;
+- external side effects are exactly-once;
+- a successful connector call proves the intended real-world outcome;
+- recovery can always determine whether an interrupted side effect occurred;
+- read-only compatibility mode carries signed governance authenticity;
+- the stock `1.0.0rc1` CLI supports unrestricted production mutation;
+- redaction makes every runtime artifact safe to publish without operator
+  review;
+- RExecOp is a policy engine, secret manager, domain workflow product,
+  long-running scheduler service or truth database;
+- RExecOp replaces GovEngine or SCLite;
+- installing the package supplies trustworthy signer, verifier, approval,
+  storage or connector adapters for a particular production environment.
 
-## What RExecOp does not include
+The current security posture and residual risks are documented in
+[Safety model](docs/safety-model.md),
+[Known limitations](docs/known-limitations.md), and
+[Security threat model](docs/security-threat-model.md).
 
-- A policy engine (GovEngine is the governance authority)
-- SCLite schema authority or long-term truth storage
-- Domain profiles in core (no Tecrax/Ravenclaw operational logic in `src/rexecop`)
-- Production cron/recurrence scheduler (host-owned worker + systemd/cron pattern only)
-- Web UI or multi-tenant RBAC
-- Unattended apply on critical infrastructure without operator and governance gates
-- `mutation_ready` or stable live mutation; `apply` / `recovery` can be exercised only under
-  the explicit `REXECOP_MUTATION_POSTURE=lab_only` development posture
-- An LLM provider adapter or prompt execution pipeline; current proposal handling is
-  advisory, local and non-executable
-- Automatic conversion of accepted advisory proposals into operations; operators must
-  create a normal plan that passes profile validation and GovEngine admission
-- Profile-owned graph runbook traversal beyond the current single-step reaction/automation-chain path
+## What ships in `1.0.0rc1`
 
-## Installation
+### Operation runtime
 
-Release candidate package:
+- operation planning and lifecycle state;
+- atomic FIFO queue claims and one fenced executor per `FileStore` root;
+- durable connector attempts, retry, rollback and recovery;
+- host-driven worker, trigger, reaction and watchdog mechanics.
+
+### Execution safety
+
+- `stable_read_only` as the default mutation posture;
+- pre-I/O mutation posture and permit checks;
+- attempt, lease, fencing, runtime-instance and capability-inventory bindings;
+- bounded connector output, receipt bindings and explicit uncertainty states.
+
+### Connectors and profiles
+
+- profile resolution by path or `rexecop.profiles` entry point;
+- declarative workflow, environment, target and capability validation;
+- `mock`, `http_api`, `local_shell_readonly` and `ssh_readonly` connector
+  implementations;
+- separate external domain packages such as Tecrax.
+
+### Evidence and operator inspection
+
+- SCLite-compatible operation bundles and receipt projections;
+- `operation review`, `operation diff`, `receipt show`, `evidence show`,
+  `chain summary`, `chain explain`, `reaction explain` and
+  `support bundle --redacted`;
+- structured logs, `observability diagnostics`, `runtime status`,
+  `explain-error`, `dead-letter list`, `locks list` and `runbook show`;
+- stable `rexecop.cli_error.v0.1` error envelopes.
+
+### Interface contracts
+
+- the `rexecop.public_api.v1` Python-import manifest;
+- a machine-readable CLI registry from `contracts cli`;
+- `format_matrix`, `exit_code_matrix` and stable/alpha command
+  classifications;
+- profile developer commands including `secrets doctor`, `secrets suggest-ref`,
+  `profiles list`, `profile manifest`, `profile harness`, `connectors list`,
+  `capabilities list`, `action list`, `action show`, `action preview`,
+  `action configure`, `action diff`, `action templates`,
+  `action policy-preview`, `action validate`, `operations unavailable`,
+  `runtime recover`, `backup create` and `watchdog manual-record`.
+
+The built-in read-only action templates include `http.simple-get` and bounded
+shell/SSH allowlist skeletons. Templates describe configuration shapes; they do
+not execute backend I/O.
+
+The exhaustive command and schema inventories live in
+[CLI reference](docs/cli-reference.md) and
+[Public API](docs/public-api.md), not in this overview.
+
+## Install
+
+Install the public release candidate:
 
 ```bash
 python -m pip install "rexecop==1.0.0rc1"
 rexecop version
 ```
 
-The `1.0.0rc1` wheel is the first stable read-only 1.x candidate. It freezes the
-documented public API subset, requires a new runtime root instead of migrating
-alpha state, and retains explicit non-claims for mutation readiness, distributed
-execution and production-wide security guarantees.
-
-See [docs/distribution.md](docs/distribution.md) for core wheels, Git installs,
-private indexes, and the separate Tecrax consumer path.
-
-From source (development):
+For a source checkout used for development:
 
 ```bash
 git clone https://github.com/rozmiarD/RExecOP.git
 cd RExecOP
-python -m venv .venv && source .venv/bin/activate
-git clone https://github.com/rozmiarD/GovEngine.git ../govengine
-pip install -e ../govengine
-pip install -e ".[dev]"
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
 
-With the Tecrax profile package:
+See [Distribution](docs/distribution.md) for wheel, source, private-index and
+release-verification guidance.
 
-```bash
-git clone https://github.com/rozmiarD/tecrax.git ../tecrax
-pip install -e ../tecrax
-```
+## Read-only quick start
 
-RExecOp 1.x does not ship a `tecrax` extra. Tecrax is a separate external
-consumer/plugin with its own release line. CI checks out its source for
-cross-repository compatibility tests without making it a core install dependency.
-
-## Quick start
+The bundled first-run fixture plans a no-I/O operation:
 
 ```bash
 rexecop version
@@ -230,105 +231,101 @@ rexecop --root /tmp/rexecop-first-run plan \
   --mode dry_run
 ```
 
-See [docs/first-run.md](docs/first-run.md) for the full no-I/O first-run path
-with lint checks.
+Continue with [First run](docs/first-run.md). Runtime state belongs under the
+selected `--root`; treat that directory as sensitive even when using redacted
+inspection commands.
 
-- With `tecrax` installed, `--profile tecrax` resolves via entry point.
-- For offline tests without a domain package, use `examples/profiles/runtime-fixture/profile.yaml`.
-- Staging `http_api` template: `examples/environments/runtime-fixture.staging.example.yaml`
+No mutating quick start is provided. The stock stable posture intentionally
+blocks mutating execution.
 
-Runtime artifacts live under the selected runtime root: operations, evidence,
-SCLite bundles, receipt exports, queue, locks and trigger inbox.
+## Execution model
 
-## CLI overview
+```text
+accept -> plan -> govern when required -> claim and validate permit
+       -> persist attempt -> revalidate pre-I/O controls -> perform I/O
+       -> persist outcome
+       -> project evidence -> terminal state or recovery
+```
 
-The CLI has grown across M1–M5 milestones. **Full command reference:**
-[docs/cli-reference.md](docs/cli-reference.md).
-
-| Group | Commands |
-| --- | --- |
-| Runtime readiness | `init`, `doctor`, `env lint`, `version` |
-| Secrets | `secrets doctor`, `secrets suggest-ref` |
-| Profile developer | `profile lint`, `profile manifest`, `profile harness`, `profiles list/show`, `connectors list/show`, `capabilities list` |
-| Action metadata | `action list`, `action show`, `action preview`, `action policy-preview`, `action validate`, `action diff`, `action configure` |
-| Catalog | `targets list/show`, `operations list`, `operations explain`, `operations unavailable` |
-| Pre-run inspection | `policy explain`, `governance controls`, `operation explain`, `operation review`, `operation diff`, `runbook show` |
-| Runtime triage | `runtime status`, `runtime reconstruct-status`, `ops`, `explain-error`, `dead-letter list/show`, `locks list`, `runtime recover`, `backup create/restore`, `watchdog manual-record` |
-| Observability | `observability logs list`, `observability diagnostics` |
-| Lifecycle | `plan`, `approve`, `start`, `pause`, `resume`, `cancel`, `retry`, `rollback`, `validate`, `escalate`, `status`, `history` |
-| Scheduling | `queue`, `worker run`, `trigger` |
-| Reactions | `reaction-plan`, `reaction-start`, `reaction-replay`, `reaction explain`, `reaction-proposal-validate`, `reaction-proposal-review`, `reaction-proposal-submit` |
-
-Global options: `--root`, `--instance`, `--storage file|sqlite`.
+A connector may complete externally before its result becomes durable. RExecOp
+records that uncertainty as `outcome_indeterminate`; it does not invent an
+exactly-once guarantee.
 
 ## Public interfaces
 
-The 1.x compatibility promise is deliberately smaller than the installed
-package. `rexecop.public_api.public_api_manifest()` is the machine-readable
-source of truth for supported Python imports and CLI stability. Stable CLI
-surfaces are present in `CLI_CONTRACTS`; every remaining command is explicitly
-classified as alpha. Alpha runtime roots require a new root for 1.0 rather than
-an in-place state migration. See [docs/public-api.md](docs/public-api.md).
+`rexecop.public_api.public_api_manifest()` is the machine-readable source of
+truth for supported Python imports and CLI stability. The 1.x compatibility
+promise is deliberately smaller than the installed package:
+
+- stable commands and imports carry the documented 1.x compatibility policy;
+- alpha commands do not carry a 1.x output compatibility promise;
+- alpha runtime roots require a new 1.x root instead of an in-place migration.
+
+Use `rexecop contracts cli` for the command registry. See
+[Public API](docs/public-api.md) for the exact surface.
+
+## Documentation
+
+### Start here
+
+- [First run](docs/first-run.md) — no-I/O onboarding.
+- [CLI reference](docs/cli-reference.md) — command contracts and stability.
+- [Architecture](docs/architecture.md) — components and ownership boundaries.
+
+### Operate
+
+- [Operator runbook](OPERATOR_RUNBOOK.md) — stable read-only operation.
+- [Lab runbook](OPERATOR_LAB_RUNBOOK.md) — fixture-only mechanics and blocked
+  mutation checks.
+- [Runtime recovery](docs/runtime-recovery-ops.md) — triage, uncertainty,
+  backup and recovery.
+- [Storage backends](docs/storage-backends.md) and
+  [Secrets](docs/secrets-operator.md).
+
+### Integrate and extend
+
+- [Public API](docs/public-api.md).
+- [Profile contract](docs/profile-contract.md) and
+  [profile developer surface](docs/profile-developer-surface.md).
+- [Execution contract](docs/execution-contract.md),
+  [connector contract](docs/connector-contract.md), and
+  [environment contract](docs/environment-contract.md).
+- [GovEngine integration](docs/govengine-integration.md) and
+  [SCLite integration](docs/sclite-integration.md).
+- [Scheduler pattern](docs/operator-scheduler-pattern.md) and
+  [reaction interpreter](docs/reaction-interpreter.md).
+
+### Review safety and releases
+
+- [Safety model](docs/safety-model.md),
+  [known limitations](docs/known-limitations.md), and
+  [security threat model](docs/security-threat-model.md).
+- [Stack contract compatibility](docs/stack-contract-compatibility.md).
+- [Release qualification](docs/release-qualification.md).
+- [Release evidence](docs/release-evidence/README.md) and
+  [security review](docs/release-security-review/README.md).
+- [Distribution](docs/distribution.md) and [CHANGELOG](CHANGELOG.md).
 
 ## Development
 
 ```bash
-pip install -e /path/to/tecrax -e ".[dev]"
 python scripts/validate_public_truth.py
 python scripts/validate_first_run_smoke.py
 python scripts/validate_operator_journeys.py
 ruff check .
 mypy src/rexecop
-python -m build && python -m twine check dist/*
 pytest
-pytest -m delivery   # canonical sign-off scope from tests/delivery_scope.py
 ```
 
-GitHub Actions runs on every push and pull request: install `tecrax`, public truth validation,
-stack contract validation, profile conformance, first-run smoke, operator journey smoke,
-ruff, mypy, core boundary grep, secret scan, pytest, and a `package-dry-run` job
-(`build` + `twine check`).
+The release qualification procedure adds artifact-install, clean-install and
+supply-chain checks. A separate live GitHub protection check is required before
+publication.
 
-## Documentation
+## Security
 
-| Document | Topic |
-| --- | --- |
-| [docs/public-api.md](docs/public-api.md) | Supported Python imports, CLI stability, schema and runtime-root compatibility |
-| [docs/cli-reference.md](docs/cli-reference.md) | Complete CLI command reference |
-| [docs/first-run.md](docs/first-run.md) | No-I/O onboarding: init, doctor, lint, plan |
-| [docs/operation-lifecycle.md](docs/operation-lifecycle.md) | States, lifecycle orchestration, queue/lock |
-| [docs/runtime-recovery-ops.md](docs/runtime-recovery-ops.md) | Triage, explain-error, recovery, backup and watchdog manual-record |
-| [docs/profile-developer-surface.md](docs/profile-developer-surface.md) | Profiles/connectors/capabilities discoverability and extension manifest |
-| [docs/secrets-operator.md](docs/secrets-operator.md) | `secrets doctor`, ref resolution and file policy |
-| [docs/reaction-interpreter.md](docs/reaction-interpreter.md) | Deterministic reaction DSL and CLI |
-| [docs/architecture.md](docs/architecture.md) | Layer boundaries and execution path |
-| [docs/stack-contract-compatibility.md](docs/stack-contract-compatibility.md) | Cross-repo contract matrix and readiness labels |
-| [docs/operator-scheduler-pattern.md](docs/operator-scheduler-pattern.md) | Host-owned scheduling with worker/systemd |
-| [docs/govengine-integration.md](docs/govengine-integration.md) | Governance port and apply gating |
-| [docs/sclite-integration.md](docs/sclite-integration.md) | Artifact emission and authority model |
-| [docs/evidence-model.md](docs/evidence-model.md) | Internal events vs SCLite truth |
-| [docs/profile-contract.md](docs/profile-contract.md) | Profile layout and entry points |
-| [docs/connector-contract.md](docs/connector-contract.md) | `http_api`, secrets, error taxonomy |
-| [docs/execution-contract.md](docs/execution-contract.md) | ExecutionRequest/Receipt, bounded output |
-| [docs/environment-contract.md](docs/environment-contract.md) | Target, group, and connector semantics |
-| [docs/operator-catalog.md](docs/operator-catalog.md) | Target catalog, operation projection, applicability and drift binding |
-| [docs/storage-backends.md](docs/storage-backends.md) | File vs SQLite boundaries |
-| [docs/safety-model.md](docs/safety-model.md) | Hard safety rules and operator posture |
-| [docs/known-limitations.md](docs/known-limitations.md) | Alpha scope and explicit non-claims |
-| [docs/distribution.md](docs/distribution.md) | Wheels, Git install, private index |
-| [docs/alpha-sign-off.md](docs/alpha-sign-off.md) | Automated and human sign-off gates |
-| [docs/adr-001-http-action-identity.md](docs/adr-001-http-action-identity.md) | HTTP action identity ADR |
-| [OPERATOR_LAB_RUNBOOK.md](OPERATOR_LAB_RUNBOOK.md) | Lab checklist and E2E walkthrough |
-| [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md) | Installation, secrets, workflows, troubleshooting |
-| [CHANGELOG.md](CHANGELOG.md) | Release history |
-
-## Related repositories
-
-| Repository | Role |
-| --- | --- |
-| [GovEngine](https://github.com/rozmiarD/GovEngine) | Governance kernel and admission contracts |
-| [SCLite](https://github.com/rozmiarD/SCLite) | Auditable contract lifecycle and review bundles |
-| [tecrax](https://github.com/rozmiarD/tecrax) | Tecrax domain profile and local-fixture package |
+Report vulnerabilities through the process in [SECURITY.md](SECURITY.md). Do
+not include credentials, secret values, private connector output or sensitive
+runtime artifacts in a public issue.
 
 ## License
 

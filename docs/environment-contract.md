@@ -110,7 +110,8 @@ effective-call previews and catalog applicability. HTTP previews omit base URLs
 and auth material; shell/SSH previews omit private endpoint and identity
 configuration; fixture previews expose only data digests. They intentionally do
 not print resolved secret values or connector configuration, do not perform
-backend IO, and do not replace GovEngine admission or SCLite truth artifacts.
+backend I/O, and do not replace GovEngine admission or canonical SCLite
+lifecycle/evidence artifacts.
 
 `action diff` compares profile connector contracts against the operator
 environment for one intent: connector presence, backend class, action/allowlist

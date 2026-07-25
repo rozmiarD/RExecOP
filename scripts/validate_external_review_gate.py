@@ -5,15 +5,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
 from typing import Any
 
+from packaging.version import InvalidVersion, Version
+
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_DIR = ROOT / "docs" / "release-security-review"
-REVIEW_SCHEMA = "rexecop.release_security_review.v0.1"
+LEGACY_REVIEW_SCHEMA = "rexecop.release_security_review.v0.1"
+SOURCE_BOUND_REVIEW_SCHEMA = "rexecop.release_security_review.v0.2"
+REVIEW_SCHEMAS = frozenset({LEGACY_REVIEW_SCHEMA, SOURCE_BOUND_REVIEW_SCHEMA})
 ALLOWED_REVIEW_MODES = frozenset({"independent_review", "solo_reviewed_alpha_risk"})
+SOURCE_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 REQUIRED_SURFACES = frozenset(
     {
         "governance_admission_binding",
@@ -44,15 +51,52 @@ def load_review_record(version: str) -> dict[str, Any]:
     return payload
 
 
-def validate_review_record(payload: dict[str, Any], *, version: str) -> list[str]:
+def _parsed_version(version: str) -> Version | None:
+    try:
+        return Version(version)
+    except InvalidVersion:
+        return None
+
+
+def _requires_source_bound_schema(version: str) -> bool:
+    parsed = _parsed_version(version)
+    return (
+        parsed is not None
+        and parsed >= Version("1.0.0rc1")
+        and version != "1.0.0rc1"
+    )
+
+
+def _requires_independent_review(version: str) -> bool:
+    parsed = _parsed_version(version)
+    return parsed is not None and parsed >= Version("1.0.0rc1")
+
+
+def _requires_source_bound_review(version: str) -> bool:
+    parsed = _parsed_version(version)
+    return parsed is not None and parsed >= Version("1.0.0") and not parsed.is_prerelease
+
+
+def validate_review_record(
+    payload: dict[str, Any],
+    *,
+    version: str,
+) -> list[str]:
     errors: list[str] = []
-    if str(payload.get("schema") or "") != REVIEW_SCHEMA:
-        errors.append(f"review_schema_mismatch:{payload.get('schema')}")
+    if _parsed_version(version) is None:
+        errors.append(f"review_version_invalid:{version}")
+    schema = str(payload.get("schema") or "")
+    if schema not in REVIEW_SCHEMAS:
+        errors.append(f"review_schema_invalid:{schema}")
+    elif _requires_source_bound_schema(version) and schema != SOURCE_BOUND_REVIEW_SCHEMA:
+        errors.append(f"source_bound_review_schema_required:{version}")
     if str(payload.get("version") or "") != version:
         errors.append(f"review_version_mismatch:{payload.get('version')}!={version}")
     mode = str(payload.get("review_mode") or "")
     if mode not in ALLOWED_REVIEW_MODES:
         errors.append(f"review_mode_invalid:{mode}")
+    if _requires_independent_review(version) and mode != "independent_review":
+        errors.append(f"independent_review_required:{version}")
     reviewer = str(payload.get("reviewer_ref") or "").strip()
     if not reviewer:
         errors.append("reviewer_ref_missing")
@@ -71,10 +115,62 @@ def validate_review_record(payload: dict[str, Any], *, version: str) -> list[str
         notes = str(payload.get("notes") or "").strip()
         if not notes:
             errors.append("solo_review_notes_required")
+    reviewed_source_commit = str(payload.get("reviewed_source_commit") or "").strip()
+    if schema == SOURCE_BOUND_REVIEW_SCHEMA or _requires_source_bound_review(version):
+        if not SOURCE_COMMIT_PATTERN.fullmatch(reviewed_source_commit):
+            errors.append("reviewed_source_commit_invalid")
     return errors
 
 
-def collect_errors(*, version: str | None = None) -> list[str]:
+def validate_release_commit_binding(
+    payload: dict[str, Any],
+    *,
+    version: str,
+    release_commit: str,
+) -> list[str]:
+    """Bind a reviewed source commit to a release-evidence-only tag commit."""
+
+    expected = release_commit.strip()
+    if not SOURCE_COMMIT_PATTERN.fullmatch(expected):
+        return ["release_commit_invalid"]
+    reviewed = str(payload.get("reviewed_source_commit") or "").strip()
+    if not SOURCE_COMMIT_PATTERN.fullmatch(reviewed):
+        return ["reviewed_source_commit_invalid"]
+    if reviewed == expected:
+        return []
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", reviewed, expected],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if ancestor.returncode != 0:
+        return [f"reviewed_source_commit_not_ancestor:{reviewed}!={expected}"]
+    changed = subprocess.run(
+        ["git", "diff", "--name-only", reviewed, expected],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if changed.returncode != 0:
+        return ["reviewed_source_commit_diff_failed"]
+    allowed_path = str(review_record_path(version).relative_to(ROOT))
+    changed_paths = sorted(line.strip() for line in changed.stdout.splitlines() if line.strip())
+    if changed_paths != [allowed_path]:
+        return [
+            "reviewed_source_commit_unreviewed_delta:"
+            + ",".join(changed_paths or ["<empty>"])
+        ]
+    return []
+
+
+def collect_errors(
+    *,
+    version: str | None = None,
+    release_commit: str | None = None,
+) -> list[str]:
     resolved = version or current_version()
     errors: list[str] = []
     try:
@@ -82,7 +178,20 @@ def collect_errors(*, version: str | None = None) -> list[str]:
     except ValueError as exc:
         errors.append(str(exc))
         return errors
-    errors.extend(validate_review_record(payload, version=resolved))
+    errors.extend(
+        validate_review_record(
+            payload,
+            version=resolved,
+        )
+    )
+    if release_commit is not None:
+        errors.extend(
+            validate_release_commit_binding(
+                payload,
+                version=resolved,
+                release_commit=release_commit,
+            )
+        )
     return errors
 
 
@@ -99,9 +208,18 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="Package version (defaults to pyproject.toml project.version).",
     )
+    parser.add_argument(
+        "--release-commit",
+        default="",
+        help=(
+            "Immutable tagged release commit. It must equal the reviewed source or "
+            "differ only by this version's review record."
+        ),
+    )
     args = parser.parse_args(argv)
     version = args.version.strip() or current_version()
-    errors = collect_errors(version=version)
+    release_commit = args.release_commit.strip() or None
+    errors = collect_errors(version=version, release_commit=release_commit)
     if errors:
         for error in errors:
             print(error, file=sys.stderr)

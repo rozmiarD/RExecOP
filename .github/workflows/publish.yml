@@ -111,7 +111,9 @@ jobs:
           fi
           python scripts/validate_release_train_preflight.py "${preflight_args[@]}"
           python scripts/validate_stack_invariants.py
-          python scripts/validate_external_review_gate.py --version "$VERSION"
+          python scripts/validate_external_review_gate.py \
+            --version "$VERSION" \
+            --release-commit "${{ steps.release_source.outputs.commit }}"
           test "$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')" = "$VERSION"
 
       - name: Install build tooling

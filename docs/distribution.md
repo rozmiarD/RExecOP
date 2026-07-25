@@ -2,16 +2,17 @@
 
 RExecOp `1.0.0rc1` is the stable read-only release candidate published through
 the protected OIDC workflow on [PyPI](https://pypi.org/project/rexecop/).
-The wheel contains the frozen v1 public subset, M10 operational qualification,
-watchdog decision truth, and manual recovery records while retaining the limits in
-[known-limitations.md](known-limitations.md).
+The wheel contains the versioned public subset, runtime implementation and
+packaged contract/schema resources. Qualification and release evidence remain
+repository/GitHub Release records, not claims embedded by installing the wheel.
+See [Known limitations](known-limitations.md).
 
 ## Supported install paths
 
 | Path | When to use |
 | --- | --- |
 | **PyPI** (`pip install rexecop==1.0.0rc1`) | Evaluation of the stable read-only release candidate |
-| Coordinated editable source (`pip install -e`) | Watchdog-decision truth binding development and operator lab |
+| Coordinated editable source (`pip install -e`) | Development, cross-repository integration and operator lab |
 | Wheel from `dist/` after `python -m build` | Offline install, internal mirrors |
 | Git URL install | Pin a commit or tag without PyPI |
 
@@ -70,11 +71,10 @@ python -m pip install --upgrade pip build twine
 mkdir -p /tmp/rexecop-candidate-wheels
 python -m build --wheel --outdir /tmp/rexecop-candidate-wheels /path/to/sclite
 python -m build --wheel --outdir /tmp/rexecop-candidate-wheels /path/to/govengine
-rm -rf dist build *.egg-info
-python -m build
-python -m twine check dist/*
-python scripts/validate_distribution.py dist
-python scripts/validate_supply_chain_gate.py dist \
+python -m build --outdir /tmp/rexecop-dist
+python -m twine check /tmp/rexecop-dist/*
+python scripts/validate_distribution.py /tmp/rexecop-dist
+python scripts/validate_supply_chain_gate.py /tmp/rexecop-dist \
   --candidate-wheel-dir /tmp/rexecop-candidate-wheels
 ```
 
@@ -142,20 +142,35 @@ upload directory and is retained for attestation and release evidence.
 
 Do not store upload tokens in the repository, handoffs, or agent memory.
 
-## Install from Git (no local clone)
+## Install an immutable Git revision
 
 ```bash
-python -m pip install "govengine @ git+https://github.com/rozmiarD/GovEngine.git@main"
-python -m pip install "rexecop @ git+https://github.com/rozmiarD/RExecOP.git@main"
+python -m pip install \
+  "govengine @ git+https://github.com/rozmiarD/GovEngine.git@v1.0.0rc1"
+python -m pip install \
+  "rexecop @ git+https://github.com/rozmiarD/RExecOP.git@v1.0.0rc1"
 ```
 
-The RExecOp `1.0.0rc1` release candidate requires public GovEngine `1.0.0rc1`
-and final public SCLite `2.0.0`.
+Use a reviewed tag or full commit SHA, not a moving branch. The selected source
+must still satisfy the exact `govengine==1.0.0rc1` and
+`sclite-core==2.0.0` metadata pins.
 
 ## Private index / GitHub Packages (operator-owned)
 
-Operators may mirror wheels into an internal PyPI-compatible index or GitHub Packages.
-See prior internal-mirror examples in git history if needed.
+Mirror the exact public wheel/sdist and pinned GovEngine/SCLite distributions
+into a PyPI-compatible index. Preserve filenames and SHA-256 digests from
+release evidence, then verify from a clean environment:
+
+```bash
+python -m pip install \
+  --index-url https://packages.example.invalid/simple \
+  "rexecop==1.0.0rc1"
+python -m pip check
+rexecop version
+```
+
+Index authentication, TLS trust and retention are operator-owned. Do not place
+index credentials in repository configuration or command examples.
 
 ## Version and doc alignment
 
@@ -166,9 +181,9 @@ python scripts/validate_public_truth.py
 pytest -q
 ```
 
-See [OPERATOR_RUNBOOK.md](../OPERATOR_RUNBOOK.md) for secrets, staging environments, and
-apply safety. See [OPERATOR_LAB_RUNBOOK.md](../OPERATOR_LAB_RUNBOOK.md) for the full
-profile → GovEngine → SCLite lab path.
+See [Operator runbook](../OPERATOR_RUNBOOK.md) for the stable read-only path and
+[Lab runbook](../OPERATOR_LAB_RUNBOOK.md) for public fixtures, mutation-block
+checks and release qualification.
 
 ## Related
 

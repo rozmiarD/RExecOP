@@ -44,7 +44,7 @@ Factory: `rexecop.storage.factory.create_store()`.
 | `governance_claims/*.json` | Consumed decision-digest and nonce indexes | process-locked claim-once plus atomic replace |
 | `permits/<op>/attempts/*.json` | Immutable runtime attempt permits | create once after governance claim |
 | `permits/<op>/<step>.json` | Latest-per-step permit compatibility view | atomic replace |
-| `sclite/<op>/` | Authoritative SCLite artifact bundles | directory per operation |
+| `sclite/<op>/` | Persisted bundle using SCLite canonical contracts | directory per operation |
 | `queue/`, `locks/`, `inbox/` | Runtime coordination (not in StoragePort JSON API) | file drops |
 
 `FileStore` uses `storage.atomic.atomic_write_text` (write temp + `os.replace`) for JSON
@@ -95,5 +95,5 @@ Operations, plans, and evidence live in RAM; SCLite output directory still uses 
 ## Related
 
 - [architecture.md](architecture.md)
-- [evidence-model.md](evidence-model.md)
+- [SCLite integration and evidence model](sclite-integration.md)
 - [sclite-integration.md](sclite-integration.md)

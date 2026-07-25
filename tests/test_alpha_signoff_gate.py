@@ -12,9 +12,9 @@ from delivery_scope import DELIVERY_TEST_MODULES, SIGNOFF_SCRIPT_REL, repo_root
 REPO_ROOT = repo_root()
 
 
-def test_alpha_signoff_docs_present() -> None:
-    assert (REPO_ROOT / "docs/alpha-sign-off.md").is_file()
-    assert (REPO_ROOT / "docs/alpha-sign-off-record.md").is_file()
+def test_release_qualification_docs_present() -> None:
+    assert (REPO_ROOT / "docs/release-qualification.md").is_file()
+    assert (REPO_ROOT / "docs/release-qualification-record.md").is_file()
     assert (REPO_ROOT / SIGNOFF_SCRIPT_REL).is_file()
 
 

@@ -2,9 +2,10 @@
 
 ## Trust boundaries
 
-- GovEngine decides policy admission; RExecOP validates and enforces the bound
-  execution request immediately before connector I/O.
-- SCLite 2.0 remains the frozen truth/evidence kernel. RExecOP projects into its
+- GovEngine decides policy and admission for mutating and explicitly configured
+  governance paths; RExecOP validates and enforces the bound execution request
+  immediately before connector I/O.
+- SCLite 2.0 remains the frozen canonical evidence/verification kernel. RExecOP projects into its
   existing contracts and does not define new SCLite schemas.
 - Connector configuration, secret references, SSH identity files, known-hosts
   files, and operator egress controls are operator-owned inputs.
@@ -50,7 +51,8 @@ reserved-header injection, SSH posture/path/argv failures, and negative public
 projection behavior. Release qualification also requires the full test suite and
 cross-repository contract gates.
 
-`scripts/validate_m86_security_gate.py` is the executable M8.6 gate and is part of
+`scripts/validate_m86_security_gate.py` is the executable transport/disclosure
+security gate and is part of
 `run_alpha_signoff_checks.sh`. It covers port/scheme/host drift, redirect rejection,
 pagination loops/page bounds, DNS posture, unknown SSH host keys, file/argv checks,
 audience negative data, and GovEngine admission-to-receipt digest binding.

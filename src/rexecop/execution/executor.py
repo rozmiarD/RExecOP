@@ -21,6 +21,7 @@ from rexecop.runtime.mutation_posture import require_mutation_execution_enabled
 
 EvidenceHandler = Callable[[StepExecutionContext], dict[str, Any]]
 AttemptStartHandler = Callable[[StepExecutionContext, dict[str, Any] | None], dict[str, Any]]
+AttemptPreIOHandler = Callable[[dict[str, Any]], None]
 AttemptFinishHandler = Callable[[dict[str, Any], str, StepExecutionResult | None], None]
 AttemptReceiptHandler = Callable[
     [dict[str, Any], StepExecutionResult],
@@ -48,6 +49,7 @@ class StepExecutor:
         *,
         evidence_handler: EvidenceHandler | None = None,
         attempt_start_handler: AttemptStartHandler | None = None,
+        attempt_pre_io_handler: AttemptPreIOHandler | None = None,
         attempt_finish_handler: AttemptFinishHandler | None = None,
         attempt_receipt_handler: AttemptReceiptHandler | None = None,
         internal_handlers: Mapping[str, InternalHandler] | None = None,
@@ -55,6 +57,7 @@ class StepExecutor:
         self.connector_dispatcher = connector_dispatcher or ConnectorDispatcher()
         self.evidence_handler = evidence_handler
         self.attempt_start_handler = attempt_start_handler
+        self.attempt_pre_io_handler = attempt_pre_io_handler
         self.attempt_finish_handler = attempt_finish_handler
         self.attempt_receipt_handler = attempt_receipt_handler
         self._internal_handlers = load_internal_handlers(extra=internal_handlers)
@@ -147,6 +150,30 @@ class StepExecutor:
             if self.attempt_start_handler is not None
             else None
         )
+        if attempt is not None and self.attempt_pre_io_handler is not None:
+            try:
+                self.attempt_pre_io_handler(attempt)
+            except Exception as exc:  # noqa: BLE001 - fail closed before connector I/O
+                if isinstance(exc, RExecOpError):
+                    reason_code = str(getattr(exc, "reason_code", "runtime_error"))
+                    message = str(
+                        getattr(exc, "public_message", "runtime operation failed")
+                    )
+                else:
+                    reason_code = "internal_error"
+                    message = "pre-I/O execution validation failed"
+                result = StepExecutionResult(
+                    step_id=step_id,
+                    success=False,
+                    output={
+                        "error_class": reason_code,
+                        "reason_code": reason_code,
+                    },
+                    error=message,
+                )
+                if self.attempt_finish_handler is not None:
+                    self.attempt_finish_handler(attempt, "failed", result)
+                return result, None
         try:
             response = self.connector_dispatcher.invoke(
                 ConnectorRequest(

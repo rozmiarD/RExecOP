@@ -1,7 +1,9 @@
 # Alpha sign-off record (archived)
 
 > Historical record for RExecOp `0.2.9a0` on 2026-06-21. Do not treat as the current stack line.
-> Use [../alpha-sign-off-record.md](../alpha-sign-off-record.md) for new sign-off entries.
+> Use the current
+> [release qualification record](../release-qualification-record.md) for new
+> qualification entries.
 
 | Field | Value |
 |-------|-------|

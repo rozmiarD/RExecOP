@@ -1,58 +1,75 @@
-# Operator scheduler pattern
+# Host-owned scheduling
 
-RExecOp does **not** ship a cron engine or recurring job DSL. Scheduling is **host-owned**:
-use systemd timers, cron, or an external orchestrator to invoke RExecOp CLI commands.
+RExecOp does not ship a cron engine, calendar service or recurrence DSL. A host
+scheduler such as systemd, cron or an external orchestrator may invoke the
+RExecOp CLI. RExecOp owns queue, claim, worker, trigger and watchdog mechanics
+after invocation; the host owns when invocation occurs.
 
-GovEngine `GovSchedulerTick` is a **metadata contract** for governance projections — not a
-scheduler implementation. See GovEngine `runtime_shell` docs.
+Use an explicit runtime root through `REXECOP_ROOT` or `--root`. The fallback is
+`./.rexecop`.
 
-Runtime coordination paths below use `<root>/` for the selected runtime root (`--root`,
-`REXECOP_ROOT`, named `--instance`, or fallback `./.rexecop`). Prefer an explicit root in
-production units via `REXECOP_ROOT` or per-command `--root`.
-
-## Patterns
-
-### One-shot plan + start
+## One-shot read-only operation
 
 ```bash
-OPERATION=$(rexecop plan --profile tecrax --env ~/.rexecop/env.yaml \
-  --intent collect_basic_host_inventory --target monitoring-host --mode dry_run)
-rexecop start --operation "$OPERATION"
+OPERATION=$(
+  rexecop --root /var/lib/rexecop plan \
+    --catalog /etc/rexecop/catalog.yaml \
+    --intent inspect \
+    --target fixture-target \
+    --mode dry_run
+)
+
+rexecop --root /var/lib/rexecop start --operation "$OPERATION"
 ```
 
-### Worker drain (queue)
+The selected profile, environment and catalog determine whether the example is
+actually valid. A host schedule does not bypass profile validation, governance
+requirements, mutation posture or connector safety checks.
 
-When apply operations are **approved** but queued (`max_concurrent_operations`, target lock):
+## Queue worker
+
+Drain one eligible queued operation:
 
 ```bash
-rexecop worker run --once
-# or continuous:
-rexecop worker run --poll-interval 30
+rexecop --root /var/lib/rexecop worker run --once
 ```
 
-Equivalent without a long-running process:
+Run a polling worker:
 
 ```bash
-rexecop queue --drain
+rexecop --root /var/lib/rexecop worker run --poll-interval 30
 ```
 
-### Trigger from webhook wrapper
+Equivalent one-shot queue drain:
 
 ```bash
-echo '{"profile":"examples/profiles/runtime-fixture/profile.yaml","env":"examples/environments/runtime-fixture.policy.example.yaml","intent":"inspect_fixture_state","target":"fixture-target","mode":"dry_run","auto_start":true}' \
-  | rexecop trigger
+rexecop --root /var/lib/rexecop queue --drain
 ```
 
-### File-drop inbox (with worker)
+The worker starts only operations eligible under the persisted state and
+current runtime controls. The default `stable_read_only` posture continues to
+block mutating execution.
+
+## Trigger input
+
+A wrapper may submit a bounded JSON request:
 
 ```bash
-rexecop worker run --watch-inbox --poll-interval 60
+printf '%s\n' \
+  '{"profile":"examples/profiles/runtime-fixture/profile.yaml","env":"examples/environments/runtime-fixture.policy.example.yaml","intent":"inspect_fixture_state","target":"fixture-target","mode":"dry_run","auto_start":true}' \
+  | rexecop --root /var/lib/rexecop trigger
 ```
 
-Drop JSON files into `<root>/inbox/*.json` using the same shape as `trigger` stdin.
-Inbox files may also carry a neutral trigger event. RExecOp evaluates only the
-mechanics; event meaning and operation mapping come from the selected profile's
-`triggers/trigger_rules.yaml`.
+Or a worker can watch `<root>/inbox/*.json`:
+
+```bash
+rexecop --root /var/lib/rexecop worker run \
+  --watch-inbox \
+  --poll-interval 60
+```
+
+A neutral trigger event can be mapped by profile-owned
+`triggers/trigger_rules.yaml`:
 
 ```json
 {
@@ -70,61 +87,45 @@ mechanics; event meaning and operation mapping come from the selected profile's
 }
 ```
 
-Trigger event decisions are limited to `plan_operation`, `ignore`, `escalate`,
-`drop_duplicate`, and `cooldown_blocked`. A `plan_operation` decision creates a
-normal operation plan through `OperationController.plan()` and records trigger
-decision metadata/evidence on that operation. It does not start the operation.
-Trigger rules may bind an operation target literally (`target` or
-`catalog_target`) or by a neutral event-field path (`target_from` or
-`catalog_target_from`, for example `subject`). Profiles own the meaning of those
-fields; RExecOp only resolves the path and fails closed when it is missing or
-ambiguous.
-Before any `plan_operation` decision creates an operation, RExecOp submits a
-bounded GovEngine `TriggerPlanningRequest` built only from event/rule digests,
-the trigger decision, and the requested intent/mode. Mutating modes, missing
-rule digests, raw event data, private target data, and unsupported decisions
-fail closed before operation planning. Record-only decisions such as
-`escalate`, `drop_duplicate`, `cooldown_blocked`, and `ignore` are admitted as
-non-executing records.
+RExecOp owns the trigger-decision contract and planning mechanics. Profiles own
+event-field meaning and operation mapping. Before `plan_operation` creates an
+operation, RExecOp submits a bounded GovEngine planning-admission request.
+Planning admission is not an execution permit. The normal pre-I/O governance
+path still applies to any executable operation.
 
-Each trigger decision is also projected into the SCLite `trigger_decision.v0.1`
-truth shape. That artifact stores only bounded event/rule/admission digests and
-an optional child operation id; it does not include raw payloads, authorize
-planning, schedule work, or execute anything.
+Trigger decisions are limited to `plan_operation`, `ignore`, `escalate`,
+`drop_duplicate` and `cooldown_blocked`. A planning decision creates an
+operation plan but does not start it unless the explicit trigger input requests
+auto-start and all ordinary controls allow it.
 
-### Worker watchdog
+## Watchdog
 
-The worker can supervise RExecOp's own runtime mechanics:
+The worker can inspect its own runtime mechanics:
 
 ```bash
-rexecop worker run --watch-inbox --watchdog \
+rexecop --root /var/lib/rexecop worker run \
+  --watch-inbox \
+  --watchdog \
   --stale-inbox-seconds 3600 \
   --stale-operation-seconds 3600 \
   --inbox-retry-budget 3 \
   --poll-interval 60
 ```
 
-The watchdog is not infrastructure monitoring and does not interpret profile
-domain health. It records bounded worker heartbeats, queue depth, and inbox
-dead-letter decisions under `<root>/watchdog/`. When enabled with
-`--watch-inbox`, inbox files older than `--stale-inbox-seconds` are moved to
-`<root>/dead_letter/` before execution. Failed inbox files consume a bounded
-retry budget and then move to dead-letter. Stale active operations produce a
-`block_autostart` watchdog record; watchdog does not mutate the operation FSM to
-hide the stuck state. Watchdog records include file names, operation ids, reasons
-and bounded timing metadata; they do not copy trigger payloads.
+The watchdog is not infrastructure monitoring. It records bounded worker,
+queue, inbox and stale-operation observations under `<root>/watchdog/`.
+Exhausted inbox retries move files to `<root>/dead_letter/`. Stale operations
+produce a `block_autostart` record; the watchdog does not rewrite the operation
+state to hide the condition.
 
-Watchdog records are operational runtime records. For each record RExecOp asks
-GovEngine for bounded supervisor-action admission and writes a SCLite
-`watchdog_decision.v0.1` artifact under `<root>/watchdog/sclite/`. RExecOp
-still owns only runtime mechanics; GovEngine owns admission and SCLite owns the
-truth artifact.
+RExecOp owns `watchdog_decision.v0.1` and its runtime semantics. GovEngine owns
+bounded supervisor-action admission. SCLite machinery verifies the artifact
+projection; it does not supervise the worker.
 
-Manual recovery/break-glass is represented as an explicit record, not an
-implicit local override:
+Manual recovery intent is recorded explicitly:
 
 ```bash
-rexecop watchdog manual-record \
+rexecop --root /var/lib/rexecop watchdog manual-record \
   --action mark_stale \
   --reason operator_break_glass \
   --actor-ref operator:local-admin \
@@ -132,65 +133,46 @@ rexecop watchdog manual-record \
   --operation op-123
 ```
 
-The command admits the bounded supervisor action through GovEngine and writes a
-SCLite watchdog decision artifact. It does not requeue, restart, mutate the FSM
-or execute recovery steps.
+This command records and admits a bounded supervisor action. It does not
+requeue, restart, mutate the operation state or execute recovery.
 
-## systemd unit example
-
-`/etc/systemd/system/rexecop-worker.service`:
+## systemd worker example
 
 ```ini
 [Unit]
-Description=RExecOp queue worker
+Description=RExecOp read-only queue worker
 After=network.target
 
 [Service]
 Type=simple
 User=rexecop
-Environment=REXECOP_SECRETS_FILE=/home/rexecop/.rexecop/secrets.yaml
-WorkingDirectory=/home/rexecop
-ExecStart=/home/rexecop/.venv/bin/rexecop worker run --poll-interval 30 --watch-inbox --watchdog
+Environment=REXECOP_ROOT=/var/lib/rexecop
+Environment=REXECOP_SECRETS_FILE=/etc/rexecop/secrets.yaml
+WorkingDirectory=/var/lib/rexecop
+ExecStart=/opt/rexecop/.venv/bin/rexecop worker run --poll-interval 30 --watch-inbox --watchdog
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Timer for recurring **plan** (not built-in recurrence DSL):
+Use a reviewed wrapper script for recurring plan/start arguments. Avoid
+embedding credentials, secret values or long shell pipelines in a unit file.
+The unit must run as a dedicated account with the minimum required access to
+the runtime root and host-owned secret provider.
 
-```ini
-# /etc/systemd/system/rexecop-backup-check.timer
-[Timer]
-OnCalendar=hourly
-Persistent=true
+## Operational notes
 
-[Install]
-WantedBy=timers.target
-```
+- FileStore queue and lock mechanics are single-host.
+- Queue state lives under `<root>/queue/`; locks under `<root>/locks/`.
+- Watchdog records live under `<root>/watchdog/`; dead letters under
+  `<root>/dead_letter/`.
+- Trigger deduplication, cooldown and timestamp-skew checks fail closed on
+  inconsistent input.
+- `auto_react: "plan_only"` may create a child plan after a successful source
+  operation, but does not start that child.
+- A scheduler never expands the authority of the selected runtime posture.
 
-```ini
-# /etc/systemd/system/rexecop-backup-check.service
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'OPERATION=$(/home/rexecop/.venv/bin/rexecop plan ...); /home/rexecop/.venv/bin/rexecop start --operation "$OPERATION"'
-```
-
-## Lock and queue notes
-
-- Target lock files live under `<root>/locks/` (advisory, single-host).
-- Queue file: `<root>/queue/run_now.json`.
-- Watchdog records live under `<root>/watchdog/`; SCLite watchdog decision
-  artifacts live under `<root>/watchdog/sclite/`; dead-lettered trigger files
-  live under `<root>/dead_letter/`.
-- Worker only starts operations in `approved` state on the queue; read-only plans still need `start` unless `trigger --auto-start`.
-- Trigger payloads may opt into `auto_react: "plan_only"`. After the source
-  operation completes, RExecOp may create a reaction chain and child operation
-  plan, but the worker does not start that child automatically.
-- Trigger events use deterministic event digest, dedupe key, cooldown key and
-  bounded timestamp-skew checks. Unsafe or inconsistent event time fails closed.
-
-## Related
-
-- [operation-lifecycle.md](operation-lifecycle.md)
-- [OPERATOR_RUNBOOK.md](../OPERATOR_RUNBOOK.md)
+See [Operation lifecycle](operation-lifecycle.md),
+[Runtime recovery](runtime-recovery-ops.md), and the
+[Operator runbook](../OPERATOR_RUNBOOK.md).

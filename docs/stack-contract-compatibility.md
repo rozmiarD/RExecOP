@@ -8,9 +8,9 @@ Document id: `stack-contract-compatibility`.
 
 | Layer | Owner | RExecOp dependency |
 | --- | --- | --- |
-| SCLite | Truth: artifacts, schemas, evidence, receipts, review bundles and reaction-chain records | RExecOp validates and emits compatible artifacts, but does not own SCLite schema authority. |
+| SCLite | Canonical lifecycle/evidence contracts, integrity, tickets, receipts and review-bundle verification | RExecOp emits and verifies compatible bundles, but does not own SCLite contract authority. |
 | GovEngine | Governance: PolicyEngine, admission, obligations, constraints and enforcement-plan contracts | RExecOp consumes admission and policy-control projections, then enforces supported runtime controls. |
-| RExecOp | Neutral execution mechanics: lifecycle, connectors, catalog, queue, worker, reactions and receipts | RExecOp owns runner behavior without embedding profile/domain semantics. |
+| RExecOp | Neutral execution mechanics plus observation, finding, reaction, escalation, trigger, watchdog and automation-chain runtime contracts | RExecOp owns runner/orchestration behavior without embedding profile/domain semantics. |
 | Tecrax | Infrastructure profile semantics: intents, workflows, facts, findings, reactions, runbooks and connector contracts | RExecOp loads Tecrax as a profile package and treats its declarations as profile-owned data. |
 
 ## Package baseline
@@ -18,7 +18,7 @@ Document id: `stack-contract-compatibility`.
 | Package | Public line | Required range in RExecOp | Role |
 | --- | --- | --- | --- |
 | `sclite-core` | `2.0.0` | `sclite-core==2.0.0` | Frozen SCLite lifecycle/evidence/review verification kernel; RExecOp owns reaction, trigger-decision, watchdog-decision and automation-chain schemas. |
-| `govengine` | `1.0.0rc1` | `govengine==1.0.0rc1` | Frozen `govengine.v1` governance facade, typed policy lifecycle, independently bound approval/scope/capabilities, signed attempt-bound decisions and receipt conformance. |
+| `govengine` | `1.0.0rc1` | `govengine==1.0.0rc1` | Governance facade plus explicitly classified adapter/module imports. The downstream import map and stack gate, not this prose, define the consumed surface. |
 | `rexecop` | `1.0.0rc1` | current package | Stable read-only neutral runner, connectors, catalog and reaction mechanics. |
 | `tecrax` | `0.4.0rc3` source candidate | external source consumer; no RExecOp package extra | Domain infrastructure profile tested through entry points and cross-repository fixtures. |
 
@@ -27,11 +27,11 @@ Document id: `stack-contract-compatibility`.
 | Surface | Current contract | Owner | RExecOp use |
 | --- | --- | --- | --- |
 | SCLite lifecycle artifacts | `intent_contract.v0.2`, `policy_decision.v0.3`, `execution_contract.v0.3`, `execution_receipt.v0.2`, `evidence_contract.v0.2`, `artifact_chain_manifest.v0.2` | SCLite | Emitted on completion; scope provenance binds a GovEngine decision artifact to the exact operation target without claiming authority authentication. |
-| SCLite scoped ticket | `execution_ticket.v0.3` | SCLite | Used for scoped dry-run/review bundle truth. |
-| SCLite reaction artifacts | `observation_envelope.v0.1`, `finding.v0.1`, `reaction_plan.v0.1`, `escalation_proposal.v0.1`, reaction chain manifest | SCLite | Validated/emitted as artifacts; RExecOp does not own domain observation meaning. |
-| SCLite trigger decision artifact | `trigger_decision.v0.1` | SCLite | Stores bounded trigger event, rule, GovEngine admission and optional child-operation references; RExecOp remains the trigger planner. |
-| SCLite watchdog decision artifact | `watchdog_decision.v0.1` | SCLite | Stores bounded watchdog record, supervisor-action admission and affected runtime references; RExecOp remains the runtime supervisor. |
-| SCLite automation chain contract | `automation_chain.v0.1` | SCLite | RExecOp emits child-operation chain projections with nodes, edges, edge idempotency, depth/reaction budgets, recovery policy and LLM proposal-only invariants. Legacy GovEngine automation admission refs remain planning-only compatibility records and never substitute for the canonical v1 decision claim. |
+| SCLite scoped ticket | `execution_ticket.v0.3` | SCLite | Used for scoped dry-run/review bundle verification. |
+| RExecOp reaction artifacts | `observation_envelope.v0.1`, `finding.v0.1`, `reaction_plan.v0.1`, `escalation_proposal.v0.1` and reaction-chain records | RExecOp | RExecOp owns schema resources and deterministic reaction mechanics; profiles own domain observation/finding meaning; SCLite supplies canonical verification machinery. |
+| RExecOp trigger decision | `trigger_decision.v0.1` | RExecOp | Stores bounded trigger input, rule, governance admission and optional child-operation references. |
+| RExecOp watchdog decision | `watchdog_decision.v0.1` | RExecOp | Stores bounded watchdog records, supervisor-action admission and affected runtime references. |
+| RExecOp automation chain | `automation_chain.v0.1` | RExecOp | Projects child-operation nodes, edges, idempotency, budgets and recovery policy. Planning-only admission references never substitute for a signed execution decision. |
 | GovEngine policy request/verdict | `govengine.policy` schema `v0.1` | GovEngine | Used for deterministic policy evaluation when an environment declares `policy_pack`. |
 | GovEngine supported-contract catalog | `govengine.contract_compatibility` schema `v0.1`, `govengine-policy compatibility --json` | GovEngine | Consumed by RExecOp `doctor` and stack contract validators; unknown major contract versions fail closed. |
 | GovEngine enforcement plan | `PolicyEnforcementPlan`, `RuntimeControlProjection`, existing `GovAdmissionDecision` binding | GovEngine | Consumed by RExecOp B2 before execution and at connector invoke. |
@@ -57,6 +57,10 @@ Document id: `stack-contract-compatibility`.
 | `deterministic_execute_readonly` | active | Allowlisted `ssh_readonly`, `local_shell_readonly`, generic `http_api`, PolicyEngine gates and SCLite receipt emission. | Does not authorize mutation or unattended operations. |
 | `advisory_llm` | planned only | SCLite `escalation_proposal.v0.1` exists and Tecrax can produce bounded untrusted proposals. | No LLM provider, no LLM execution authority, no secrets to LLM. |
 | `mutation_ready` | false | The default `stable_read_only` runtime gate rejects `apply` / `recovery` before execution and again before built-in/plugin backend I/O; `doctor` blocks `lab_only`. | No stable apply/restart/configuration/VLAN/firewall/DNS/NTP mutation readiness. |
+
+`alpha_readonly` is a retained machine-readable readiness label. It classifies
+that compatibility track; it does not describe the maturity of the whole
+`1.0.0rc1` package.
 
 `scripts/validate_profile_conformance.py` defaults to `--track readonly`. The
 separate `--track mutation` report is allowed to discover and validate bounded
@@ -86,26 +90,9 @@ Tecrax diagnosis flow through RExecOp reaction planning, GovEngine admission,
 SCLite reaction-chain replay, `reaction explain`, `chain explain` and
 idempotent recovery planning.
 
-## M8 claim-to-code matrix
-
-| Public claim | Code / schema anchor | Validator / test |
-| --- | --- | --- |
-| `contracts cli` registry | `rexecop.cli_contract_registry.v0.1` | `tests/test_cli_contracts.py`, `validate_public_truth.py` |
-| CLI error envelope | `rexecop.cli_error.v0.1` | `tests/test_cli_errors.py`, registry `error_schema` |
-| Structured logs | `rexecop.structured_log_event.v0.1` | `tests/test_observability.py`, `observability/logs list` |
-| Runtime diagnostics | `rexecop.runtime_diagnostics.v0.1` | `tests/test_observability.py`, `observability diagnostics` |
-| Runtime-store reconstruction | `rexecop.runtime_reconstruction.v0.1` | `tests/test_runtime_recovery.py`, `runtime reconstruct-status --json` |
-| Advisory proposal review | `rexecop.proposal_review.v0.1`, `rexecop.proposal_submission.v0.1` | `tests/test_reaction_interpreter.py`, CLI registry/error tests |
-| M6/M7 typed execution + truth-path | `project_truth_path()`, `admit_typed_execution()` | `validate_artifact_install_smoke.py`, `validate_clean_install_smoke.py` |
-| Cross-repo golden fixture | `rexecop.reaction_explain.v0.1`, `rexecop.chain_explain.v0.1` | `scripts/validate_cross_repo_golden_fixture.py` |
-| Operator journey §6 | `validate_operator_journeys.py` (read-only, failure, governance, audit CLI) | CI, `scripts/run_alpha_signoff_checks.sh`, `tests/test_operator_journeys.py` |
-| Governance controls CLI | `rexecop.governance_controls.v0.1` | `rexecop governance controls`, `tests/test_operator_journeys.py`, GovEngine catalog consumption |
-| M8.5 stack invariants | `pytest -m invariant`, `validate_stack_invariants.py` | `tests/test_stack_invariants.py` |
-| M8.5 release/process gates | `validate_release_train_preflight.py`, `validate_public_index_release_smoke.py`, `validate_supply_chain_gate.py`, `validate_external_review_gate.py` | CI `publish.yml`, alpha sign-off |
-
 ## Required gates
 
-The stack must keep these gates green before implementing later automation:
+Release and compatibility changes must keep the relevant gates green:
 
 - RExecOp: `scripts/validate_public_truth.py`, `scripts/validate_stack_contracts.py`,
   `scripts/validate_profile_conformance.py`, `scripts/validate_first_run_smoke.py`,
@@ -116,5 +103,9 @@ The stack must keep these gates green before implementing later automation:
   `scripts/validate_artifact_install_smoke.py`, `scripts/validate_clean_install_smoke.py`,
   `scripts/secret_scan.sh`, core-domain-token guard, `ruff`, `mypy src/rexecop`, and pytest.
 - Tecrax: public truth, active profile validation, secret topology validation, `ruff`, `mypy src/tecrax`, and pytest.
-- GovEngine: public truth, alpha readiness, `ruff`, `mypy govengine`, and pytest.
+- GovEngine: public truth, compatibility/security gates, `ruff`, `mypy
+  govengine`, and pytest.
 - SCLite: public truth, schema/security gates, `ruff`, `mypy`, and pytest.
+
+The historical pre-1.0 claim-to-code qualification matrix is preserved in
+[the archive](archive/pre-1.0-contract-qualification.md).

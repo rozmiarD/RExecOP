@@ -2,7 +2,8 @@
 
 RExecOp exposes bounded operator commands for runtime health, failure triage,
 startup recovery, and store backup. These surfaces inspect or reconcile local
-runtime state — they do not replace GovEngine admission or SCLite truth.
+runtime state — they do not replace GovEngine admission or SCLite contract
+verification.
 
 ## Triage commands
 
@@ -56,20 +57,23 @@ invocation. Connector attempts are persisted before IO. A process loss after IO 
 the durable result becomes `outcome_indeterminate`; side-effectful work is never retried
 automatically and requires explicit reconciliation.
 
-Immediately before connector IO, RExecOp preallocates `attempt_id`, then writes and
+Before connector IO, RExecOp preallocates `attempt_id`, then writes and
 verifies `rexecop.runtime_attempt_permit.v0.1`. The permit binds the current operation
 revision, attempt, plan/spec digests, target, mode, lease and expiry. When a canonical
 GovEngine authority is configured, RExecOp first verifies the signed
 `GovernanceDecision`, checks exact attempt/runtime/lease/fencing/spec/payload/scope/
 inventory bindings, and atomically claims both the decision digest and nonce. Only then
-does it persist `attempt started` before connector IO.
+does it persist `attempt started`. After that durable write, RExecOp revalidates
+the permit, current lease, fencing and runtime bindings immediately before
+connector IO. A failed final check terminates the attempt as failed without
+invoking the connector; it is not an indeterminate outcome.
 
 Mutating connector IO has no unsigned compatibility fallback. Read-only operations may
 still use the explicitly labelled `legacy_read_only` binding while callers migrate to
 the signed-decision authority port; that label is not a governance authenticity claim.
 Recovery never clears governance claims, so an indeterminate attempt cannot reuse its
 old decision. The runtime permit remains a RExecOp freshness/binding record, not a
-GovEngine policy decision or SCLite truth artifact.
+GovEngine policy decision or canonical SCLite artifact.
 
 ## Runtime-store reconstruction status
 
@@ -165,6 +169,6 @@ Do **not** use this on operator hosts as a substitute for real incident response
 | --- | --- | --- |
 | Triage CLI | Bounded runtime inspection and failure classes | Policy verdicts |
 | `runtime recover` | Store reconciliation, lease/lock cleanup | Connector replay |
-| `backup *` | Operator store snapshots | SCLite truth export |
+| `backup *` | Operator store snapshots | Canonical SCLite bundle export |
 | `explain-error` | Mapping refs to next actions | Automatic remediation |
 | `retry` | Re-attempt failed operation when profile retry policy allows | Connector replay without clearing failure cause |

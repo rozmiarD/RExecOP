@@ -5,6 +5,7 @@ from pathlib import Path
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.connectors.static_fixture import StaticFixtureRuntime
+from rexecop.errors import RExecOpValidationError
 from rexecop.escalation.package import build_escalation_package
 from rexecop.execution.executor import StepExecutor
 from rexecop.operation.controller import OperationController
@@ -116,6 +117,52 @@ def test_readonly_diagnostic_continues_after_declared_connector_failure() -> Non
     assert result.step_results["optional_probe"]["success"] is False
     assert result.shared_state["continued_failures"]["optional_probe"]["error"]
     assert result.shared_state["execution_receipt"]["success"] is True
+
+
+def test_pre_io_revalidation_fails_attempt_without_invoking_connector() -> None:
+    runtime = _fixture_runtime()
+    connector_calls: list[str] = []
+    original_invoke = runtime.invoke
+
+    def tracked_invoke(request: ConnectorRequest):
+        connector_calls.append(request.action)
+        return original_invoke(request)
+
+    runtime.invoke = tracked_invoke  # type: ignore[method-assign]
+    finished: list[tuple[str, str]] = []
+
+    def reject_pre_io(_attempt: dict[str, object]) -> None:
+        raise RExecOpValidationError("execution_permit_stale: test drift")
+
+    executor = StepExecutor(
+        connector_dispatcher=ConnectorDispatcher(runtime),
+        attempt_start_handler=lambda _context, _spec: {
+            "attempt_id": "attempt-pre-io",
+        },
+        attempt_pre_io_handler=reject_pre_io,
+        attempt_finish_handler=lambda attempt, status, _result: finished.append(
+            (str(attempt["attempt_id"]), status)
+        ),
+    )
+
+    result = WorkflowRunner(executor).run(
+        operation_id="op-pre-io",
+        target="fixture-target",
+        mode="dry_run",
+        planned_steps=[
+            {
+                "id": "inspect_state",
+                "type": "connector",
+                "connector": "fixture_source",
+                "action": "read_fixture_state",
+            }
+        ],
+        correlation_id="corr",
+    )
+
+    assert result.success is False
+    assert connector_calls == []
+    assert finished == [("attempt-pre-io", "failed")]
 
 
 def test_continue_on_error_does_not_apply_to_mutating_mode() -> None:

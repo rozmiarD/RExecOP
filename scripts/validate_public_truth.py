@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -11,6 +12,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 import rexecop  # noqa: E402
+from rexecop.public_api import public_api_manifest  # noqa: E402
 
 EXPECTED_GOVENGINE = "govengine==1.0.0rc1"
 EXPECTED_SCLITE = "sclite-core==2.0.0"
@@ -101,6 +103,123 @@ PYPI_DOC_MARKERS = (
 
 def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def _current_markdown_paths() -> list[Path]:
+    ignored_parts = {".git", ".venv", ".pytest_cache", "build", "dist", "archive"}
+    return sorted(
+        path
+        for path in ROOT.rglob("*.md")
+        if not ignored_parts.intersection(path.relative_to(ROOT).parts)
+    )
+
+
+def _all_markdown_paths() -> list[Path]:
+    ignored_parts = {".git", ".venv", ".pytest_cache", "build", "dist"}
+    return sorted(
+        path
+        for path in ROOT.rglob("*.md")
+        if not ignored_parts.intersection(path.relative_to(ROOT).parts)
+    )
+
+
+def _github_anchors(text: str) -> set[str]:
+    anchors: set[str] = set()
+    counts: dict[str, int] = {}
+    for line in text.splitlines():
+        if not re.match(r"^#{1,6}\s+", line):
+            continue
+        heading = re.sub(r"^#{1,6}\s+", "", line).strip().lower()
+        heading = re.sub(r"[`*_~]", "", heading)
+        heading = re.sub(r"[^\w\s-]", "", heading, flags=re.UNICODE)
+        slug = re.sub(r"[\s-]+", "-", heading).strip("-")
+        if not slug:
+            continue
+        occurrence = counts.get(slug, 0)
+        counts[slug] = occurrence + 1
+        anchors.add(slug if occurrence == 0 else f"{slug}-{occurrence}")
+    return anchors
+
+
+def _validate_markdown_links(errors: list[str]) -> None:
+    link_pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+    for path in _all_markdown_paths():
+        text = path.read_text(encoding="utf-8")
+        for raw_target in link_pattern.findall(text):
+            target = raw_target.strip().strip("<>")
+            if not target or target.startswith(("http://", "https://", "mailto:")):
+                continue
+            file_part, _, anchor = target.partition("#")
+            target_path = path if not file_part else (path.parent / file_part).resolve()
+            try:
+                target_path.relative_to(ROOT)
+            except ValueError:
+                errors.append(
+                    f"{path.relative_to(ROOT)}:markdown_link_outside_repo:{target}"
+                )
+                continue
+            if not target_path.is_file():
+                errors.append(
+                    f"{path.relative_to(ROOT)}:markdown_link_missing:{target}"
+                )
+                continue
+            if anchor and anchor not in _github_anchors(
+                target_path.read_text(encoding="utf-8")
+            ):
+                errors.append(
+                    f"{path.relative_to(ROOT)}:markdown_anchor_missing:{target}"
+                )
+
+
+def _validate_document_semantics(errors: list[str]) -> None:
+    changelog = _read("CHANGELOG.md")
+    if changelog.count("## Unreleased") != 1:
+        errors.append("CHANGELOG.md:unreleased_heading_must_be_unique")
+    for forbidden in (
+        "current PyPI alpha line is",
+        "## Pre-alpha limits",
+        "RExecOp is **alpha** software",
+        "Alpha limitations accepted",
+        "SCLite owns the chain artifact shape",
+        "SCLite observation envelope",
+        "SCLite `automation_chain",
+        "SCLite trigger decision artifact",
+        "SCLite watchdog decision artifact",
+        "runs profile-defined operations under GovEngine admission",
+    ):
+        for path in _current_markdown_paths():
+            if forbidden in path.read_text(encoding="utf-8"):
+                errors.append(
+                    f"{path.relative_to(ROOT)}:stale_semantic_claim:{forbidden}"
+                )
+    if (ROOT / "docs" / "evidence-model.md").exists():
+        errors.append("docs/evidence-model.md:duplicate_surface_must_be_merged")
+    readme = _read("README.md")
+    for heading in ("## What RExecOp claims", "## What RExecOp does not claim"):
+        if heading not in readme:
+            errors.append(f"README.md:missing_claim_boundary:{heading}")
+    for marker in ("legacy_read_only", "stable_read_only"):
+        if marker not in readme:
+            errors.append(f"README.md:missing_runtime_boundary:{marker}")
+    evidence_docs = _read("docs/release-evidence/README.md")
+    if re.search(r"installed .*Tecrax", evidence_docs, flags=re.IGNORECASE):
+        errors.append("docs/release-evidence/README.md:tecrax_not_release_inventory")
+
+    cli_reference = _read("docs/cli-reference.md")
+    documented_cli_rows = {
+        match.group(1).strip()
+        for line in cli_reference.splitlines()
+        if (match := re.match(r"^\|\s*`([^`]+)`", line))
+    }
+    manifest = public_api_manifest()["cli"]
+    for command in (*manifest["stable_commands"], *manifest["alpha_commands"]):
+        if not any(
+            row == command or row.startswith(f"{command} ")
+            for row in documented_cli_rows
+        ):
+            errors.append(f"docs/cli-reference.md:command_missing:{command}")
+
+    _validate_markdown_links(errors)
 
 
 def _pyproject() -> dict:
@@ -207,14 +326,10 @@ def collect_errors() -> list[str]:
     _require(errors, "README.md", EXPECTED_SCLITE)
     _require(errors, "docs/distribution.md", EXPECTED_GOVENGINE)
     _require(errors, "docs/distribution.md", EXPECTED_SCLITE)
-    _require(
-        errors,
-        "docs/alpha-sign-off-record.md",
-        EXPECTED_GOVENGINE_STATUS,
-    )
+    _require(errors, "docs/release-qualification-record.md", EXPECTED_GOVENGINE_STATUS)
     _forbid(
         errors,
-        "docs/alpha-sign-off-record.md",
+        "docs/release-qualification-record.md",
         "source candidate; published `0.16.11`",
     )
     _require(errors, "docs/sclite-integration.md", EXPECTED_SCLITE)
@@ -246,11 +361,13 @@ def collect_errors() -> list[str]:
     _require(errors, "docs/cli-reference.md", "rexecop.structured_log_event.v0.1")
     _require(errors, "docs/cli-reference.md", "rexecop.runtime_diagnostics.v0.1")
     _require(errors, "docs/cli-reference.md", "observability logs list")
-    for marker in M8_CLAIM_MARKERS:
-        _require(errors, "CHANGELOG.md", marker)
-    _require(errors, "docs/stack-contract-compatibility.md", "M8 claim-to-code matrix")
-    _require(errors, "docs/alpha-sign-off.md", "validate_artifact_install_smoke.py")
-    _require(errors, "docs/alpha-sign-off.md", "validate_clean_install_smoke.py")
+    _require(
+        errors,
+        "docs/archive/pre-1.0-contract-qualification.md",
+        "Historical M8 claim-to-code matrix",
+    )
+    _require(errors, "docs/release-qualification.md", "validate_artifact_install_smoke.py")
+    _require(errors, "docs/release-qualification.md", "validate_clean_install_smoke.py")
     _require(errors, ".github/workflows/ci.yml", "validate_artifact_install_smoke.py")
     _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_SCLITE)
     _require(errors, "docs/stack-contract-compatibility.md", EXPECTED_GOVENGINE)
@@ -299,18 +416,7 @@ def collect_errors() -> list[str]:
     _require(errors, "docs/profile-developer-surface.md", "rexecop.action_validate.v0.1")
     _require(errors, "docs/secrets-operator.md", "rexecop.secrets_suggest_ref.v0.1")
     _require(errors, "docs/profile-developer-surface.md", "profile harness")
-    _require(errors, "CHANGELOG.md", "rexecop.profile_workflow_harness.v0.1")
-    _require(errors, "CHANGELOG.md", "profile harness")
-    _require(errors, "CHANGELOG.md", "rexecop action list")
-    _require(errors, "CHANGELOG.md", "rexecop action show")
-    _require(errors, "CHANGELOG.md", "rexecop action preview")
-    _require(errors, "CHANGELOG.md", "rexecop action configure")
-    _require(errors, "CHANGELOG.md", "rexecop action diff")
-    _require(errors, "CHANGELOG.md", "rexecop action validate")
-    _require(errors, "CHANGELOG.md", "rexecop secrets suggest-ref")
     _require(errors, "docs/govengine-integration.md", "profile-governance")
-    _require(errors, "CHANGELOG.md", "operator_metadata.yaml")
-    _require(errors, "CHANGELOG.md", "rexecop.operation_profile_explain.v0.1")
     _require(errors, "OPERATOR_RUNBOOK.md", "secrets doctor")
     _require(errors, "OPERATOR_RUNBOOK.md", "operations unavailable")
     _require(errors, "OPERATOR_RUNBOOK.md", "runtime recover")
@@ -321,18 +427,18 @@ def collect_errors() -> list[str]:
     _require(errors, "docs/runtime-recovery-ops.md", "REXECOP_STATIC_FIXTURE_FAILURES")
     _require(errors, "docs/stack-contract-compatibility.md", "validate_operator_journeys.py")
     _require(errors, "docs/known-limitations.md", "validate_operator_journeys.py")
-    _require(errors, "CHANGELOG.md", "governance controls")
     _require(errors, "docs/cli-reference.md", "governance controls")
     _require(errors, "docs/cli-reference.md", "validate_operator_journeys.py")
     for marker in M3_M4_DOC_INDEX_MARKERS:
         _require(errors, "OPERATOR_RUNBOOK.md", marker)
-    _require(errors, "CHANGELOG.md", "secrets doctor")
-    _require(errors, "CHANGELOG.md", "runtime recover")
-    _require(errors, "CHANGELOG.md", "operations unavailable")
-    _require(errors, "docs/alpha-sign-off.md", "validate_first_run_smoke.py")
-    _require(errors, "docs/alpha-sign-off.md", "validate_operator_journeys.py")
-    _require(errors, "docs/alpha-sign-off.md", "validate_cross_repo_golden_fixture.py")
-    _require(errors, "docs/alpha-sign-off.md", "validate_stack_contracts.py")
+    _require(errors, "docs/release-qualification.md", "validate_first_run_smoke.py")
+    _require(errors, "docs/release-qualification.md", "validate_operator_journeys.py")
+    _require(
+        errors,
+        "docs/release-qualification.md",
+        "validate_cross_repo_golden_fixture.py",
+    )
+    _require(errors, "docs/release-qualification.md", "validate_stack_contracts.py")
     _require(errors, ".github/workflows/ci.yml", "validate_first_run_smoke.py")
     _require(errors, ".github/workflows/ci.yml", "validate_operator_journeys.py")
     _require(errors, ".github/workflows/ci.yml", "validate_cross_repo_golden_fixture.py")
@@ -412,7 +518,7 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         ".github/workflows/publish.yml",
-        '--source-commit "${{ steps.release_source.outputs.commit }}"',
+        '--release-commit "${{ steps.release_source.outputs.commit }}"',
     )
     _require(
         errors,
@@ -487,13 +593,14 @@ def collect_errors() -> list[str]:
     _require(errors, "docs/release-evidence/README.md", "gh attestation verify")
     _require(errors, "docs/release-evidence/README.md", "GitHub Release assets")
     _require(errors, "docs/distribution.md", "validate_m10_release_gate.py --live-github")
-    _require(errors, "docs/alpha-sign-off.md", "validate_m10_release_gate.py")
+    _require(errors, "docs/release-qualification.md", "validate_m10_release_gate.py")
 
     init_text = _read("src/rexecop/__init__.py")
     if f'__version__ = "{version}"' not in init_text:
         errors.append("src/rexecop/__init__.py:missing_version_literal")
 
     _assert_pypi_docs(errors, version)
+    _validate_document_semantics(errors)
 
     for path in CLAIM_DOCS:
         lowered = _read(path).lower()

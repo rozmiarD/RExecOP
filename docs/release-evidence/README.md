@@ -3,8 +3,9 @@
 Release evidence for new publications is a versioned
 `rexecop.release_evidence.v2` JSON record. It binds the published version to the
 exact source commit, workflow run, wheel/sdist SHA-256 digests, CycloneDX SBOM,
-GitHub artifact-attestation identity, installed GovEngine/SCLite/RExecOp/Tecrax
-versions and doctor result. The record carries its own canonical
+GitHub artifact-attestation identity, installed GovEngine/SCLite/RExecOp
+versions and doctor result. Tecrax is a separate downstream consumer and is not
+part of this release-evidence inventory. The record carries its own canonical
 `record_digest`. Historical `rexecop.release_evidence.v1` records remain valid
 only as previous-line evidence; a new post-publish record must use v2.
 

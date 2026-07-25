@@ -66,7 +66,7 @@ def validate_workflow_security() -> dict[str, int]:
         "fetch-depth: 0",
         "Checkout immutable RExecOP release source",
         "refs/tags/v${{ inputs.version }}",
-        "--source-commit \"${{ steps.release_source.outputs.commit }}\"",
+        "--release-commit \"${{ steps.release_source.outputs.commit }}\"",
         "Install release validation dependencies",
         "python -m pip install -e .govstack/sclite",
         "python -m pip install -e .govstack/govengine",

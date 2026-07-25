@@ -167,6 +167,7 @@ class OperationOrchestrator:
             connector_dispatcher=ConnectorDispatcher(runtime),
             evidence_handler=lambda ctx: self._export_receipt(ctx.operation_id),
             attempt_start_handler=self._start_attempt,
+            attempt_pre_io_handler=self._require_attempt_fresh,
             attempt_finish_handler=self._finish_attempt,
             attempt_receipt_handler=self._bind_attempt_receipt,
         )
@@ -261,12 +262,46 @@ class OperationOrchestrator:
             lease=lease,
             execution_permit_ref=str(permit["permit_digest"]),
         )
+        attempt["_runtime_permit"] = permit
+        attempt["_execution_spec"] = execution_spec
+        attempt["_target_binding"] = target_binding
+        attempt["_governance_admission_digest"] = governance_admission_digest
         if governance_claim is not None:
             # These objects live only until the immediate post-I/O conformance
             # check. The durable attempt and permit remain JSON-only records.
             attempt["_governance_claim"] = governance_claim
-            attempt["_runtime_permit"] = permit
         return attempt
+
+    def _require_attempt_fresh(self, attempt: dict[str, Any]) -> None:
+        """Revalidate the durable attempt's authority immediately before connector I/O."""
+
+        lease = self.execution_lease_record
+        if lease is None:
+            raise RExecOpValidationError("execution attempt requires active execution lease")
+        operation = self.store.load_operation(str(attempt["operation_id"]))
+        plan = self.store.load_plan(operation.id)
+        permit = attempt.get("_runtime_permit")
+        execution_spec = attempt.get("_execution_spec")
+        target_binding = attempt.get("_target_binding")
+        if not isinstance(permit, dict):
+            raise RExecOpValidationError("execution permit missing before connector I/O")
+        if not isinstance(execution_spec, dict) or not isinstance(target_binding, dict):
+            raise RExecOpValidationError("execution attempt binding missing before connector I/O")
+        claim = attempt.get("_governance_claim")
+        governance_claim = claim if isinstance(claim, ClaimedGovernanceDecision) else None
+        self.permits.require_fresh(
+            permit,
+            operation=operation,
+            plan=plan,
+            attempt_id=str(attempt["attempt_id"]),
+            execution_spec=execution_spec,
+            target_binding=target_binding,
+            lease=lease,
+            governance_admission_digest=str(
+                attempt.get("_governance_admission_digest") or ""
+            ),
+            governance_claim=governance_claim,
+        )
 
     def _finish_attempt(
         self,

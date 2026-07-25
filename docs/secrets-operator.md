@@ -1,8 +1,14 @@
 # Secrets operator surface
 
-RExecOp never stores secret values in git, runtime evidence, or CLI JSON output.
-Operators declare **references** in environment YAML and resolve values through
-`REXECOP_SECRET_<REF>` environment variables and/or `REXECOP_SECRETS_FILE`.
+RExecOp requires secret references instead of inline values in profile and
+environment documents. Supported validators and redaction boundaries prohibit
+resolved values from runtime evidence and CLI JSON projections. Operators
+resolve values through `REXECOP_SECRET_<REF>` environment variables and/or
+`REXECOP_SECRETS_FILE`.
+
+These controls are defense in depth, not a claim that every arbitrary plugin,
+host error or deliberately allowlisted field is leak-proof. Treat the runtime
+root and process environment as sensitive.
 
 ## Resolution order
 
@@ -51,8 +57,9 @@ JSON schema: `rexecop.secrets_doctor.v0.1`.
 | `orphan_file_refs` | warning | Keys in secrets file not referenced by inspected documents |
 | `redaction_self_test` | blocker | Process-local redaction removes probe material |
 
-Secret **values** are never printed. Error messages from malformed secrets files
-avoid echoing file content.
+The command's supported output contract omits resolved secret values. Error
+messages from malformed secret files are bounded and avoid echoing file
+content.
 
 ## secrets suggest-ref
 

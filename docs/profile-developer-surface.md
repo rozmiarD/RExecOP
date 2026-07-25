@@ -46,7 +46,7 @@ JSON schema: `rexecop.profile_show.v0.1`.
 
 ## Profile workflow test harness
 
-Profiles that ship the domain-neutral `runtime_fixture` example can run the M4
+Profiles that ship the domain-neutral `runtime_fixture` example can run the
 workflow test harness without backend IO:
 
 ```bash
@@ -174,7 +174,7 @@ output limits, but never SSH host, user, port, identity file refs or resolved
 identity paths. Static fixture previews expose only fixture data digests.
 
 These commands do not execute connector backends, create execution requests,
-request or imply GovEngine admission, emit SCLite truth artifacts, or print
+request or imply GovEngine admission, emit canonical SCLite artifacts, or print
 resolved secrets / connector configuration.
 
 `action policy-preview` requires `--target` and optionally `--mode`. When the
@@ -225,6 +225,6 @@ bounded JSON errors without backend IO.
 | `profiles *` | Profile metadata, conformance, plugin registration | Domain semantics, policy verdicts |
 | `connectors *` | Backend descriptors and certification tier | Connector execution |
 | `capabilities list` | Neutral capability registry | Target catalog capabilities |
-| `action list/show/preview/policy-preview/diff/configure/validate` | Action metadata, shape digests, profile-vs-env diff, redacted call preview, optional policy simulation, patch ops and env binding checks | Backend execution, GovEngine admission, SCLite truth |
+| `action list/show/preview/policy-preview/diff/configure/validate` | Action metadata, shape digests, profile-vs-env diff, redacted call preview, optional policy simulation, patch ops and env binding checks | Backend execution, GovEngine admission, canonical SCLite artifacts |
 | `profile manifest` | Host extension contract | Profile content |
 | `operations unavailable` | Technical applicability reasoning | GovEngine admission |

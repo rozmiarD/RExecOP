@@ -139,3 +139,35 @@ def test_attempt_is_not_created_when_validation_blocks_before_io(tmp_path: Path)
 
     assert failed.state == "failed"
     assert not (controller.store.root / "attempts" / operation.id).exists()
+
+
+def test_final_pre_io_revalidation_fails_durable_attempt_without_indeterminate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = OperationController(FileStore(tmp_path / ".rexecop"))
+    operation = controller.plan(
+        profile_path=PROFILE,
+        environment_path=ENVIRONMENT,
+        intent="inspect_fixture_state",
+        target="fixture-target",
+        mode="dry_run",
+    )
+
+    def reject_after_attempt(_attempt: dict[str, object]) -> None:
+        raise RExecOpValidationError("execution_permit_stale: test drift")
+
+    monkeypatch.setattr(
+        controller.orchestrator,
+        "_require_attempt_fresh",
+        reject_after_attempt,
+    )
+
+    failed = controller.start(operation.id)
+
+    attempts = sorted((controller.store.root / "attempts" / operation.id).glob("*.json"))
+    assert failed.state == "failed"
+    assert len(attempts) == 1
+    record = json.loads(attempts[0].read_text(encoding="utf-8"))
+    assert record["status"] == "failed"
+    assert record["error_class"] != "outcome_indeterminate"
