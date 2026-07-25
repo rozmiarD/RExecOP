@@ -61,7 +61,7 @@ def validate_workflow_security() -> dict[str, int]:
         "gh release download",
         "gh release create",
         "--verify-tag",
-        'default: "0.3.0rc3"',
+        'default: "1.0.0rc1"',
         'default: "2470373c6384c284ab48df7ce763f0938797d155"',
     ):
         if marker not in publish:

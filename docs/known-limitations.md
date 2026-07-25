@@ -1,7 +1,7 @@
-# Known limitations (alpha)
+# Known limitations (1.0 release candidate)
 
-RExecOp `0.3.0rc3` is the current source alpha candidate for operator evaluation.
-This document states what the current published alpha line does **not** provide so expectations stay aligned with implementation.
+RExecOp `1.0.0rc1` is the stable read-only release candidate for operator evaluation.
+This document states what the candidate does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth
 
@@ -63,9 +63,9 @@ This document states what the current published alpha line does **not** provide 
 
 | Limitation | Detail |
 | --- | --- |
-| Public PyPI | `rexecop==0.2.24a0` published for alpha evaluation — not a production-ready claim |
-| Source alpha line | `0.3.0rc3` is the local candidate on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
-| Public API is a candidate freeze | `rexecop.public_api.v1` identifies the intended 1.x import/CLI surface, but does not override the unreleased candidate status or other M10 blockers |
+| Public PyPI | `rexecop==1.0.0rc1` is the stable read-only release candidate — not a production-ready or mutation-ready claim |
+| Source release line | `1.0.0rc1` is the current candidate on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
+| Public API | `rexecop.public_api.v1` identifies the supported 1.x import/CLI subset; unlisted CLI and deep implementation modules retain their documented alpha status |
 | Coordinated dependencies | Source line requires public `govengine==1.0.0rc1` and public `sclite-core==2.0.0`. RExecOp 1.x has no `tecrax` extra; Tecrax is a separately released external consumer/plugin. |
 | Operational qualification | The current source candidate passed the M10 isolated clean-install, live bounded read-only, restart/recovery and public-projection disclosure journey recorded in [`release-qualification/m10-operational.json`](release-qualification/m10-operational.json). This is not the independent security review, does not certify mutation, and does not make the private runtime root publishable. |
 
@@ -82,7 +82,7 @@ The labels `advisory_llm` and `mutation_ready` are not active. LLM output remain
 an untrusted proposal shape only. Mutation readiness is explicitly false and enforced
 by the default runtime posture, not merely documented as an operator expectation.
 
-## What alpha **does** provide (allowed claims)
+## What the release candidate **does** provide (allowed claims)
 
 - GovEngine-bound operations control-plane with default `GovEngineClient` adapter
 - Profile-defined workflow execution and declarative validation
@@ -102,7 +102,7 @@ by the default runtime posture, not merely documented as an operator expectation
 - Optional SQLite storage backend for operations, plans, and evidence
 - Wheel build + `twine check` validated in CI
 
-## What alpha **does not** claim (forbidden marketing)
+## What the release candidate **does not** claim (forbidden marketing)
 
 - Production-ready governance (GovEngine remains authority)
 - Full Tecrax product or Ravenclaw merge
@@ -112,11 +112,11 @@ by the default runtime posture, not merely documented as an operator expectation
 
 ## Operator sign-off checklist
 
-Before treating alpha as fit for your environment:
+Before treating the release candidate as fit for your environment:
 
 - [ ] Read [OPERATOR_RUNBOOK.md](../OPERATOR_RUNBOOK.md) and [safety-model.md](safety-model.md)
 - [ ] Complete [OPERATOR_LAB_RUNBOOK.md](../OPERATOR_LAB_RUNBOOK.md) checklist
 - [ ] Confirm GovEngine and SCLite versions match `pyproject.toml` pins
 - [ ] Run a bounded read-only profile intent appropriate for the selected target
 - [ ] Verify runtime root exports contain no plaintext secrets
-- [ ] Accept alpha limits above for production-adjacent use
+- [ ] Accept the release-candidate limits above for production-adjacent use

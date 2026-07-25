@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — explicit orchestration contract ownership
+## Unreleased
+
+## [1.0.0rc1] - 2026-07-25
 
 - Removes the `tecrax` optional extra from the 1.x core release boundary.
   Tecrax remains a separately versioned external consumer/plugin and is tested

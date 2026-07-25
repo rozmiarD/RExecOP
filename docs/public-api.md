@@ -1,7 +1,7 @@
 # Public API and compatibility policy
 
-RExecOp `0.3.0rc3` freezes the candidate Python and CLI compatibility surface for
-the future 1.x line. This is an API compatibility decision, not a production
+RExecOp `1.0.0rc1` freezes the Python and CLI compatibility surface for
+the 1.x line. This is an API compatibility decision, not a production
 readiness claim; security, release and operational M10 gates remain separate.
 
 The machine-readable source of truth is

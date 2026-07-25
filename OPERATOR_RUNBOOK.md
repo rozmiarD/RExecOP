@@ -1,6 +1,6 @@
 # Operator runbook
 
-RExecOp **alpha** (`0.3.0rc3` source candidate) — Regulated Execution Operations control-plane for
+RExecOp **release candidate** (`1.0.0rc1`) — Regulated Execution Operations control-plane for
 profile-defined workflows under GovEngine and SCLite.
 
 This runbook covers installation, daily operations, staging setup, and safety checks.
@@ -30,7 +30,7 @@ pip install -e ".[dev]"
 git clone https://github.com/rozmiarD/tecrax.git ../tecrax
 pip install -e ../tecrax
 
-rexecop version   # expect 0.3.0rc3 from the coordinated source checkout
+rexecop version   # expect 1.0.0rc1
 python scripts/validate_public_truth.py   # docs + version alignment
 python scripts/validate_first_run_smoke.py # no-I/O init/doctor/explain/plan smoke
 python scripts/validate_operator_journeys.py # §6 operator journeys on public fixtures

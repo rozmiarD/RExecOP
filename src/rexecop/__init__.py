@@ -1,3 +1,3 @@
 """RExecOp — Regulated Execution Operations control-plane."""
 
-__version__ = "0.3.0rc3"
+__version__ = "1.0.0rc1"

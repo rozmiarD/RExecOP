@@ -6,7 +6,7 @@ on:
       version:
         description: Package version to publish (must match pyproject.toml)
         required: true
-        default: "0.3.0rc3"
+        default: "1.0.0rc1"
       govengine_ref:
         description: Exact GovEngine commit SHA for this release train
         required: true

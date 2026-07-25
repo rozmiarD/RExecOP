@@ -20,7 +20,7 @@ from rexecop.runtime.contract_compatibility import (  # noqa: E402
     validate_sclite_artifact_pins,
 )
 
-EXPECTED_REXECOP = "0.3.0rc3"
+EXPECTED_REXECOP = "1.0.0rc1"
 EXPECTED_GOVENGINE = "govengine==1.0.0rc1"
 EXPECTED_SCLITE = "sclite-core==2.0.0"
 EXPECTED_TECRAX_CONSUMER = "0.4.0rc3"
@@ -38,7 +38,7 @@ NON_ACTIVE_READINESS = (
 REQUIRED_DOC_MARKERS = (
     "sclite-core==2.0.0",
     "govengine==1.0.0rc1",
-    "rexecop` | `0.3.0rc3`",
+    "rexecop` | `1.0.0rc1`",
     "`0.4.0rc3`",
     "external source consumer",
     "observation_envelope.v0.1",
