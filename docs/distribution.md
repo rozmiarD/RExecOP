@@ -132,7 +132,9 @@ evidence-backed line.
 
 The official publisher action is pinned to a reviewed full commit SHA. The
 workflow carries no long-lived PyPI credential and rejects token-based upload
-settings through `scripts/validate_workflow_security.py`.
+settings through `scripts/validate_workflow_security.py`. Only the staged wheel
+and sdist directory is passed to PyPI; the CycloneDX SBOM remains outside the
+upload directory and is retained for attestation and release evidence.
 
 Do not store upload tokens in the repository, handoffs, or agent memory.
 

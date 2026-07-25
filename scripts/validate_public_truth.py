@@ -386,6 +386,19 @@ def collect_errors() -> list[str]:
     _require(errors, ".github/workflows/publish.yml", "dist/*.cdx.json")
     _require(errors, ".github/workflows/publish.yml", "--attestation-id")
     _require(errors, ".github/workflows/publish.yml", "--attestation-url")
+    _require(errors, ".github/workflows/publish.yml", "Stage PyPI distributions")
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        "cp dist/*.whl dist/*.tar.gz pypi-dist/",
+    )
+    _require(
+        errors,
+        ".github/workflows/publish.yml",
+        'test "$(find pypi-dist -maxdepth 1 -type f | wc -l)" -eq 2',
+    )
+    _require(errors, ".github/workflows/publish.yml", "packages-dir: pypi-dist/")
+    _forbid(errors, ".github/workflows/publish.yml", "packages-dir: dist")
     _require(errors, ".github/workflows/publish.yml", "git check-ref-format")
     _require(errors, ".github/workflows/publish.yml", "git rev-list -n 1")
     _require(errors, ".github/workflows/publish.yml", "git merge-base --is-ancestor")

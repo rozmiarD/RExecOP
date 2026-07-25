@@ -140,8 +140,16 @@ jobs:
             dist/*.tar.gz
             dist/*.cdx.json
 
+      - name: Stage PyPI distributions
+        run: |
+          mkdir pypi-dist
+          cp dist/*.whl dist/*.tar.gz pypi-dist/
+          test "$(find pypi-dist -maxdepth 1 -type f | wc -l)" -eq 2
+
       - name: Publish to PyPI with trusted publishing
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          packages-dir: pypi-dist/
 
       - name: Public-index release smoke
         env:
