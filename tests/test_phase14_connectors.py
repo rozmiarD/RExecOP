@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,7 +17,9 @@ from rexecop.connectors.http_support import (
     resolve_retry_config,
     retry_delay_seconds,
 )
+from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
+from rexecop.execution.bounded_subprocess import BoundedSubprocessResult, CapturedStream
 
 pytestmark = pytest.mark.security_regression
 
@@ -196,6 +199,7 @@ def test_ssh_readonly_builds_batch_mode_command() -> None:
 
     def fake_run(argv, **kwargs):  # type: ignore[no-untyped-def]
         captured["argv"] = argv
+        captured["kwargs"] = kwargs
         class Result:
             returncode = 0
             stdout = "up"
@@ -221,6 +225,162 @@ def test_ssh_readonly_builds_batch_mode_command() -> None:
     assert argv[-1] == "uptime"
     assert response.data["output_digests"]["stdout"].startswith("sha256:")
     assert response.data["output_truncated"]["stdout"] is False
+    assert captured["argv"] == argv
+    assert captured["kwargs"] == {"timeout": 15.0, "max_output_bytes": 65536}
+
+
+@pytest.mark.parametrize(
+    ("configured", "policy"),
+    [(0, None), (64, -1), (64, 0)],
+)
+def test_ssh_rejects_nonpositive_output_limit_before_launch(
+    configured: int,
+    policy: int | None,
+) -> None:
+    runtime = SshReadonlyRuntime(
+        connector_name="host_ro",
+        config={
+            "host": "host.example",
+            "user": "readonly",
+            "deployment_posture": "fixture",
+            "known_hosts_policy": "accept-new",
+            "max_output_bytes": configured,
+            "allowlist": [{"action": "uptime", "command": "uptime"}],
+        },
+    )
+    metadata = (
+        {"execution_controls": {"max_output_bytes": policy}}
+        if policy is not None
+        else {}
+    )
+
+    with patch("rexecop.connectors.ssh_readonly.subprocess.run") as backend:
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="host_ro",
+                action="uptime",
+                target="fixture",
+                mode="dry_run",
+                metadata=metadata,
+            )
+        )
+
+    backend.assert_not_called()
+    assert response.success is False
+    assert response.data["error_class"] == connector_errors.VALIDATION_FAILED
+    assert response.error == "invalid max_output_bytes"
+
+
+def test_local_shell_output_limit_is_a_failure_not_successful_truncation() -> None:
+    runtime = LocalShellReadonlyRuntime(
+        connector_name="host_ro",
+        config={
+            "max_output_bytes": 128,
+            "allowlist": [
+                {
+                    "action": "flood",
+                    "command": sys.executable,
+                    "args": ["-c", "import os; os.write(1, b'x' * (8 * 1024 * 1024))"],
+                }
+            ],
+        },
+    )
+
+    response = runtime.invoke(
+        ConnectorRequest(
+            connector="host_ro",
+            action="flood",
+            target="fixture",
+            mode="dry_run",
+        )
+    )
+
+    assert response.success is False
+    assert response.data["error_class"] == "output_limit_exceeded"
+    assert response.data["output_limit_exceeded"] is True
+    assert response.data["output_sizes"]["total_bytes"] > 128
+    assert len(response.data["stdout"].encode()) <= 128
+    assert response.error == "local shell output limit exceeded"
+
+
+def test_ssh_output_limit_uses_the_same_failure_classification() -> None:
+    runtime = SshReadonlyRuntime(
+        connector_name="host_ro",
+        config={
+            "host": "host.example",
+            "user": "readonly",
+            "deployment_posture": "fixture",
+            "known_hosts_policy": "accept-new",
+            "max_output_bytes": 4,
+            "allowlist": [{"action": "uptime", "command": "uptime"}],
+        },
+    )
+    stdout = CapturedStream(
+        text="abcd",
+        digest="sha256:" + "0" * 64,
+        total_bytes=5,
+        retained_bytes=4,
+        truncated=True,
+    )
+    stderr = CapturedStream(
+        text="",
+        digest="sha256:" + "0" * 64,
+        total_bytes=0,
+        retained_bytes=0,
+        truncated=False,
+    )
+    completed = BoundedSubprocessResult(
+        args=("ssh",),
+        returncode=-15,
+        stdout=stdout,
+        stderr=stderr,
+        output_limit_exceeded=True,
+        peak_retained_bytes=4,
+    )
+
+    with patch("rexecop.connectors.ssh_readonly.subprocess.run", return_value=completed):
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="host_ro",
+                action="uptime",
+                target="fixture",
+                mode="dry_run",
+            )
+        )
+
+    assert response.success is False
+    assert response.data["error_class"] == "output_limit_exceeded"
+    assert response.data["output_limit_exceeded"] is True
+    assert response.error == "ssh command output limit exceeded"
+
+
+def test_local_shell_preserves_timeout_classification() -> None:
+    runtime = LocalShellReadonlyRuntime(
+        connector_name="host_ro",
+        config={
+            "timeout_seconds": 0.05,
+            "allowlist": [
+                {
+                    "action": "wait",
+                    "command": sys.executable,
+                    "args": ["-c", "import time; time.sleep(30)"],
+                }
+            ],
+        },
+    )
+
+    response = runtime.invoke(
+        ConnectorRequest(
+            connector="host_ro",
+            action="wait",
+            target="fixture",
+            mode="dry_run",
+        )
+    )
+
+    assert response.success is False
+    assert response.data["error_class"] == connector_errors.TIMEOUT
+    assert response.error == "local shell timeout"
 
 
 def test_ssh_readonly_redacts_resolved_identity_path_from_error(tmp_path: Path) -> None:

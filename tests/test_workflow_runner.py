@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.connectors.static_fixture import StaticFixtureRuntime
@@ -85,6 +87,86 @@ def test_workflow_runner_executes_declared_steps_only() -> None:
         "checkpoint",
         "inspect_state",
     ]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [-1, 0, True, 1.0, "1", float("nan"), float("inf")],
+)
+def test_workflow_rejects_invalid_output_budget_before_connector(
+    value: object,
+) -> None:
+    runtime = _fixture_runtime()
+    connector_calls: list[str] = []
+    original_invoke = runtime.invoke
+
+    def tracked_invoke(request: ConnectorRequest):
+        connector_calls.append(request.action)
+        return original_invoke(request)
+
+    runtime.invoke = tracked_invoke  # type: ignore[method-assign]
+    runner = WorkflowRunner(
+        StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
+    )
+
+    with pytest.raises(RExecOpValidationError, match="invalid execution resource limits"):
+        runner.run(
+            operation_id="op-invalid-output-budget",
+            target="fixture-target",
+            mode="dry_run",
+            planned_steps=[
+                {
+                    "id": "inspect_state",
+                    "type": "connector",
+                    "connector": "fixture_source",
+                    "action": "read_fixture_state",
+                }
+            ],
+            correlation_id="corr",
+            policy_enforcement={"controls": {"max_output_bytes": value}},
+        )
+
+    assert connector_calls == []
+
+
+@pytest.mark.parametrize(
+    ("controls", "expected"),
+    [({}, 65536), ({"max_output_bytes": 1}, 1), ({"max_output_bytes": 1024 * 1024}, 1024 * 1024)],
+)
+def test_workflow_preserves_omitted_or_exact_positive_output_budget(
+    controls: dict[str, object],
+    expected: int,
+) -> None:
+    runtime = _fixture_runtime()
+    connector_calls: list[str] = []
+    original_invoke = runtime.invoke
+
+    def tracked_invoke(request: ConnectorRequest):
+        connector_calls.append(request.action)
+        return original_invoke(request)
+
+    runtime.invoke = tracked_invoke  # type: ignore[method-assign]
+    result = WorkflowRunner(
+        StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
+    ).run(
+        operation_id="op-valid-output-budget",
+        target="fixture-target",
+        mode="dry_run",
+        planned_steps=[
+            {
+                "id": "inspect_state",
+                "type": "connector",
+                "connector": "fixture_source",
+                "action": "read_fixture_state",
+            }
+        ],
+        correlation_id="corr",
+        policy_enforcement={"controls": controls},
+    )
+
+    assert connector_calls == ["read_fixture_state"]
+    limits = result.shared_state["execution_request"]["resource_limits"]
+    assert limits["max_output_bytes"] == expected
 
 
 def test_readonly_diagnostic_continues_after_declared_connector_failure() -> None:

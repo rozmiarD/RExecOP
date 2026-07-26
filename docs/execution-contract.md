@@ -57,7 +57,10 @@ stable readiness.
 
 - `request_id`, `operation_id`, `target_ref`, `mode`
 - `steps[]`: `step_id`, `step_type`, `action`, `connector`, public metadata only
-- `resource_limits`: `timeout_seconds`, `max_steps`, `max_output_bytes` (default 65536)
+- `resource_limits`: `timeout_seconds`, `max_steps`, `max_output_bytes` (default `65536` only when
+  omitted). `max_output_bytes` is an exact positive integer; booleans, floats, strings, zero,
+  negative and non-finite values are rejected before execution-request construction and connector
+  IO.
 - `policy_binding`: GovEngine enforcement plan, existing admission, pack, and verdict IDs/digests
 
 Steps are derived from workflow plan entries — RExecOp does not invent steps
@@ -91,8 +94,10 @@ record digest rather than adding an HTTP-specific receipt field.
 
 ## Bounded connector output
 
-`rexecop.execution.output.bounded_text()` caps stored text by UTF-8 bytes while
-computing a full-payload `sha256:` digest.
+For shell/SSH subprocesses, `max_output_bytes` is the exact hard combined stdout/stderr producer
+budget. Binary streams are drained incrementally, retained bytes never exceed that combined
+budget, and a producer crossing it fails as `output_limit_exceeded`; it is not successful
+truncation. Counts and SHA-256 digests cover bytes actually drained.
 
 Connectors that emit bounded output today:
 
@@ -102,12 +107,22 @@ Connectors that emit bounded output today:
 | `ssh_readonly` | same | same |
 | `http_api` | `max_response_bytes` (default 65536) | JSON payload or fail-closed oversized response metadata |
 
-Truncated connector text is clipped for storage; its stream digest covers the full
-captured stream. The executor additionally bounds the redacted serialized step result
-before it enters `shared_state` or evidence. For internal handlers, the bound covers
-the returned output and the handler's `shared_state` delta; an oversized or exceptional
-step rolls that delta back. Oversized records are replaced by digest, original byte size,
-and truncation metadata.
+The producer budget is distinct from the bounded diagnostic metadata required to explain a
+failure. Before generic record-size handling, every claimed connector overflow is strictly
+validated and replaced by an allowlisted `rexecop.output_limit_evidence.v0.1` projection. It
+contains stream counts/digests, truncation flags, the producer limit, and the suppressed record's
+digest/size; it never contains raw stdout/stderr, response errors, remote commands, return codes,
+arbitrary connector fields or state deltas.
+
+The projection's `overflow_evidence_envelope` declares `max_bytes: 2048` and its actual
+`evidence_bytes`, measured over the final sorted-key compact ASCII JSON step output. This fixed
+diagnostic envelope may be larger than `max_output_bytes`; neither the step nor receipt claims
+otherwise. Invalid overflow evidence fails closed to the generic `validation_failed` envelope.
+If the claimed overflow cannot be safely canonicalized, that envelope omits record digest and
+record-size fields rather than claiming a digest or byte count that was not produced.
+For internal handlers and other output, the producer/payload bound covers returned output and the
+handler's `shared_state` delta; an oversized or exceptional step rolls that delta back and retains
+only the generic bounded diagnostic envelope.
 
 ## Diagnostic partial failures
 
@@ -160,9 +175,9 @@ When `environment.policy_pack` is set:
    plan, admission, and digests before constructing the runner. Drift and unsupported backend
    capabilities stop execution before connector IO.
 3. **Runtime enforcement** — `max_steps` bounds the whole declared workflow;
-   `timeout` is a per-connector-call upper bound; `output_limit` bounds each persisted
-   redacted step record; receipt and output digest obligations are checked on terminal
-   receipt creation.
+   `timeout` is a per-connector-call upper bound; `output_limit` bounds untrusted producer/payload
+   bytes, while the separately declared fixed diagnostic envelope bounds overflow metadata;
+   receipt and output digest obligations are checked on terminal receipt creation.
 4. **Connector invoke** — `CompositeConnectorRuntime` independently evaluates each
    `ConnectorRequest` before the backend. Connector-level verdicts remain
    plain-allow-only; connector-specific obligations fail closed.

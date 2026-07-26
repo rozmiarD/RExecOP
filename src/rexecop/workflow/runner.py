@@ -8,6 +8,7 @@ from rexecop.execution.executor import StepExecutor
 from rexecop.execution.model import (
     execution_receipt_from_results,
     execution_request_from_workflow,
+    validated_max_output_bytes,
 )
 
 
@@ -86,7 +87,9 @@ class WorkflowRunner:
         binding_raw = enforcement.get("binding")
         binding = dict(binding_raw) if isinstance(binding_raw, dict) else {}
         policy_max_steps = int(controls.get("max_steps") or 0)
-        max_output_bytes = int(controls.get("max_output_bytes") or 65536)
+        max_output_bytes = validated_max_output_bytes(
+            controls["max_output_bytes"] if "max_output_bytes" in controls else 65536
+        )
         timeout_seconds = float(controls.get("timeout_seconds") or 0.0)
         output_digest_required = bool(controls.get("output_digest_required", False))
         execution_request = execution_request_from_workflow(

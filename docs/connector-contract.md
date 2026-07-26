@@ -105,6 +105,7 @@ Templates:
 | `error_class` | Meaning |
 | --- | --- |
 | `timeout` | Request or shell command timed out |
+| `output_limit_exceeded` | Combined subprocess stdout/stderr crossed its hard byte ceiling; the process group was terminated |
 | `transient_connector_error` | Retryable HTTP/network failure |
 | `policy_denied` | Read-only mode or governance block |
 | `capability_undeclared` | Action not in profile connector contract |
@@ -145,8 +146,41 @@ shell `-c`, `sudo`, service/systemd lifecycle mutations, Docker mutations, and D
 Compose `up`/`down`/`restart`. Matching uses argv tokens and command families, not
 substring scanning.
 
-Optional `max_output_bytes` (default `65536`) bounds stored stdout/stderr. Responses include
-`output_digests` (SHA-256 of full capture), `output_truncated`, and `output_sizes`.
+Optional `max_output_bytes` (default `65536`) is one combined hard ceiling across stdout and
+stderr, not a separate allowance for each stream. RExecOp launches exact argv without a shell,
+reads both binary pipes incrementally, and retains at most that many bytes in total. If the first
+byte beyond the combined ceiling is drained, the connector returns
+`error_class: output_limit_exceeded` and terminates the subprocess group; it is never reported as
+a successful truncated command. On POSIX, each command starts in a new session and termination is
+escalated across that process group so ordinary descendants cannot keep inherited pipes open.
+Configured and explicit policy limits must be exact positive JSON/Python integers. Boolean,
+floating-point, string, zero and negative values fail as `validation_failed` before subprocess
+launch; only an omitted value selects `65536`.
+
+Responses include per-stream `output_digests`, `output_truncated`, and byte counts, plus a combined
+`output_sizes.total_bytes`. Digests and counts cover every byte actually drained, including bytes
+already buffered in pipes during termination cleanup, so the observed total can be above the hard
+trigger. Retained bytes are decoded as UTF-8 with invalid or incomplete boundary bytes omitted;
+the digest remains over the original binary stream. Concurrent stdout/stderr retention consists
+of per-stream prefixes allocated in observed readiness order and makes no merged-stream ordering
+claim. A child that deliberately escapes its process group is outside this process-group control;
+the connector is not an OS sandbox.
+
+`max_output_bytes` is only the combined untrusted producer/payload budget. It is not a claim that
+diagnostic metadata fits within the same byte count. Every connector `output_limit_exceeded`
+response is validated and replaced, before generic record-size handling, by a fixed allowlist:
+the failure class, exact per-stream counts and digests, truncation flags, producer limit, and digest
+and size of the suppressed canonical record. Raw stream text, response errors, remote commands,
+return codes, arbitrary connector fields and state deltas are excluded.
+
+That projection carries `overflow_evidence_envelope` with schema
+`rexecop.output_limit_evidence.v0.1`, fixed `max_bytes: 2048`, and `evidence_bytes`. The latter is
+self-measured after all fields are present using sorted-key, compact, ASCII JSON for the step
+output. It must not exceed `max_bytes`; it may legitimately exceed the separate producer
+`max_output_bytes`. Invalid or inconsistent overflow metadata fails closed to the generic bounded
+`validation_failed` envelope. If canonical bytes cannot be produced safely, that envelope makes
+no record-digest or record-size claim. Other oversized step output/state deltas retain that generic
+path.
 
 ## ssh_readonly (temporary)
 
@@ -183,6 +217,7 @@ Connector-level evaluation remains plain-allow-only; connector-specific obligati
 | Operator files | Identity and known-hosts paths must exist, be regular non-symlink files, have the operator owner, and pass permission checks before connector IO. |
 | Remote command quoting | Allowlisted argv is joined with `shlex.quote` before passing as the remote SSH command. |
 | Remote shell | OpenSSH still invokes the remote user shell to run the command string — keep allowlists minimal. |
+| Output capture | Uses the same combined `max_output_bytes`, incremental binary drain, digest/count, and process-group termination contract as `local_shell_readonly`. |
 | Secrets | `identity_file_secret_ref` resolves via `REXECOP_SECRETS_FILE`; never commit key material. |
 | Policy ownership | `environment.policy_pack` → `PolicyEngine` at invoke; allowlist + mode checks remain for shell backends |
 

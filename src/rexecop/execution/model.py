@@ -8,6 +8,7 @@ from string import hexdigits
 from typing import Any
 
 from rexecop.errors import RExecOpValidationError
+from rexecop.execution.bounded_subprocess import validate_output_limit
 
 EXECUTION_REQUEST_SCHEMA_VERSION = "v0.2"
 EXECUTION_RECEIPT_SCHEMA_VERSION = "v0.2"
@@ -20,12 +21,17 @@ class ResourceLimits:
     max_steps: int = 0
     max_output_bytes: int = 65536
 
+    def __post_init__(self) -> None:
+        validated_max_output_bytes(self.max_output_bytes)
+
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any] | None) -> ResourceLimits:
         raw = dict(value or {})
         timeout = float(raw.get("timeout_seconds") or 0.0)
         max_steps = int(raw.get("max_steps") or 0)
-        max_output_bytes = int(raw.get("max_output_bytes") or 65536)
+        max_output_bytes = validated_max_output_bytes(
+            raw["max_output_bytes"] if "max_output_bytes" in raw else 65536
+        )
         if timeout < 0 or max_steps < 0 or max_output_bytes < 1:
             raise RExecOpValidationError("invalid execution resource limits")
         return cls(
@@ -36,6 +42,13 @@ class ResourceLimits:
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def validated_max_output_bytes(value: object) -> int:
+    try:
+        return validate_output_limit(value)
+    except ValueError as exc:
+        raise RExecOpValidationError("invalid execution resource limits") from exc
 
 
 @dataclass(frozen=True)

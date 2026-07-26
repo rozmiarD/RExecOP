@@ -711,6 +711,9 @@ class OperationOrchestrator:
         )
         plan_digest = str(record.get("plan_digest") or "")
         admission_digest = str(record.get("admission_digest") or "")
+        controls = enforcement_plan.controls.as_dict()
+        if enforcement_plan.controls.max_output_bytes == 0:
+            controls.pop("max_output_bytes", None)
         return {
             "binding": execution_policy_binding(
                 enforcement_plan,
@@ -718,7 +721,7 @@ class OperationOrchestrator:
                 plan_digest=plan_digest,
                 admission_digest=admission_digest,
             ),
-            "controls": enforcement_plan.controls.as_dict(),
+            "controls": controls,
         }
 
     def _begin_validation(self, operation: Operation) -> Operation:

@@ -150,11 +150,128 @@ def test_local_shell_readonly_bounds_output_and_keeps_digest() -> None:
             )
         )
 
-    assert response.success
+    assert not response.success
     assert response.data["stdout"] == "abcd"
     assert response.data["output_truncated"]["stdout"] is True
     assert response.data["output_sizes"]["stdout_bytes"] == 6
     assert response.data["output_digests"]["stdout"].startswith("sha256:")
+    assert response.data["error_class"] == "output_limit_exceeded"
+
+
+def test_local_shell_mock_combined_output_exceeding_limit_is_failure() -> None:
+    runtime = LocalShellReadonlyRuntime(
+        connector_name="host_probe",
+        config={
+            "max_output_bytes": 4,
+            "allowlist": [{"action": "probe", "command": "printf"}],
+        },
+    )
+
+    class Result:
+        returncode = 0
+        stdout = "ab"
+        stderr = "cde"
+
+    with patch("rexecop.connectors.local_shell.subprocess.run", return_value=Result()):
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="host_probe",
+                action="probe",
+                target="local",
+                mode="dry_run",
+            )
+        )
+
+    assert response.success is False
+    assert response.data["error_class"] == "output_limit_exceeded"
+    assert response.data["stdout"] == "ab"
+    assert response.data["stderr"] == "cd"
+    assert response.data["output_sizes"]["total_bytes"] == 5
+
+
+@pytest.mark.parametrize(
+    ("configured", "policy"),
+    [
+        (-1, None),
+        (0, None),
+        (True, None),
+        (1.0, None),
+        ("1", None),
+        (float("nan"), None),
+        (float("inf"), None),
+        (64, -1),
+        (64, 0),
+        (64, True),
+        (64, 1.0),
+        (64, "1"),
+        (64, float("nan")),
+        (64, float("inf")),
+    ],
+)
+def test_local_shell_rejects_nonpositive_output_limit_before_launch(
+    configured: object,
+    policy: object | None,
+) -> None:
+    runtime = LocalShellReadonlyRuntime(
+        connector_name="host_probe",
+        config={
+            "max_output_bytes": configured,
+            "allowlist": [{"action": "probe", "command": "printf"}],
+        },
+    )
+    metadata = (
+        {"execution_controls": {"max_output_bytes": policy}}
+        if policy is not None
+        else {}
+    )
+
+    with patch("rexecop.connectors.local_shell.subprocess.run") as backend:
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="host_probe",
+                action="probe",
+                target="local",
+                mode="dry_run",
+                metadata=metadata,
+            )
+        )
+
+    backend.assert_not_called()
+    assert response.success is False
+    assert response.data["error_class"] == connector_errors.VALIDATION_FAILED
+    assert response.error == "invalid max_output_bytes"
+
+
+@pytest.mark.parametrize("limit", [1, 1024 * 1024])
+def test_local_shell_accepts_positive_output_limits(limit: int) -> None:
+    runtime = LocalShellReadonlyRuntime(
+        connector_name="host_probe",
+        config={
+            "max_output_bytes": limit,
+            "allowlist": [{"action": "probe", "command": "printf"}],
+        },
+    )
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    with patch(
+        "rexecop.connectors.local_shell.subprocess.run",
+        return_value=Result(),
+    ) as backend:
+        response = runtime.invoke(
+            ConnectorRequest(
+                connector="host_probe",
+                action="probe",
+                target="local",
+                mode="dry_run",
+            )
+        )
+
+    assert response.success is True
+    assert backend.call_args.kwargs["max_output_bytes"] == limit
 
 
 def test_local_shell_redacts_plaintext_secret_from_output_and_error() -> None:

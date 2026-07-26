@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import shlex
 import stat
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -10,16 +9,18 @@ from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import (
     ConnectorRequest,
     ConnectorResponse,
-    effective_output_bytes,
     effective_timeout_seconds,
 )
 from rexecop.connectors.command_shape import normalize_allowlisted_argv
 from rexecop.connectors.errors import READ_ONLY_MODES
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import redact_payload, redact_text, register_secret_value
-from rexecop.execution.output import bounded_text
+from rexecop.execution import bounded_subprocess as capture_runtime
 from rexecop.secrets.port import SecretResolver
 from rexecop.secrets.resolver import default_secret_resolver
+
+# Preserve the existing connector test seam while routing it to bounded capture.
+subprocess = capture_runtime
 
 ALLOWED_KNOWN_HOSTS_POLICIES = frozenset({"accept-new", "strict", "no"})
 
@@ -93,15 +94,33 @@ class SshReadonlyRuntime:
             request,
             float(self.config.get("timeout_seconds") or 15),
         )
+        controls = request.metadata.get("execution_controls")
         try:
-            completed = subprocess.run(
-                argv,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
+            configured_output_bytes = self.config.get("max_output_bytes", 65536)
+            if isinstance(controls, dict) and "max_output_bytes" in controls:
+                max_output_bytes = capture_runtime.resolve_output_limit(
+                    configured=configured_output_bytes,
+                    policy=controls["max_output_bytes"],
+                )
+            else:
+                max_output_bytes = capture_runtime.resolve_output_limit(
+                    configured=configured_output_bytes,
+                )
+        except ValueError:
+            return ConnectorResponse(
+                connector=request.connector,
+                action=request.action,
+                success=False,
+                error="invalid max_output_bytes",
+                data={"error_class": connector_errors.VALIDATION_FAILED},
             )
-        except subprocess.TimeoutExpired:
+        try:
+            completed = capture_runtime.run(
+                argv,
+                timeout=timeout,
+                max_output_bytes=max_output_bytes,
+            )
+        except capture_runtime.TimeoutExpired:
             return ConnectorResponse(
                 connector=request.connector,
                 action=request.action,
@@ -109,38 +128,46 @@ class SshReadonlyRuntime:
                 error="ssh command timeout",
                 data={"error_class": connector_errors.TIMEOUT},
             )
-        success = completed.returncode == 0
-        max_output_bytes = effective_output_bytes(
-            request,
-            int(self.config.get("max_output_bytes") or 65536),
+        result = capture_runtime.normalize_result(
+            completed,
+            max_output_bytes=max_output_bytes,
         )
-        stdout = bounded_text(completed.stdout, max_bytes=max_output_bytes)
-        stderr = bounded_text(completed.stderr, max_bytes=max_output_bytes)
+        success = result.returncode == 0 and not result.output_limit_exceeded
+        data = {
+            "stdout": result.stdout.text,
+            "stderr": result.stderr.text,
+            "returncode": result.returncode,
+            "remote_command": remote_command,
+            "max_output_bytes": max_output_bytes,
+            "output_limit_exceeded": result.output_limit_exceeded,
+            "output_digests": {
+                "stdout": result.stdout.digest,
+                "stderr": result.stderr.digest,
+            },
+            "output_truncated": {
+                "stdout": result.stdout.truncated,
+                "stderr": result.stderr.truncated,
+            },
+            "output_sizes": {
+                "stdout_bytes": result.stdout.total_bytes,
+                "stderr_bytes": result.stderr.total_bytes,
+                "total_bytes": result.stdout.total_bytes + result.stderr.total_bytes,
+            },
+        }
+        if result.output_limit_exceeded:
+            data["error_class"] = capture_runtime.OUTPUT_LIMIT_EXCEEDED
         return ConnectorResponse(
             connector=request.connector,
             action=request.action,
             success=success,
-            data=redact_payload(
-                {
-                    "stdout": stdout.text,
-                    "stderr": stderr.text,
-                    "returncode": completed.returncode,
-                    "remote_command": remote_command,
-                    "output_digests": {
-                        "stdout": stdout.digest,
-                        "stderr": stderr.digest,
-                    },
-                    "output_truncated": {
-                        "stdout": stdout.truncated,
-                        "stderr": stderr.truncated,
-                    },
-                    "output_sizes": {
-                        "stdout_bytes": stdout.original_bytes,
-                        "stderr_bytes": stderr.original_bytes,
-                    },
-                }
+            data=redact_payload(data),
+            error=(
+                ""
+                if success
+                else "ssh command output limit exceeded"
+                if result.output_limit_exceeded
+                else redact_text(result.stderr.text) or "ssh command failed"
             ),
-            error="" if success else redact_text(completed.stderr.strip()) or "ssh command failed",
         )
 
     def _build_remote_command(
