@@ -306,8 +306,12 @@ def test_connector_output_limit_survives_step_and_receipt_controls() -> None:
             "allowlist": [
                 {
                     "action": "flood",
-                    "command": sys.executable,
-                    "args": ["-c", "import os; os.write(1, b'x' * (8 * 1024 * 1024))"],
+                    "command": "/usr/bin/env",
+                    "args": [
+                        sys.executable,
+                        "-c",
+                        "import os; os.write(1, b'x' * (8 * 1024 * 1024))",
+                    ],
                 }
             ],
         },
@@ -376,8 +380,12 @@ def test_tiny_connector_overflow_always_uses_separate_evidence_envelope() -> Non
             "allowlist": [
                 {
                     "action": "flood",
-                    "command": sys.executable,
-                    "args": ["-c", "import os; os.write(1, b' \\xff')"],
+                    "command": "/usr/bin/env",
+                    "args": [
+                        sys.executable,
+                        "-c",
+                        "import os; os.write(1, b' \\xff')",
+                    ],
                 }
             ],
         },

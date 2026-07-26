@@ -279,8 +279,12 @@ def test_local_shell_output_limit_is_a_failure_not_successful_truncation() -> No
             "allowlist": [
                 {
                     "action": "flood",
-                    "command": sys.executable,
-                    "args": ["-c", "import os; os.write(1, b'x' * (8 * 1024 * 1024))"],
+                    "command": "/usr/bin/env",
+                    "args": [
+                        sys.executable,
+                        "-c",
+                        "import os; os.write(1, b'x' * (8 * 1024 * 1024))",
+                    ],
                 }
             ],
         },
@@ -362,8 +366,8 @@ def test_local_shell_preserves_timeout_classification() -> None:
             "allowlist": [
                 {
                     "action": "wait",
-                    "command": sys.executable,
-                    "args": ["-c", "import time; time.sleep(30)"],
+                    "command": "/usr/bin/env",
+                    "args": [sys.executable, "-c", "import time; time.sleep(30)"],
                 }
             ],
         },

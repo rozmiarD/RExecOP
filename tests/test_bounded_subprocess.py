@@ -359,11 +359,9 @@ def _wait_until_not_running(pid: int) -> bool:
     deadline = time.monotonic() + 1
     while time.monotonic() < deadline:
         stat_path = Path(f"/proc/{pid}/stat")
-        if not stat_path.exists():
-            return True
         try:
             fields = stat_path.read_text(encoding="utf-8").split()
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             return True
         if len(fields) > 2 and fields[2] == "Z":
             return True
