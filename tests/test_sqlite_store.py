@@ -8,6 +8,7 @@ import pytest
 
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.model import Operation
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.factory import create_store, resolve_storage_backend
 from rexecop.storage.sqlite_store import SqliteStore
 
@@ -54,8 +55,13 @@ def test_sqlite_store_uses_db_not_json_operations(tmp_path: Path) -> None:
 
 
 def test_create_store_factory(tmp_path: Path) -> None:
-    sqlite_store = create_store(tmp_path / ".rexecop-a", backend="sqlite")
-    file_store = create_store(tmp_path / ".rexecop-b", backend="file")
+    sqlite_root = tmp_path / ".rexecop-a"
+    file_root = tmp_path / ".rexecop-b"
+    initialize_runtime_root(sqlite_root, backend="sqlite")
+    initialize_runtime_root(file_root, backend="file")
+
+    sqlite_store = create_store(sqlite_root, backend="sqlite")
+    file_store = create_store(file_root, backend="file")
     assert isinstance(sqlite_store, SqliteStore)
     assert type(file_store).__name__ == "FileStore"
 

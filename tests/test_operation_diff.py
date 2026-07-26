@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 from rexecop.cli import app
 from rexecop.operation.controller import OperationController
 from rexecop.operation.diff import diff_operation_plan, render_operation_plan_diff
+from rexecop.runtime.init import initialize_runtime_root
 from test_catalog import _write_fixture
 
 runner = CliRunner()
@@ -22,6 +23,7 @@ def test_diff_reports_unchanged_catalog_binding(
     runtime = tmp_path / "runtime"
     runtime.mkdir()
     monkeypatch.chdir(runtime)
+    initialize_runtime_root(runtime / ".rexecop")
     controller = OperationController()
     operation = controller.plan(
         profile_path=None,
@@ -50,6 +52,7 @@ def test_diff_detects_environment_drift(
     runtime = tmp_path / "runtime"
     runtime.mkdir()
     monkeypatch.chdir(runtime)
+    initialize_runtime_root(runtime / ".rexecop")
     controller = OperationController()
     operation = controller.plan(
         profile_path=None,
@@ -104,6 +107,7 @@ def test_render_operation_plan_diff_formats() -> None:
 def test_cli_operation_diff_exit_code_on_drift(tmp_path: Path) -> None:
     _, environment, catalog = _write_fixture(tmp_path)
     root = tmp_path / "runtime"
+    initialize_runtime_root(root)
     plan_result = runner.invoke(
         app,
         [

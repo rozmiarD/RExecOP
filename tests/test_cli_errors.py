@@ -11,6 +11,7 @@ from rexecop.cli import app
 from rexecop.cli_contracts import CLI_CONTRACTS
 from rexecop.operation.model import Operation
 from rexecop.operation.state import OperationState
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.file_store import FileStore
 
 runner = CliRunner()
@@ -44,6 +45,7 @@ def _invoke(root: Path, *args: str):
 
 def _planned_operation(tmp_path: Path):
     root = tmp_path / ".rexecop"
+    initialize_runtime_root(root)
     store = FileStore(root)
     store.ensure_layout()
     from rexecop.operation.controller import OperationController
@@ -65,6 +67,7 @@ def test_start_reports_stable_mutation_posture_reason(tmp_path: Path) -> None:
     from rexecop.operation.controller import OperationController
 
     root = tmp_path / ".rexecop"
+    initialize_runtime_root(root)
     controller = OperationController(
         store=FileStore(root),
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
@@ -196,6 +199,7 @@ def test_registry_commands_emit_cli_error_on_failure(
     expected_reason: str,
 ) -> None:
     root = tmp_path / "runtime"
+    initialize_runtime_root(root)
     result = _invoke(root, *args)
     payload = _json_error(result)
     assert payload["command"] == expected_command
@@ -204,6 +208,7 @@ def test_registry_commands_emit_cli_error_on_failure(
 
 def test_ops_blockers_use_cli_error_schema_with_details(tmp_path: Path) -> None:
     root = tmp_path / "runtime"
+    initialize_runtime_root(root)
     store = FileStore(root)
     store.ensure_layout()
     now = datetime.now(UTC).replace(microsecond=0).isoformat()
@@ -256,7 +261,9 @@ def test_profile_lint_failed_uses_cli_error_schema() -> None:
 
 
 def test_support_bundle_unredacted_uses_cli_error_schema(tmp_path: Path) -> None:
-    payload = _json_error(_invoke(tmp_path / "runtime", "support", "bundle", "op-1"))
+    root = tmp_path / "runtime"
+    initialize_runtime_root(root)
+    payload = _json_error(_invoke(root, "support", "bundle", "op-1"))
     assert payload["reason_code"] == "support_bundle_unavailable"
     assert payload["command"] == "support bundle"
 

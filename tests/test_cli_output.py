@@ -170,6 +170,7 @@ def test_plan_explain_table_format_renders_summary() -> None:
 
 def test_history_table_format_after_plan(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    assert runner.invoke(app, ['init']).exit_code == 0
     plan = runner.invoke(
         app,
         [
@@ -199,6 +200,7 @@ def test_history_table_format_after_plan(tmp_path, monkeypatch) -> None:
 
 def test_global_json_on_approve_failure_emits_cli_error(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    assert runner.invoke(app, ['init']).exit_code == 0
     result = runner.invoke(
         app,
         ['--json', 'approve', '--operation', 'missing-op'],

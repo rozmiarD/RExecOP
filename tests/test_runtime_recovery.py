@@ -29,6 +29,7 @@ from rexecop.runtime_ops.reconstruction import collect_runtime_reconstruction_st
 from rexecop.runtime_ops.recovery import run_startup_recovery, start_is_idempotent
 from rexecop.runtime_ops.target_lock import TargetLockManager
 from rexecop.runtime_ops.worker import run_worker
+from rexecop.storage.factory import create_store
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1665,6 +1666,62 @@ def test_cli_runtime_recover_and_backup(tmp_path: Path) -> None:
     )
     assert backup.exit_code == 0, backup.output
     assert '"status": "created"' in backup.output
+
+
+def test_cli_backup_create_rejects_configured_backend_mismatch_before_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("REXECOP_STORAGE", "file")
+    root = tmp_path / "file-root"
+    initialize_runtime_root(root, backend="file")
+    output = tmp_path / "bundle.tar"
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(root),
+            "--storage",
+            "sqlite",
+            "backup",
+            "create",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "error: runtime_root_storage_backend_mismatch" in result.output
+    assert not output.exists()
+    assert not output.with_suffix(".manifest.json").exists()
+
+
+def test_cli_backup_restore_accepts_new_target_then_factory_opens_it(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    initialize_runtime_root(source, backend="file")
+    created = create_runtime_backup(source, output=tmp_path / "backup.tar", now=NOW)
+    target = tmp_path / "restored"
+
+    result = runner.invoke(
+        app,
+        [
+            "--root",
+            str(target),
+            "backup",
+            "restore",
+            "--archive",
+            str(created["archive"]),
+            "--manifest",
+            str(created["manifest"]),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["status"] == "restored"
+    assert create_store(target, backend="file").root == target
 
 
 def test_cli_backup_create_contains_suffixless_existing_output_error(

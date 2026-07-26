@@ -25,6 +25,7 @@ from rexecop.runtime.mutation_posture import (
     STABLE_READ_ONLY_POSTURE,
     resolve_mutation_posture,
 )
+from rexecop.runtime.root_compatibility import inspect_runtime_root_compatibility
 from rexecop.storage.factory import resolve_storage_backend
 
 EXPECTED_GOVENGINE = "1.0.0rc1"
@@ -65,8 +66,15 @@ def run_runtime_doctor(
     profile_check = _check_profile(profile)
     expected_profile = str((profile_check.get("details") or {}).get("profile") or "")
     storage_check = _check_storage_backend(storage_backend)
+    configured_backend = str(
+        (storage_check.get("details") or {}).get("backend") or ""
+    )
     checks = [
         _check_runtime_root(root),
+        _check_runtime_root_compatibility(
+            root,
+            configured_storage_backend=configured_backend or None,
+        ),
         storage_check,
         _check_executor_posture(executor_posture or os.environ.get("REXECOP_EXECUTOR_POSTURE")),
         _check_mutation_posture(
@@ -146,6 +154,32 @@ def _check_runtime_root(root: Path) -> dict[str, Any]:
             "runtime root is not a directory",
         )
     return _check("runtime_root", CHECK_PASSED, "runtime root exists")
+
+
+def _check_runtime_root_compatibility(
+    root: Path,
+    *,
+    configured_storage_backend: str | None,
+) -> dict[str, Any]:
+    decision = inspect_runtime_root_compatibility(
+        root,
+        target_version=__version__,
+        configured_storage_backend=configured_storage_backend,
+    )
+    if decision["status"] == "compatible":
+        return _check(
+            "runtime_root_compatibility",
+            CHECK_PASSED,
+            "runtime root manifest is compatible",
+            details=decision,
+        )
+    return _check(
+        "runtime_root_compatibility",
+        CHECK_BLOCKER,
+        f"runtime root compatibility blocked: {decision['reason_code']}",
+        details=decision,
+        next_action=str(decision["guidance"]),
+    )
 
 
 def _check_storage_backend(storage_backend: str | None) -> dict[str, Any]:

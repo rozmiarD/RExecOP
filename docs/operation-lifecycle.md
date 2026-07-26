@@ -47,6 +47,17 @@ See [runtime-recovery-ops.md](runtime-recovery-ops.md) for triage, recovery and 
 workflows. See [profile-developer-surface.md](profile-developer-surface.md) and
 [secrets-operator.md](secrets-operator.md) for developer and secret-resolution surfaces.
 
+Before a persisted runtime store is opened, RExecOp reads the root manifest and
+fails closed on missing or malformed data, unsupported schema or runtime major,
+alpha-to-v1 reuse, and configured backend mismatch. Only explicit `rexecop init`
+may create a missing manifest, and then only for an absent root or a strictly
+empty real directory reached without symbolic-link components. Manifest reads
+are bounded to 64 KiB, require a no-follow regular file and reject duplicate
+JSON keys. `doctor` evaluates this same decision read-only; backup restore
+validates the archived manifest while staging a deliberate new root. There is
+no in-place migration, downgrade or backend conversion contract, and this guard
+does not make older binaries safe against newer roots.
+
 ## Runtime policy
 
 Configured per environment under `safety`:

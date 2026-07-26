@@ -11,6 +11,7 @@ from rexecop.cli import app
 from rexecop.operation.controller import OperationController
 from rexecop.operation.model import Operation
 from rexecop.operation.state import OperationState
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.runtime_ops.triage import (
     collect_ops_snapshot,
     collect_runtime_status,
@@ -25,7 +26,9 @@ runner = CliRunner()
 
 
 def _controller(tmp_path: Path) -> OperationController:
-    return OperationController(store=FileStore(tmp_path / ".rexecop"))
+    root = tmp_path / ".rexecop"
+    initialize_runtime_root(root)
+    return OperationController(store=FileStore(root))
 
 
 def _save_operation(store: FileStore, operation: Operation) -> None:
@@ -37,7 +40,7 @@ def test_runtime_status_reports_queue_and_dead_letters(tmp_path: Path) -> None:
     store = controller.store
     controller.runtime.queue.enqueue("op-queued-1")
     inbox = store.root / "inbox"
-    inbox.mkdir(parents=True)
+    inbox.mkdir(parents=True, exist_ok=True)
     (inbox / "job.json").write_text("{}", encoding="utf-8")
     WatchdogService(store).move_inbox_item_to_dead_letter(
         inbox / "job.json",
@@ -149,7 +152,7 @@ def test_explain_error_for_operation_and_dead_letter(tmp_path: Path) -> None:
     assert explained["reason_code"] == "fixture_mutation_denied"
 
     inbox = store.root / "inbox"
-    inbox.mkdir(parents=True)
+    inbox.mkdir(parents=True, exist_ok=True)
     path = inbox / "secret-job.json"
     path.write_text(
         json.dumps({"private_note": "never-show-this-token", "intent": "inspect"}),
@@ -253,6 +256,7 @@ def test_cli_ops_exits_nonzero_when_blockers_present(tmp_path: Path) -> None:
 def test_cli_catalog_plan_diff_and_ops_flow(tmp_path: Path) -> None:
     _, environment, catalog = _write_fixture(tmp_path)
     root = tmp_path / "runtime"
+    initialize_runtime_root(root)
     plan_result = runner.invoke(
         app,
         [

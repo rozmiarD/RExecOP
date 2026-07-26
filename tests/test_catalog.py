@@ -16,6 +16,7 @@ from rexecop.catalog.service import CatalogService
 from rexecop.cli import app
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
+from rexecop.runtime.init import initialize_runtime_root
 
 
 def _profile_contract(name: str) -> dict[str, object]:
@@ -239,6 +240,7 @@ def test_catalog_plan_binds_digests_into_sclite_execution_contract(
     runtime = tmp_path / "runtime"
     runtime.mkdir()
     monkeypatch.chdir(runtime)
+    initialize_runtime_root(runtime / ".rexecop")
     controller = OperationController()
 
     operation = controller.plan(
@@ -268,6 +270,7 @@ def test_catalog_drift_blocks_start_before_backend(
     runtime = tmp_path / "runtime"
     runtime.mkdir()
     monkeypatch.chdir(runtime)
+    initialize_runtime_root(runtime / ".rexecop")
     controller = OperationController()
     operation = controller.plan(
         profile_path=None,

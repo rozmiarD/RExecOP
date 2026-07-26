@@ -237,7 +237,72 @@ def test_cli_doctor_reports_missing_runtime_root_blocker(tmp_path: Path) -> None
     payload = json.loads(result.stdout)
     assert payload["status"] == "blocker"
     assert "runtime_root" in payload["blockers"]
+    assert "runtime_root_compatibility" in payload["blockers"]
+    compatibility = next(
+        check for check in payload["checks"] if check["id"] == "runtime_root_compatibility"
+    )
+    assert compatibility["details"]["reason_code"] == "runtime_root_manifest_missing"
     assert f"rexecop --root {root} init" in payload["next_actions"]
+
+
+def test_cli_queue_rejects_missing_manifest_without_creating_root(tmp_path: Path) -> None:
+    root = tmp_path / "missing-root"
+
+    result = runner.invoke(app, ["--root", str(root), "queue"])
+
+    assert result.exit_code == 1
+    assert "error: runtime_root_manifest_missing" in result.output
+    assert "Traceback" not in result.output
+    assert not root.exists()
+
+
+def test_cli_doctor_reports_malformed_manifest_without_mutation(tmp_path: Path) -> None:
+    root = tmp_path / "malformed-root"
+    root.mkdir()
+    manifest_path = root / "runtime_manifest.json"
+    manifest_path.write_bytes(b"{not-json\n")
+    before = {path.name for path in root.iterdir()}
+
+    result = runner.invoke(app, ["--root", str(root), "doctor"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    compatibility = next(
+        check for check in payload["checks"] if check["id"] == "runtime_root_compatibility"
+    )
+    assert compatibility["status"] == "blocker"
+    assert compatibility["details"]["reason_code"] == "runtime_root_manifest_invalid"
+    assert compatibility["next_action"] == (
+        "use a verified backup or initialize a new runtime root"
+    )
+    assert manifest_path.read_bytes() == b"{not-json\n"
+    assert {path.name for path in root.iterdir()} == before
+
+
+def test_cli_doctor_reports_configured_backend_mismatch(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("REXECOP_STORAGE", "file")
+    root = tmp_path / "file-root"
+    assert runner.invoke(app, ["--root", str(root), "init"]).exit_code == 0
+
+    result = runner.invoke(
+        app,
+        ["--root", str(root), "--storage", "sqlite", "doctor"],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    compatibility = next(
+        check for check in payload["checks"] if check["id"] == "runtime_root_compatibility"
+    )
+    assert compatibility["status"] == "blocker"
+    assert compatibility["details"]["reason_code"] == (
+        "runtime_root_storage_backend_mismatch"
+    )
+    assert compatibility["details"]["stored_storage_backend"] == "file"
+    assert compatibility["details"]["configured_storage_backend"] == "sqlite"
 
 
 def test_cli_doctor_warns_without_operator_inputs_after_init(tmp_path: Path) -> None:
@@ -326,6 +391,7 @@ def test_cli_profile_lint_passes_readonly_fixture_track(tmp_path: Path) -> None:
 
 def test_cli_watchdog_manual_record(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    assert runner.invoke(app, ["init"]).exit_code == 0
 
     result = runner.invoke(
         app,

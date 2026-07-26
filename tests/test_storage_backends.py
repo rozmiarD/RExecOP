@@ -8,6 +8,7 @@ from rexecop.operation.controller import OperationController
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.state import OperationState
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.factory import create_store
 from rexecop.storage.port import RuntimeStore
 
@@ -18,7 +19,10 @@ ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 @pytest.fixture(params=["file", "sqlite"])
 def runtime_store(tmp_path: Path, request: pytest.FixtureRequest) -> RuntimeStore:
-    return create_store(tmp_path / ".rexecop", backend=str(request.param))
+    root = tmp_path / ".rexecop"
+    backend = str(request.param)
+    initialize_runtime_root(root, backend=backend)
+    return create_store(root, backend=backend)
 
 
 def test_storage_round_trip(runtime_store: RuntimeStore) -> None:

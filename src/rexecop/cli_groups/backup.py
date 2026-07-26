@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 
-from rexecop.cli_context import controller
+from rexecop.cli_context import controller, runtime_root
 from rexecop.errors import RExecOpError
 from rexecop.runtime_ops.backup import create_runtime_backup, restore_runtime_backup
 
@@ -39,7 +39,7 @@ def backup_restore_cmd(
     try:
         result = restore_runtime_backup(
             archive=archive,
-            target_root=controller().store.root,
+            target_root=runtime_root(),
             manifest=manifest,
         )
     except RExecOpError as exc:

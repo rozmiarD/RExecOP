@@ -14,6 +14,7 @@ from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.reaction.service import ReactionService
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.file_store import FileStore
 from rexecop.truth_path import project_truth_path
 
@@ -135,7 +136,9 @@ def _run_tecrax_golden_flow(
         command = _ssh_remote_command(argv)
         return subprocess.CompletedProcess(argv, 0, outputs[command], "")
 
-    controller = OperationController(store=FileStore(tmp_path / ".rexecop"))
+    root = tmp_path / ".rexecop"
+    initialize_runtime_root(root)
+    controller = OperationController(store=FileStore(root))
     with (
         patch("rexecop.connectors.ssh_readonly.subprocess.run", side_effect=run),
         patch(

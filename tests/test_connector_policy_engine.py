@@ -16,6 +16,7 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
 from rexecop.policy.lifecycle import describe_policy_pack_lifecycle
 from rexecop.policy.pack import compile_environment_policy_pack
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -310,6 +311,7 @@ def test_cli_policy_explain_requires_environment_policy_pack() -> None:
 
 def test_cli_operation_explain_reports_plan_bindings_and_safe_actions(tmp_path: Path) -> None:
     root = tmp_path / "runtime"
+    initialize_runtime_root(root)
     plan_result = runner.invoke(
         app,
         [

@@ -18,6 +18,7 @@ from rexecop.errors import (
 from rexecop.execution.backend import StepExecutionContext
 from rexecop.execution.executor import StepExecutor
 from rexecop.operation.controller import OperationController
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.file_store import FileStore
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +68,7 @@ def test_retry_cli_emits_outcome_indeterminate_without_internal_message(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / ".rexecop"
+    initialize_runtime_root(root)
     store = FileStore(root)
     controller = OperationController(store)
     operation = controller.plan(

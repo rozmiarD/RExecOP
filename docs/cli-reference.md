@@ -28,13 +28,26 @@ root (`rexecop init`). Metadata commands (`env lint`, `profile lint`, `action`,
 `secrets`, `profiles`, `connectors`, `capabilities`, `policy explain`, `governance controls`) work
 without a store.
 
+Every store-backed command checks `runtime_manifest.json` before opening the
+configured backend. A missing, malformed or non-object manifest, an unsupported
+manifest schema or runtime major, and a mismatch between the persisted and
+configured storage backend fail closed. Only explicit `rexecop init` may create
+a missing manifest, and only when the selected root is absent or is a strictly
+empty real directory with no symbolic-link path components. The manifest is
+read as a bounded 64 KiB regular file without following links; duplicate keys,
+non-object JSON and invalid encoding fail closed. Rerunning `init` is idempotent
+only for a compatible root with the same backend. Alpha roots and roots from
+another major require a new root or a matching binary: this release does not
+migrate, downgrade or convert runtime roots. These checks constrain current
+binaries and do not make older binaries retroactively safe.
+
 ## Runtime readiness
 
 | Command | Purpose |
 | --- | --- |
 | `version` | Print package version |
 | `init [--guided]` | Create runtime root layout; no secrets or backend IO |
-| `doctor [--profile] [--env] [--catalog]` | Runtime root, storage, single-executor and mutation posture, plugin inventory, stack compatibility, `security_blockers` and optional operator inputs |
+| `doctor [--profile] [--env] [--catalog]` | Read-only runtime-root manifest compatibility, storage, single-executor and mutation posture, plugin inventory, stack compatibility, `security_blockers` and optional operator inputs |
 
 For stable-runtime qualification, set `REXECOP_DEPLOYMENT_POSTURE=stable` and
 allowlist every reviewed in-process plugin with `REXECOP_PLUGIN_ALLOWLIST`. JSON
@@ -209,6 +222,12 @@ expose raw secrets or private connector payloads.
 | `watchdog manual-record --action ... --reason ... --actor-ref ... --scope ...` | Governed manual watchdog decision without executing recovery |
 
 See [runtime-recovery-ops.md](runtime-recovery-ops.md).
+
+`backup create` requires a compatible initialized source root. `backup restore`
+is the deliberate new-root exception: it validates the archived runtime
+manifest before atomically promoting the new target. The restored manifest
+retains its recorded backend, so later commands must select that same backend.
+Restore does not perform runtime-root migration or backend conversion.
 
 ## Operation lifecycle
 

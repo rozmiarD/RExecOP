@@ -1485,16 +1485,16 @@ def queue_cmd(
     drain: bool = typer.Option(False, "--drain", help="Start all admitted queued operations once."),
 ) -> None:
     """Show pending run-now queue entries, or drain the queue once."""
-    controller = _controller()
-    if drain:
-        try:
+    try:
+        controller = _controller()
+        if drain:
             started = drain_queue(controller)
-        except RExecOpError as exc:
-            typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=1) from exc
-        typer.echo(json.dumps({"started": started}, indent=2, sort_keys=True))
-        return
-    pending = controller.runtime.queue.list_pending()
+            typer.echo(json.dumps({"started": started}, indent=2, sort_keys=True))
+            return
+        pending = controller.runtime.queue.list_pending()
+    except RExecOpError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
     typer.echo(json.dumps({"pending": pending}, indent=2, sort_keys=True))
 
 
@@ -1537,8 +1537,8 @@ def worker_run_cmd(
     ),
 ) -> None:
     """Poll the run-now queue and start admitted operations (systemd-friendly)."""
-    controller = _controller()
     try:
+        controller = _controller()
         started = run_worker(
             controller,
             once=once,
@@ -1573,8 +1573,8 @@ def watchdog_manual_record_cmd(
     inbox_item_name: str = typer.Option("", "--inbox-item", help="Affected inbox item name."),
 ) -> None:
     """Record a governed manual watchdog decision without executing recovery."""
-    controller = _controller()
     try:
+        controller = _controller()
         record = WatchdogService(controller.store).record_manual_recovery_action(
             action=action,
             reason=reason,
@@ -1632,8 +1632,8 @@ def trigger_cmd(
             "source": "cli",
         }
 
-    controller = _controller()
     try:
+        controller = _controller()
         if parsed.get("kind") == "trigger_event":
             result = trigger_event(
                 controller,

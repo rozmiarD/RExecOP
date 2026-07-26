@@ -19,7 +19,11 @@ from rexecop.public_api import (
 )
 from rexecop.runtime import init as runtime_init
 from rexecop.runtime.contract_compatibility import validate_rexecop_projection_version
-from rexecop.runtime.root_compatibility import runtime_root_compatibility
+from rexecop.runtime.root_compatibility import (
+    RUNTIME_MANIFEST_MAX_BYTES,
+    runtime_root_compatibility,
+)
+from rexecop.storage.factory import create_store
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -110,6 +114,88 @@ def test_alpha_runtime_root_requires_new_root_for_v1() -> None:
     assert decision["new_root_required"] is True
 
 
+@pytest.mark.parametrize(
+    ("manifest", "target_version", "configured_backend", "manifest_present", "reason_code"),
+    [
+        (None, "1.0.0", "file", False, "runtime_root_manifest_missing"),
+        ([], "1.0.0", "file", True, "runtime_root_manifest_invalid"),
+        (
+            {
+                "schema": "rexecop.runtime_init.v9.0",
+                "rexecop_version": "1.0.0",
+                "storage_backend": "file",
+            },
+            "1.0.0",
+            "file",
+            True,
+            "runtime_root_manifest_schema_unsupported",
+        ),
+        (
+            {
+                "schema": "rexecop.runtime_init.v0.1",
+                "rexecop_version": "0.3.0rc3",
+                "storage_backend": "file",
+            },
+            "1.0.0",
+            "file",
+            True,
+            "runtime_root_new_root_required",
+        ),
+        (
+            {
+                "schema": "rexecop.runtime_init.v0.1",
+                "rexecop_version": "1.9.0",
+                "storage_backend": "file",
+            },
+            "2.0.0",
+            "file",
+            True,
+            "runtime_root_major_version_unsupported",
+        ),
+        (
+            {
+                "schema": "rexecop.runtime_init.v0.1",
+                "rexecop_version": "2.0.0",
+                "storage_backend": "file",
+            },
+            "1.0.0",
+            "file",
+            True,
+            "runtime_root_downgrade_unsupported",
+        ),
+        (
+            {
+                "schema": "rexecop.runtime_init.v0.1",
+                "rexecop_version": "1.0.0",
+                "storage_backend": "file",
+            },
+            "1.0.0",
+            "sqlite",
+            True,
+            "runtime_root_storage_backend_mismatch",
+        ),
+    ],
+)
+def test_runtime_root_compatibility_uses_one_fail_closed_decision(
+    manifest: object,
+    target_version: str,
+    configured_backend: str,
+    manifest_present: bool,
+    reason_code: str,
+) -> None:
+    decision = runtime_root_compatibility(
+        manifest,
+        target_version=target_version,
+        configured_storage_backend=configured_backend,
+        manifest_present=manifest_present,
+    )
+
+    assert decision["status"] != "compatible"
+    assert decision["reason_code"] == reason_code
+    assert decision["in_place_upgrade_supported"] is False
+    assert decision["guidance"]
+
+
 def test_init_refuses_to_overwrite_alpha_root_on_v1(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "alpha-root"
     root.mkdir()
@@ -126,3 +212,152 @@ def test_init_refuses_to_overwrite_alpha_root_on_v1(tmp_path: Path, monkeypatch)
 
     with pytest.raises(RExecOpValidationError, match="runtime_root_new_root_required"):
         runtime_init.initialize_runtime_root(root)
+
+
+def test_store_factory_rejects_missing_manifest_before_sqlite_mutation(tmp_path: Path) -> None:
+    root = tmp_path / "missing-root"
+
+    with pytest.raises(RExecOpValidationError, match="runtime_root_manifest_missing"):
+        create_store(root, backend="sqlite")
+
+    assert not root.exists()
+
+
+@pytest.mark.parametrize("precreate_empty_root", [False, True])
+def test_init_accepts_only_absent_or_empty_real_root(
+    tmp_path: Path,
+    precreate_empty_root: bool,
+) -> None:
+    root = tmp_path / "new-root"
+    if precreate_empty_root:
+        root.mkdir()
+
+    result = runtime_init.initialize_runtime_root(root, backend="file")
+
+    assert result["status"] == "initialized"
+    assert (root / "runtime_manifest.json").is_file()
+
+
+def test_init_rejects_nonempty_manifestless_root_without_side_effects(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "nonempty-root"
+    root.mkdir()
+    sentinel = root / "operator-data.bin"
+    sentinel_bytes = b"preserve-existing-runtime-bytes\n"
+    sentinel.write_bytes(sentinel_bytes)
+
+    with pytest.raises(
+        RExecOpValidationError,
+        match="runtime_root_manifest_missing_nonempty",
+    ):
+        runtime_init.initialize_runtime_root(root, backend="sqlite")
+
+    assert sentinel.read_bytes() == sentinel_bytes
+    assert sorted(path.name for path in root.iterdir()) == [sentinel.name]
+    assert not (root / "runtime_manifest.json").exists()
+    assert not (root / "queue").exists()
+    assert not (root / "rexecop.db").exists()
+
+
+@pytest.mark.parametrize("symlink_kind", ["selected-root", "ancestor"])
+def test_init_rejects_symlink_root_path_without_adoption(
+    tmp_path: Path,
+    symlink_kind: str,
+) -> None:
+    real_parent = tmp_path / "real-parent"
+    real_parent.mkdir()
+    sentinel = real_parent / "operator-data.bin"
+    sentinel_bytes = b"preserve-symlink-target-bytes\n"
+    sentinel.write_bytes(sentinel_bytes)
+    linked = tmp_path / "linked"
+    if symlink_kind == "selected-root":
+        linked.symlink_to(real_parent, target_is_directory=True)
+        selected_root = linked
+    else:
+        linked.symlink_to(real_parent, target_is_directory=True)
+        selected_root = linked / "new-root"
+
+    with pytest.raises(RExecOpValidationError, match="runtime_root_path_invalid"):
+        runtime_init.initialize_runtime_root(selected_root, backend="sqlite")
+
+    assert sentinel.read_bytes() == sentinel_bytes
+    assert not (real_parent / "runtime_manifest.json").exists()
+    assert not (real_parent / "queue").exists()
+    assert not (real_parent / "rexecop.db").exists()
+    assert linked.is_symlink()
+
+
+@pytest.mark.parametrize(
+    "manifest_bytes",
+    [
+        (
+            b'{"schema":"rexecop.runtime_init.v0.1",'
+            b'"schema":"rexecop.runtime_init.v0.1",'
+            b'"rexecop_version":"1.0.0rc1","storage_backend":"file"}\n'
+        ),
+        (
+            b'{"schema":"rexecop.runtime_init.v0.1",'
+            b'"rexecop_version":"1.0.0rc1","storage_backend":"file",'
+            b'"metadata":{"note":"one","note":"two"}}\n'
+        ),
+    ],
+)
+def test_init_rejects_duplicate_manifest_keys_without_side_effects(
+    tmp_path: Path,
+    manifest_bytes: bytes,
+) -> None:
+    root = tmp_path / "duplicate-manifest-root"
+    root.mkdir()
+    manifest_path = root / "runtime_manifest.json"
+    manifest_path.write_bytes(manifest_bytes)
+
+    with pytest.raises(RExecOpValidationError, match="runtime_root_manifest_invalid"):
+        runtime_init.initialize_runtime_root(root, backend="sqlite")
+
+    assert manifest_path.read_bytes() == manifest_bytes
+    assert sorted(path.name for path in root.iterdir()) == [manifest_path.name]
+    assert not (root / "queue").exists()
+    assert not (root / "rexecop.db").exists()
+
+
+def test_init_rejects_oversized_valid_manifest_without_side_effects(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "oversized-manifest-root"
+    root.mkdir()
+    manifest_path = root / "runtime_manifest.json"
+    manifest_bytes = json.dumps(
+        {
+            "schema": "rexecop.runtime_init.v0.1",
+            "rexecop_version": "1.0.0rc1",
+            "storage_backend": "file",
+            "padding": "x" * RUNTIME_MANIFEST_MAX_BYTES,
+        }
+    ).encode("utf-8")
+    assert len(manifest_bytes) > RUNTIME_MANIFEST_MAX_BYTES
+    manifest_path.write_bytes(manifest_bytes)
+
+    with pytest.raises(RExecOpValidationError, match="runtime_root_manifest_invalid"):
+        runtime_init.initialize_runtime_root(root, backend="sqlite")
+
+    assert manifest_path.read_bytes() == manifest_bytes
+    assert sorted(path.name for path in root.iterdir()) == [manifest_path.name]
+    assert not (root / "queue").exists()
+    assert not (root / "rexecop.db").exists()
+
+
+def test_init_rejects_backend_mismatch_without_rewriting_current_root(tmp_path: Path) -> None:
+    root = tmp_path / "file-root"
+    runtime_init.initialize_runtime_root(root, backend="file")
+    manifest_path = root / "runtime_manifest.json"
+    manifest_before = manifest_path.read_bytes()
+
+    with pytest.raises(
+        RExecOpValidationError,
+        match="runtime_root_storage_backend_mismatch",
+    ):
+        runtime_init.initialize_runtime_root(root, backend="sqlite")
+
+    assert manifest_path.read_bytes() == manifest_before
+    assert not (root / "rexecop.db").exists()

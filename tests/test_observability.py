@@ -24,6 +24,7 @@ from rexecop.observability.structured_log import (
 )
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.file_store import FileStore
 
 runner = CliRunner()
@@ -154,6 +155,7 @@ def test_runtime_diagnostics_use_explain_error_failure_classes(tmp_path: Path) -
 
 def test_cli_observability_commands(tmp_path: Path) -> None:
     root = tmp_path / "runtime"
+    initialize_runtime_root(root)
     controller = OperationController(store=FileStore(root))
     operation = controller.plan(
         profile_path=PROFILE,

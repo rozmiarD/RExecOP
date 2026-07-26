@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from rexecop.cli import app
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.operation.controller import OperationController
+from rexecop.runtime.init import initialize_runtime_root
 from rexecop.storage.file_store import FileStore
 
 runner = CliRunner()
@@ -18,6 +19,7 @@ ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 def _planned_operation(tmp_path: Path):
     root = tmp_path / ".rexecop"
+    initialize_runtime_root(root)
     store = FileStore(root)
     controller = OperationController(store=store)
     operation = controller.plan(

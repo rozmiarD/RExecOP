@@ -16,6 +16,7 @@ runner = CliRunner()
 
 def test_cli_plan_smoke(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.chdir(tmp_path)
+    assert runner.invoke(app, ["init"]).exit_code == 0
     result = runner.invoke(
         app,
         [
@@ -52,6 +53,7 @@ def test_cli_plan_smoke(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no
 def test_cli_root_isolates_runtime_state(tmp_path: Path) -> None:
     root_a = tmp_path / "runtime-a"
     root_b = tmp_path / "runtime-b"
+    assert runner.invoke(app, ["--root", str(root_a), "init"]).exit_code == 0
     result = runner.invoke(
         app,
         [
@@ -81,7 +83,8 @@ def test_cli_root_isolates_runtime_state(tmp_path: Path) -> None:
         ["--root", str(root_b), "status", "--operation", operation_id],
     )
     assert missing.exit_code == 1
-    assert "operation not found" in missing.output
+    assert "runtime_root_manifest_missing" in missing.output
+    assert not root_b.exists()
 
     status = runner.invoke(
         app,
@@ -97,6 +100,11 @@ def test_cli_root_envvar_and_explicit_precedence(tmp_path: Path) -> None:
     env_root = tmp_path / "env-root"
     explicit_root = tmp_path / "explicit-root"
     env = {"REXECOP_ROOT": str(env_root)}
+    assert runner.invoke(
+        app,
+        ["--root", str(explicit_root), "init"],
+        env=env,
+    ).exit_code == 0
     result = runner.invoke(
         app,
         [
@@ -122,6 +130,7 @@ def test_cli_root_envvar_and_explicit_precedence(tmp_path: Path) -> None:
     assert (explicit_root / "operations" / f"{operation_id}.json").is_file()
     assert not env_root.exists()
 
+    assert runner.invoke(app, ["init"], env=env).exit_code == 0
     env_result = runner.invoke(
         app,
         [
@@ -150,6 +159,7 @@ def test_cli_named_instance_isolates_default_runtime_root(
     monkeypatch,
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    assert runner.invoke(app, ["--instance", "alpha", "init"]).exit_code == 0
 
     result = runner.invoke(
         app,

@@ -10,6 +10,7 @@ from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.operation.review import render_operation_review, review_operation
 from rexecop.profile.runbook import render_runbook_show, show_profile_runbook
+from rexecop.runtime.init import initialize_runtime_root
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = ROOT / "examples" / "profiles" / "runtime-fixture" / "profile.yaml"
@@ -243,6 +244,7 @@ def test_show_profile_runbook_is_profile_bound() -> None:
 
 def test_cli_operation_review_and_runbook_show(tmp_path: Path) -> None:
     root = tmp_path / "runtime"
+    initialize_runtime_root(root)
     plan_result = runner.invoke(
         app,
         [
