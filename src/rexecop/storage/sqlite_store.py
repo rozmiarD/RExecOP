@@ -167,6 +167,17 @@ class SqliteStore:
             error_class=error_class,
         )
 
+    def finish_indeterminate_if_started(
+        self,
+        attempt: dict[str, Any],
+        *,
+        result_digest: str = "",
+    ) -> dict[str, Any]:
+        return self._files.finish_indeterminate_if_started(
+            attempt,
+            result_digest=result_digest,
+        )
+
     def recover_started_attempts(self) -> list[str]:
         return self._files.recover_started_attempts()
 

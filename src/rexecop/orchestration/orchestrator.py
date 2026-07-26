@@ -23,7 +23,11 @@ from rexecop.adapters.govengine_port.runtime_authority import (
 from rexecop.catalog.digest import canonical_digest
 from rexecop.connectors.composite_runtime import build_connector_runtime
 from rexecop.connectors.runtime import ConnectorDispatcher
-from rexecop.errors import RExecOpStateError, RExecOpValidationError
+from rexecop.errors import (
+    RExecOpOutcomeIndeterminate,
+    RExecOpStateError,
+    RExecOpValidationError,
+)
 from rexecop.escalation.package import build_escalation_package
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.evidence.manager import EvidenceManager
@@ -49,6 +53,7 @@ from rexecop.validation.validator import validate_operation_result
 from rexecop.workflow.runner import WorkflowRunner
 
 READ_ONLY_MODES = frozenset({"dry_run", "observe", "emergency_readonly"})
+INTRINSICALLY_NON_RETRYABLE_ERRORS = frozenset({"outcome_indeterminate"})
 TERMINAL_STATES = frozenset(
     {
         OperationState.COMPLETED.value,
@@ -315,12 +320,37 @@ class OperationOrchestrator:
             if status == "indeterminate"
             else str((payload.get("output") or {}).get("error_class") or "")
         )
-        self.store.finish_execution_attempt(
-            attempt,
-            status=status,
-            result_digest=("sha256:" + canonical_digest(payload)) if payload else "",
-            error_class=error_class,
-        )
+        result_digest = ("sha256:" + canonical_digest(payload)) if payload else ""
+        try:
+            if status == "indeterminate":
+                finished = self.store.finish_indeterminate_if_started(
+                    attempt,
+                    result_digest=result_digest,
+                )
+            else:
+                finished = self.store.finish_execution_attempt(
+                    attempt,
+                    status=status,
+                    result_digest=result_digest,
+                    error_class=error_class,
+                )
+        except Exception:  # noqa: BLE001 - consume side-effectful finalization uncertainty
+            if attempt.get("side_effectful") is not True:
+                raise
+            if status != "indeterminate":
+                try:
+                    finished = self.store.finish_indeterminate_if_started(
+                        attempt,
+                        result_digest=result_digest,
+                    )
+                except Exception:  # noqa: BLE001 - leave started record for recovery
+                    pass
+                else:
+                    attempt.update(finished)
+            raise RExecOpOutcomeIndeterminate(
+                "side-effectful attempt finalization requires reconciliation"
+            ) from None
+        attempt.update(finished)
 
     def _bind_attempt_receipt(
         self,
@@ -862,6 +892,8 @@ class OperationOrchestrator:
         return attempts <= max_attempts
 
     def _error_retryable(self, plan: OperationPlan, *, error_class: str) -> bool:
+        if error_class in INTRINSICALLY_NON_RETRYABLE_ERRORS:
+            return False
         policy = plan.retry_policy_summary
         blocked_on = [str(item) for item in policy.get("blocked_on") or []]
         allowed_on = [str(item) for item in policy.get("allowed_on") or []]

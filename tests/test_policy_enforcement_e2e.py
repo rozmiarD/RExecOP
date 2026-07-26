@@ -652,6 +652,157 @@ def test_attempt_finish_canonicalizes_only_bounded_recursive_overflow_failure() 
     assert binding["attempt_status"] == "failed"
 
 
+def test_side_effectful_success_finishes_only_after_output_and_receipt_postconditions(
+    allow_lab_mutation_runtime_test: None,
+) -> None:
+    class SuccessfulMutationRuntime:
+        calls = 0
+
+        def invoke(self, request: ConnectorRequest) -> ConnectorResponse:
+            self.calls += 1
+            return ConnectorResponse(
+                connector=request.connector,
+                action=request.action,
+                success=True,
+                data={"status": "changed"},
+            )
+
+    runtime = SuccessfulMutationRuntime()
+    attempt: dict[str, Any] = {
+        "attempt_id": "attempt-side-effect-success",
+        "side_effectful": True,
+        "status": "started",
+    }
+    ordering: list[str] = []
+
+    def bind_receipt(
+        active_attempt: dict[str, Any],
+        result: StepExecutionResult,
+    ) -> StepExecutionResult:
+        assert active_attempt["status"] == "started"
+        assert result.output["output_digests"]["record"].startswith("sha256:")
+        ordering.append("receipt")
+        return replace(
+            result,
+            runtime_receipt_binding={"attempt_id": active_attempt["attempt_id"]},
+        )
+
+    def finish_attempt(
+        active_attempt: dict[str, Any],
+        status: str,
+        result: StepExecutionResult | None,
+    ) -> None:
+        assert result is not None
+        assert result.runtime_receipt_binding["attempt_id"] == active_attempt["attempt_id"]
+        active_attempt["status"] = status
+        ordering.append("finish")
+
+    result = WorkflowRunner(
+        StepExecutor(
+            connector_dispatcher=ConnectorDispatcher(runtime),
+            attempt_start_handler=lambda _context, _spec: attempt,
+            attempt_finish_handler=finish_attempt,
+            attempt_receipt_handler=bind_receipt,
+        )
+    ).run(
+        operation_id="op-side-effect-success",
+        target="fixture",
+        mode="apply",
+        planned_steps=[
+            {
+                "id": "change",
+                "type": "connector",
+                "connector": "fixture",
+                "action": "change",
+            }
+        ],
+        correlation_id="corr",
+    )
+
+    assert result.success is True
+    assert runtime.calls == 1
+    assert ordering == ["receipt", "finish"]
+    assert attempt["status"] == "completed"
+
+
+def test_side_effectful_success_with_output_uncertainty_is_indeterminate(
+    allow_lab_mutation_runtime_test: None,
+) -> None:
+    raw_marker = "raw-marker-must-not-survive-" * 200
+
+    class OversizedMutationRuntime:
+        calls = 0
+
+        def invoke(self, request: ConnectorRequest) -> ConnectorResponse:
+            self.calls += 1
+            return ConnectorResponse(
+                connector=request.connector,
+                action=request.action,
+                success=True,
+                data={"value": raw_marker},
+            )
+
+    runtime = OversizedMutationRuntime()
+    attempt: dict[str, Any] = {
+        "attempt_id": "attempt-side-effect-output-uncertain",
+        "side_effectful": True,
+        "status": "started",
+    }
+    ordering: list[str] = []
+    finished: list[tuple[str, dict[str, Any]]] = []
+
+    def bind_receipt(
+        active_attempt: dict[str, Any],
+        result: StepExecutionResult,
+    ) -> StepExecutionResult:
+        assert active_attempt["status"] == "started"
+        assert result.success is False
+        ordering.append("receipt")
+        return result
+
+    def finish_attempt(
+        active_attempt: dict[str, Any],
+        status: str,
+        result: StepExecutionResult | None,
+    ) -> None:
+        assert result is not None
+        active_attempt["status"] = status
+        finished.append((status, result.as_dict()))
+        ordering.append("finish")
+
+    result = WorkflowRunner(
+        StepExecutor(
+            connector_dispatcher=ConnectorDispatcher(runtime),
+            attempt_start_handler=lambda _context, _spec: attempt,
+            attempt_finish_handler=finish_attempt,
+            attempt_receipt_handler=bind_receipt,
+        )
+    ).run(
+        operation_id="op-side-effect-output-uncertain",
+        target="fixture",
+        mode="apply",
+        planned_steps=[
+            {
+                "id": "change",
+                "type": "connector",
+                "connector": "fixture",
+                "action": "change",
+            }
+        ],
+        correlation_id="corr",
+        policy_enforcement={"controls": {"max_output_bytes": 128}},
+    )
+
+    assert result.success is False
+    assert result.error_class == "outcome_indeterminate"
+    assert runtime.calls == 1
+    assert ordering == ["receipt", "finish"]
+    assert attempt["status"] == "indeterminate"
+    assert finished[0][0] == "indeterminate"
+    assert finished[0][1]["output"]["error_class"] == "outcome_indeterminate"
+    assert raw_marker not in repr(result.as_dict())
+
+
 @pytest.mark.parametrize(
     "tamper",
     [

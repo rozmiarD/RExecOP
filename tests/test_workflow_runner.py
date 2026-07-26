@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -9,13 +11,14 @@ from rexecop.connectors.runtime import ConnectorDispatcher
 from rexecop.connectors.static_fixture import StaticFixtureRuntime
 from rexecop.errors import RExecOpValidationError
 from rexecop.escalation.package import build_escalation_package
+from rexecop.execution.backend import StepExecutionResult
 from rexecop.execution.executor import StepExecutor
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.runtime_ops.monitor import OperationMonitor, parse_timeout_seconds
 from rexecop.storage.file_store import FileStore
 from rexecop.validation.validator import validate_operation_result
-from rexecop.workflow.runner import WorkflowRunner
+from rexecop.workflow.runner import WorkflowRunner, WorkflowRunResult
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
@@ -42,6 +45,241 @@ def _fixture_runtime(*, mutating_allowed: bool = False) -> StaticFixtureRuntime:
     )
 
 
+def _run_side_effectful_finalizer_fault(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    fault_after_write: bool,
+) -> tuple[
+    WorkflowRunResult,
+    list[str],
+    list[str],
+    list[str],
+    list[str],
+    dict[str, Any],
+    str,
+]:
+    store = FileStore(tmp_path / ".rexecop")
+    controller = OperationController(store)
+    attempt = store.start_execution_attempt(
+        attempt_id=store.allocate_execution_attempt_id(),
+        operation_id="op-finalizer-fault",
+        operation_revision=1,
+        step_id="apply_change",
+        plan={"operation_id": "op-finalizer-fault"},
+        execution_spec={"digest": "sha256:" + "a" * 64},
+        target="fixture-target",
+        mode="apply",
+        lease={"lease_epoch": 1, "process_instance_id": "test-process"},
+    )
+    raw_marker = "raw-finalizer-exception-must-not-leak"
+    connector_calls: list[str] = []
+    handler_calls: list[str] = []
+    strict_calls: list[str] = []
+    conditional_calls: list[str] = []
+    strict_finish = store.finish_execution_attempt
+    conditional_finish = store.finish_indeterminate_if_started
+
+    def faulting_strict_finish(
+        active_attempt: dict[str, Any],
+        *,
+        status: str,
+        result_digest: str = "",
+        error_class: str = "",
+    ) -> dict[str, Any]:
+        strict_calls.append(status)
+        if not fault_after_write:
+            raise RuntimeError(raw_marker)
+        strict_finish(
+            active_attempt,
+            status=status,
+            result_digest=result_digest,
+            error_class=error_class,
+        )
+        raise RuntimeError(raw_marker)
+
+    def tracked_conditional_finish(
+        active_attempt: dict[str, Any],
+        *,
+        result_digest: str = "",
+    ) -> dict[str, Any]:
+        conditional_calls.append("indeterminate")
+        return conditional_finish(
+            active_attempt,
+            result_digest=result_digest,
+        )
+
+    monkeypatch.setattr(store, "finish_execution_attempt", faulting_strict_finish)
+    monkeypatch.setattr(
+        store,
+        "finish_indeterminate_if_started",
+        tracked_conditional_finish,
+    )
+    finish_attempt = controller.orchestrator._finish_attempt
+
+    def tracked_finish_attempt(
+        active_attempt: dict[str, Any],
+        status: str,
+        result: StepExecutionResult | None,
+    ) -> None:
+        handler_calls.append(status)
+        finish_attempt(active_attempt, status, result)
+
+    runtime = _fixture_runtime(mutating_allowed=True)
+    connector_invoke = runtime.invoke
+
+    def tracked_connector_invoke(request: ConnectorRequest):
+        connector_calls.append(request.action)
+        return connector_invoke(request)
+
+    runtime.invoke = tracked_connector_invoke  # type: ignore[method-assign]
+    result = WorkflowRunner(
+        StepExecutor(
+            connector_dispatcher=ConnectorDispatcher(runtime),
+            attempt_start_handler=lambda _context, _spec: attempt,
+            attempt_finish_handler=tracked_finish_attempt,
+        )
+    ).run(
+        operation_id="op-finalizer-fault",
+        target="fixture-target",
+        mode="apply",
+        planned_steps=[
+            {
+                "id": "apply_change",
+                "type": "connector",
+                "connector": "fixture_source",
+                "action": "apply_fixture_change",
+            }
+        ],
+        correlation_id="corr",
+    )
+    attempt_path = (
+        store.root
+        / "attempts"
+        / "op-finalizer-fault"
+        / f"{attempt['attempt_id']}.json"
+    )
+    durable_attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+    return (
+        result,
+        handler_calls,
+        strict_calls,
+        conditional_calls,
+        connector_calls,
+        durable_attempt,
+        raw_marker,
+    )
+
+
+def test_side_effectful_finalizer_failure_before_write_is_recovered_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    allow_lab_mutation_runtime_test: None,
+) -> None:
+    (
+        result,
+        handler_calls,
+        strict_calls,
+        conditional_calls,
+        connector_calls,
+        durable_attempt,
+        raw_marker,
+    ) = _run_side_effectful_finalizer_fault(
+        tmp_path,
+        monkeypatch,
+        fault_after_write=False,
+    )
+
+    assert result.success is False
+    assert result.error_class == "outcome_indeterminate"
+    assert handler_calls == ["completed"]
+    assert strict_calls == ["completed"]
+    assert conditional_calls == ["indeterminate"]
+    assert connector_calls == ["apply_fixture_change"]
+    assert durable_attempt["status"] == "indeterminate"
+    assert durable_attempt["error_class"] == "outcome_indeterminate"
+    assert raw_marker not in repr(result.as_dict())
+
+
+def test_side_effectful_finalizer_failure_after_write_does_not_overwrite_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    allow_lab_mutation_runtime_test: None,
+) -> None:
+    (
+        result,
+        handler_calls,
+        strict_calls,
+        conditional_calls,
+        connector_calls,
+        durable_attempt,
+        raw_marker,
+    ) = _run_side_effectful_finalizer_fault(
+        tmp_path,
+        monkeypatch,
+        fault_after_write=True,
+    )
+
+    assert result.success is False
+    assert result.error_class == "outcome_indeterminate"
+    assert handler_calls == ["completed"]
+    assert strict_calls == ["completed"]
+    assert conditional_calls == ["indeterminate"]
+    assert connector_calls == ["apply_fixture_change"]
+    # The public result is conservative; the committed completion remains terminal evidence.
+    assert durable_attempt["status"] == "completed"
+    assert durable_attempt["error_class"] == ""
+    assert raw_marker not in repr(result.as_dict())
+
+
+def test_side_effectful_finalizer_exception_does_not_reinvoke_handler(
+    allow_lab_mutation_runtime_test: None,
+) -> None:
+    attempt: dict[str, Any] = {
+        "attempt_id": "attempt-finalizer-once",
+        "side_effectful": True,
+        "status": "started",
+    }
+    calls: list[str] = []
+    raw_marker = "raw-fake-finalizer-error-must-not-leak"
+
+    def fail_finalizer(
+        _attempt: dict[str, Any],
+        status: str,
+        _result: StepExecutionResult | None,
+    ) -> None:
+        calls.append(status)
+        raise RuntimeError(raw_marker)
+
+    result = WorkflowRunner(
+        StepExecutor(
+            connector_dispatcher=ConnectorDispatcher(
+                _fixture_runtime(mutating_allowed=True)
+            ),
+            attempt_start_handler=lambda _context, _spec: attempt,
+            attempt_finish_handler=fail_finalizer,
+        )
+    ).run(
+        operation_id="op-finalizer-once",
+        target="fixture-target",
+        mode="apply",
+        planned_steps=[
+            {
+                "id": "apply_change",
+                "type": "connector",
+                "connector": "fixture_source",
+                "action": "apply_fixture_change",
+            }
+        ],
+        correlation_id="corr",
+    )
+
+    assert calls == ["completed"]
+    assert result.success is False
+    assert result.error_class == "outcome_indeterminate"
+    assert raw_marker not in repr(result.as_dict())
+
+
 def test_mock_connector_refuses_mutating_action_in_dry_run() -> None:
     runtime = _fixture_runtime(mutating_allowed=True)
     response = runtime.invoke(
@@ -59,7 +297,7 @@ def test_mock_connector_refuses_mutating_action_in_dry_run() -> None:
 def test_workflow_runner_executes_declared_steps_only() -> None:
     runtime = _fixture_runtime()
     executor = StepExecutor(connector_dispatcher=ConnectorDispatcher(runtime))
-    steps = [
+    steps: list[dict[str, Any]] = [
         {
             "id": "checkpoint",
             "type": "internal",
@@ -175,7 +413,7 @@ def test_readonly_diagnostic_continues_after_declared_connector_failure() -> Non
         connector_dispatcher=ConnectorDispatcher(runtime),
         internal_handlers={"record": lambda context: {"recorded": True}},
     )
-    steps = [
+    steps: list[dict[str, Any]] = [
         {
             "id": "optional_probe",
             "type": "connector",

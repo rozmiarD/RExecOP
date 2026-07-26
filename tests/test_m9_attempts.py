@@ -11,12 +11,48 @@ from rexecop.operation.controller import OperationController
 from rexecop.runtime_ops.attempts import AttemptJournal
 from rexecop.runtime_ops.recovery import run_startup_recovery
 from rexecop.storage.file_store import FileStore
+from rexecop.storage.memory_store import InMemoryStore
+from rexecop.storage.sqlite_store import SqliteStore
 
 pytestmark = pytest.mark.m9_runtime
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
+AttemptStore = FileStore | InMemoryStore | SqliteStore
+
+
+def _attempt_store(
+    kind: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> AttemptStore:
+    if kind == "file":
+        return FileStore(tmp_path / "file-store")
+    if kind == "sqlite":
+        return SqliteStore(tmp_path / "sqlite-store")
+    memory_root = tmp_path / "memory-store"
+    memory_root.mkdir()
+    monkeypatch.chdir(memory_root)
+    return InMemoryStore()
+
+
+def _start_side_effectful_attempt(
+    store: AttemptStore,
+    *,
+    operation_id: str,
+) -> dict[str, object]:
+    return store.start_execution_attempt(
+        attempt_id=store.allocate_execution_attempt_id(),
+        operation_id=operation_id,
+        operation_revision=1,
+        step_id="effect-step",
+        plan={"operation_id": operation_id},
+        execution_spec={"digest": "sha256:" + "a" * 64},
+        target="fixture-target",
+        mode="apply",
+        lease={"lease_epoch": 1, "process_instance_id": "test-process"},
+    )
 
 
 def _leave_started_attempt(root: str, operation_id: str, plan: dict[str, object]) -> None:
@@ -31,6 +67,51 @@ def _leave_started_attempt(root: str, operation_id: str, plan: dict[str, object]
         mode="apply",
         lease={"lease_epoch": 9, "process_instance_id": "killed-worker"},
     )
+
+
+@pytest.mark.parametrize("store_kind", ["file", "memory", "sqlite"])
+def test_finish_indeterminate_if_started_is_idempotent_across_runtime_stores(
+    store_kind: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _attempt_store(store_kind, tmp_path, monkeypatch)
+    started = _start_side_effectful_attempt(
+        store,
+        operation_id=f"op-idempotent-{store_kind}",
+    )
+    first_digest = "sha256:" + "1" * 64
+
+    first = store.finish_indeterminate_if_started(
+        started,
+        result_digest=first_digest,
+    )
+    replay = store.finish_indeterminate_if_started(
+        started,
+        result_digest="sha256:" + "2" * 64,
+    )
+
+    assert first["status"] == "indeterminate"
+    assert first["error_class"] == "outcome_indeterminate"
+    assert first["result_digest"] == first_digest
+    assert replay == first
+
+    completed_attempt = _start_side_effectful_attempt(
+        store,
+        operation_id=f"op-completed-{store_kind}",
+    )
+    completed = store.finish_execution_attempt(
+        completed_attempt,
+        status="completed",
+        result_digest="sha256:" + "3" * 64,
+    )
+    observed = store.finish_indeterminate_if_started(
+        completed_attempt,
+        result_digest="sha256:" + "4" * 64,
+    )
+
+    assert observed == completed
+    assert observed["status"] == "completed"
 
 
 def test_connector_io_has_durable_completed_attempt_binding(tmp_path: Path) -> None:

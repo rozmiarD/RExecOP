@@ -263,6 +263,19 @@ class FileStore:
             error_class=error_class,
         )
 
+    def finish_indeterminate_if_started(
+        self,
+        attempt: dict[str, Any],
+        *,
+        result_digest: str = "",
+    ) -> dict[str, Any]:
+        from rexecop.runtime_ops.attempts import AttemptJournal
+
+        return AttemptJournal(self.root).finish_indeterminate_if_started(
+            attempt,
+            result_digest=result_digest,
+        )
+
     def recover_started_attempts(self) -> list[str]:
         from rexecop.runtime_ops.attempts import AttemptJournal
 

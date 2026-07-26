@@ -96,6 +96,28 @@ class AttemptJournal:
         self._write(path, current)
         return current
 
+    def finish_indeterminate_if_started(
+        self,
+        record: dict[str, Any],
+        *,
+        result_digest: str = "",
+    ) -> dict[str, Any]:
+        path = self._path(record)
+        current = self._read(path)
+        status = str(current.get("status") or "")
+        if status in {"completed", "failed", "indeterminate"}:
+            return current
+        if status != "started":
+            raise RExecOpValidationError("execution attempt is not started or terminal")
+        current.update(
+            status="indeterminate",
+            finished_at=_now(),
+            result_digest=result_digest,
+            error_class="outcome_indeterminate",
+        )
+        self._write(path, current)
+        return current
+
     def mark_started_indeterminate(self) -> list[str]:
         changed: list[str] = []
         if not self.attempts_dir.is_dir():

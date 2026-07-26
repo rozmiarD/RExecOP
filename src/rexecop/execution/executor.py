@@ -10,7 +10,11 @@ from typing import Any
 from rexecop.connectors import errors as connector_errors
 from rexecop.connectors.base import ConnectorRequest
 from rexecop.connectors.runtime import ConnectorDispatcher
-from rexecop.errors import RExecOpError, RExecOpValidationError
+from rexecop.errors import (
+    RExecOpError,
+    RExecOpOutcomeIndeterminate,
+    RExecOpValidationError,
+)
 from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
 from rexecop.execution.govengine_governance import enforce_typed_execution_governance
@@ -41,6 +45,8 @@ _EXCLUDED_OUTPUT_STATE_DELTA_KEYS = frozenset(
 )
 _OUTPUT_LIMIT_EVIDENCE_SCHEMA = "rexecop.output_limit_evidence.v0.1"
 _OUTPUT_LIMIT_EVIDENCE_MAX_BYTES = 2048
+_DEFER_FAILED_ATTEMPT = "failed"
+_DEFER_SIDE_EFFECTFUL_SUCCESS = "side_effectful_success"
 _MISSING = object()
 
 __all__ = ["StepExecutor"]
@@ -72,7 +78,7 @@ class StepExecutor:
         action = str(context.step.get("action") or "")
         state_before = deepcopy(context.shared_state)
         attempt: dict[str, Any] | None = None
-        deferred_attempt_finish = False
+        deferred_attempt_finish: str | None = None
 
         try:
             if step_type == "connector":
@@ -87,13 +93,21 @@ class StepExecutor:
                 result = self._execute_internal(context, step_id, action)
             bounded = self._apply_output_controls(context, result, state_before=state_before)
             if (
-                deferred_attempt_finish
+                deferred_attempt_finish == _DEFER_FAILED_ATTEMPT
                 and attempt is not None
                 and self.attempt_finish_handler is not None
             ):
                 self.attempt_finish_handler(attempt, "failed", bounded)
+                deferred_attempt_finish = None
             if attempt is not None and self.attempt_receipt_handler is not None:
                 bounded = self.attempt_receipt_handler(attempt, bounded)
+            if (
+                deferred_attempt_finish == _DEFER_SIDE_EFFECTFUL_SUCCESS
+                and attempt is not None
+                and self.attempt_finish_handler is not None
+            ):
+                bounded = self._finish_side_effectful_attempt(attempt, bounded)
+                deferred_attempt_finish = None
             if bounded.success:
                 self._store_bounded_result(context, step_type, bounded)
             return bounded
@@ -106,19 +120,41 @@ class StepExecutor:
             else:
                 reason_code = "internal_error"
                 message = "connector execution failed"
-            return StepExecutionResult(
+            failure = StepExecutionResult(
                 step_id=step_id,
                 success=False,
                 output={"error_class": reason_code, "reason_code": reason_code},
                 error=message,
             )
+            if (
+                deferred_attempt_finish == _DEFER_SIDE_EFFECTFUL_SUCCESS
+                and attempt is not None
+                and self.attempt_finish_handler is not None
+            ):
+                failure = self._finish_side_effectful_attempt(attempt, failure)
+            return failure
+
+    def _finish_side_effectful_attempt(
+        self,
+        attempt: dict[str, Any],
+        result: StepExecutionResult,
+    ) -> StepExecutionResult:
+        if self.attempt_finish_handler is None:  # pragma: no cover - guarded by caller
+            return result
+        final_result = result if result.success else _outcome_indeterminate(result)
+        status = "completed" if final_result.success else "indeterminate"
+        try:
+            self.attempt_finish_handler(attempt, status, final_result)
+        except Exception:  # noqa: BLE001 - finalizer owns any durable recovery
+            return _outcome_indeterminate(final_result)
+        return final_result
 
     def _execute_connector(
         self,
         context: StepExecutionContext,
         step_id: str,
         action: str,
-    ) -> tuple[StepExecutionResult, dict[str, Any] | None, bool]:
+    ) -> tuple[StepExecutionResult, dict[str, Any] | None, str | None]:
         connector = str(context.step.get("connector") or "")
         try:
             spec = self._bind_typed_execution_spec(context, step_id=step_id)
@@ -133,7 +169,7 @@ class StepExecutor:
                     error=redact_text(str(exc)),
                 ),
                 None,
-                False,
+                None,
             )
         if spec is not None:
             admission = enforce_typed_execution_governance(
@@ -159,7 +195,7 @@ class StepExecutor:
                         ),
                     ),
                     None,
-                    False,
+                    None,
                 )
         require_mutation_execution_enabled(context.mode)
         attempt = (
@@ -190,7 +226,7 @@ class StepExecutor:
                 )
                 if self.attempt_finish_handler is not None:
                     self.attempt_finish_handler(attempt, "failed", result)
-                return result, None, False
+                return result, None, None
         try:
             response = self.connector_dispatcher.invoke(
                 ConnectorRequest(
@@ -219,7 +255,7 @@ class StepExecutor:
                 },
                 error="connector output limit exceeded",
             )
-            return result, attempt, True
+            return result, attempt, _DEFER_FAILED_ATTEMPT
         if not response.success:
             output = redact_payload(response.as_dict())
             error_class = str(response.data.get("error_class") or "")
@@ -233,7 +269,7 @@ class StepExecutor:
             )
             if attempt is not None and self.attempt_finish_handler is not None:
                 self.attempt_finish_handler(attempt, "failed", result)
-            return result, attempt, False
+            return result, attempt, None
         output = redact_payload(response.as_dict())
         before_state = response.data.get("before_state")
         after_state = response.data.get("after_state")
@@ -242,9 +278,11 @@ class StepExecutor:
         if isinstance(after_state, dict):
             output["after_state"] = after_state
         result = StepExecutionResult(step_id=step_id, success=True, output=output)
+        if attempt is not None and attempt.get("side_effectful") is True:
+            return result, attempt, _DEFER_SIDE_EFFECTFUL_SUCCESS
         if attempt is not None and self.attempt_finish_handler is not None:
             self.attempt_finish_handler(attempt, "completed", result)
-        return result, attempt, False
+        return result, attempt, None
 
     def _execute_internal(
         self,
@@ -435,6 +473,20 @@ class StepExecutor:
                 "before_state": before_state,
                 "after_state": after_state,
             }
+
+
+def _outcome_indeterminate(result: StepExecutionResult) -> StepExecutionResult:
+    output = dict(result.output)
+    output["error_class"] = RExecOpOutcomeIndeterminate.reason_code
+    output["reason_code"] = RExecOpOutcomeIndeterminate.reason_code
+    return StepExecutionResult(
+        step_id=result.step_id,
+        success=False,
+        output=output,
+        error=RExecOpOutcomeIndeterminate.public_message,
+        runtime_receipt_binding=dict(result.runtime_receipt_binding),
+        receipt_conformance=dict(result.receipt_conformance),
+    )
 
 
 def _bounded_output_limit_evidence(

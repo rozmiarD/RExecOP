@@ -124,6 +124,36 @@ For internal handlers and other output, the producer/payload bound covers return
 handler's `shared_state` delta; an oversized or exceptional step rolls that delta back and retains
 only the generic bounded diagnostic envelope.
 
+## Side-effectful attempt finalization
+
+A connector attempt is persisted as `started` before connector IO. When a side-effectful
+connector returns success, that attempt remains `started` while RExecOp applies bounded-output
+controls and, when configured, GovEngine runtime-receipt conformance. It becomes `completed` only
+after those postconditions return a successful final step result.
+
+If output handling or receipt conformance fails after the connector reported a successful
+side-effectful call, RExecOp treats the attempt as indeterminate, exposes the existing public
+`outcome_indeterminate` error class, and attempts to persist the `started` -> `indeterminate`
+transition. A receipt-conformance failure retains its bounded `receipt_reason_code` diagnostic,
+but neither that reason nor a successful connector response proves whether a mutation can be
+repeated safely. If the persistence or recovery write fails, the durable record may remain
+`started` until startup recovery. `outcome_indeterminate` is intrinsically non-retryable in either
+case: an empty allow-list or an explicit profile `allowed_on` entry cannot enable automatic
+orchestration retry or operator retry. Reconciliation is required.
+
+The attempt finalizer consumes one side-effectful terminalization call. If strict finalization
+raises, it uses an idempotent store operation: a record observed as still `started` is written as
+`indeterminate` using the existing atomic file-replacement primitive, while a record observed as
+already terminal is returned without a deliberate overwrite or conflicting state transition.
+This operation is not compare-and-swap (CAS). The step remains publicly `outcome_indeterminate`
+in both cases because the caller did not observe a clean finalization. RExecOp does not claim that
+`indeterminate` was durably recorded when the recovery write is unavailable.
+
+An ordinary connector response with `success: false` remains a durable `failed` attempt and uses
+the existing profile retry classification. This contract does not infer connector idempotency,
+provide exactly-once execution, or turn a post-IO uncertainty into a safe retry claim. Read-only
+attempts retain their existing retry behavior.
+
 ## Diagnostic partial failures
 
 A profile may set `metadata.continue_on_error: true` only on a connector step in a

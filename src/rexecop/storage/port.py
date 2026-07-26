@@ -87,6 +87,13 @@ class RuntimeStore(OperationStoragePort, Protocol):
         error_class: str = "",
     ) -> dict[str, Any]: ...
 
+    def finish_indeterminate_if_started(
+        self,
+        attempt: dict[str, Any],
+        *,
+        result_digest: str = "",
+    ) -> dict[str, Any]: ...
+
     def recover_started_attempts(self) -> list[str]: ...
 
     def has_indeterminate_side_effect(self, operation_id: str) -> bool: ...
