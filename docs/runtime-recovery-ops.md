@@ -103,19 +103,51 @@ connectors, recompute GovEngine admission, or canonicalize SCLite artifacts.
 ## Runtime store backup
 
 ```bash
-rexecop --root /operator/rexecop-runtime backup create --output /operator/backups/rexecop-2026-07-04.tar.gz
-rexecop --root /operator/rexecop-runtime backup restore --archive /operator/backups/rexecop-2026-07-04.tar.gz
+rexecop --root "$REXECOP_ROOT" backup create --output "$BACKUP_DIR/rexecop-2026-07-04.tar"
+rexecop --root "$RESTORE_ROOT" backup restore --archive "$BACKUP_DIR/rexecop-2026-07-04.tar"
 ```
 
-- `backup create` tarballs the runtime store after a secret scan; blocked when
-  scan finds candidates.
-- A sidecar manifest (`rexecop.runtime_backup.v0.1`) records archive digest and
-  included paths.
-- `backup restore` requires the manifest and restores into the configured
-  runtime root only when the target layout is empty or explicitly safe to replace.
+- `backup create` produces an uncompressed USTAR `.tar` containing
+  regular (`REGTYPE`) members only, regardless of the output name. Use `.tar`:
+  accepted `.tgz` and `.tar.gz` names are not compressed. The source must contain
+  a valid, compatible, real `runtime_manifest.json`; selected trees may contain
+  only real directories and regular files, with symbolic links and other types
+  rejected. Archive and sidecar outputs must be outside the runtime root.
+- Creation copies the selected files to a private staging snapshot, validates
+  the runtime manifest, and runs the configured sensitive-filename scan over
+  that snapshot. A scan finding blocks publication.
+- The sidecar (`rexecop.runtime_backup.v0.1`, at most 1 MiB) binds the exact
+  archive basename, exact member set and count, and SHA-256 for every member.
+  It does **not** provide an archive-wide digest, authenticity, or a signature.
+- Limits are: runtime manifest 1 MiB; sidecar 1 MiB; at most 10,000 files;
+  raw archive 512 MiB; each member 64 MiB; total expanded content 256 MiB; and
+  a member path of at most 4096 UTF-8 bytes and 255 bytes per component, subject
+  to the USTAR and portable-name rules.
+- `backup restore` requires the sidecar and accepts only the strict USTAR
+  regular-member subset. It rejects extensions (including PAX and GNU), AREG
+  and other non-regular/link/device members, ambiguous or portable-colliding
+  paths, non-canonical or incorrect checksums, non-zero member padding,
+  non-zero trailing data (including concatenated streams), and any
+  manifest/member/digest/runtime-manifest compatibility mismatch. Zero padding
+  and terminating zero blocks are valid.
+- The restore target must be absent or strictly empty. Extraction occurs in a
+  private sibling staging directory and the whole directory is promoted only
+  after validation. Existing-empty replacement is qualified to Linux; this is
+  not a cross-platform replacement guarantee.
+- On ordinary successful creation the sidecar is made visible before the archive;
+  the archive is the visibility marker. This is not an atomic two-file
+  publication guarantee.
 
-Backups are operator-owned artifacts outside git. They may contain operation
-metadata and redacted evidence — treat as sensitive (`0600`).
+Backups are operator-owned artifacts outside git. The archive and sidecar are
+`0600`; restored directories and files are `0700` and `0600`. They may contain
+sensitive runtime metadata or evidence; redaction is not a safety boundary.
+
+Backup/restore does **not** claim archive authenticity, signatures, or an
+archive-wide digest; protection from a same-UID adversary; or power-loss/crash
+durability, because directory fsync is absent.
+
+Restore auto-discovers the adjacent generated sidecar; use `--manifest` when it
+was relocated. Creation does not overwrite an existing archive or sidecar.
 
 ## Manual watchdog records
 
