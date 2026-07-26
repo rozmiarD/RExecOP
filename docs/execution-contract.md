@@ -154,6 +154,43 @@ the existing profile retry classification. This contract does not infer connecto
 provide exactly-once execution, or turn a post-IO uncertainty into a safe retry claim. Read-only
 attempts retain their existing retry behavior.
 
+## Rollback execution binding
+
+Rollback uses the same request, attempt, permit and receipt machinery as forward execution. A
+separate rollback operation/plan persists the exact declared rollback mode and steps, its failed
+parent id, parent-plan digest, rollback-plan digest, and a stable failure-authority digest. The
+plan-level GovEngine request is new and includes that exact rollback scope. Every rollback
+connector attempt obtains and consumes its own signed decision/authorization nonce; it is bound to
+the rollback operation, attempt, execution spec, permit and active lease, not to the parent's
+decision or approval.
+
+Before start and again immediately before connector I/O, the runtime recomputes the parent failure
+authority from the parent id, `failed` state, bounded `last_failure`, terminal forward execution
+receipt and parent-plan digest. Drift or a parent retry fails before rollback connector I/O. A
+connector rollback cannot start without the canonical signed-decision consumer. Receipt
+conformance is required for each rollback connector step; post-I/O receipt ambiguity becomes
+`outcome_indeterminate` and the rollback plan's zero-retry policy plus the intrinsic runtime rule
+forbid reinvocation. Internal-only rollback steps still use the ordinary orchestrator lifecycle but
+do not invent a connector attempt.
+
+The current workflow rollback block has no declared input projection. Its derived operation starts
+with an empty runtime `shared_state`; it does not copy parent `connector_results`,
+`mutation_states`, `internal_results`, `continued_failures`, step/execution records, receipts,
+typed specs/admissions or controls. This prevents a colliding parent/rollback step id from being
+reported as rollback execution before the rollback attempt. The parent terminal receipt remains an
+independent input to the persisted failure-authority digest and is not copied into child state.
+
+Catalog-bound rollback authority retains the parent's persisted catalog runtime reference and exact
+plan binding without resolving live catalog files during child preparation. Normal controller
+`start`, `advance`, `resume` and `retry` paths run the same side-effect-free rollback authority
+preflight before runtime admission or queue mutation. Orchestrator resume runs it before its first
+state transition, while attempt creation and immediate pre-I/O checks repeat it as defense in
+depth. Drift detected before execution allocates no attempt; drift detected after attempt start is
+durably finalized as a failed pre-I/O attempt and never invokes the connector.
+
+These are RExecOp lifecycle and runtime records. Exporting the terminal child projects them through
+the normal SCLite completion path; RExecOp does not claim independent canonical evidence truth.
+
 ## Diagnostic partial failures
 
 A profile may set `metadata.continue_on_error: true` only on a connector step in a

@@ -48,6 +48,7 @@ from rexecop.policy.pack import compile_environment_policy_pack
 from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.runtime_ops.governance_facts import build_runtime_attempt_governance_facts
 from rexecop.runtime_ops.permit import ExecutionPermitManager
+from rexecop.runtime_ops.rollback import rollback_failure_authority_digest
 from rexecop.storage.port import RuntimeStore
 from rexecop.validation.validator import validate_operation_result
 from rexecop.workflow.runner import WorkflowRunner
@@ -138,6 +139,7 @@ class OperationOrchestrator:
         export_receipt: Any,
         auto_reaction_handler: Callable[[Operation], dict[str, Any] | None] | None = None,
         governance_decision_consumer: TrustedGovernanceDecisionConsumer | None = None,
+        catalog_binding_validator: Callable[[Operation, OperationPlan], None] | None = None,
         inventory_epoch: int = 0,
     ) -> None:
         self.store = store
@@ -147,6 +149,7 @@ class OperationOrchestrator:
         self._export_receipt = export_receipt
         self._auto_reaction_handler = auto_reaction_handler
         self._governance_decision_consumer = governance_decision_consumer
+        self._catalog_binding_validator = catalog_binding_validator
         self._inventory_epoch = inventory_epoch
         self.execution_lease_record: dict[str, Any] | None = None
         self.permits = ExecutionPermitManager(store)
@@ -186,7 +189,11 @@ class OperationOrchestrator:
             raise RExecOpValidationError("execution attempt requires active execution lease")
         self.store.validate_execution_lease(lease)
         operation = self.store.load_operation(context.operation_id)
-        plan = self.store.load_plan(context.operation_id)
+        plan = self.preflight_rollback_authority(operation)
+        if self._is_rollback_operation(operation) and self._governance_decision_consumer is None:
+            raise RExecOpValidationError(
+                "rollback connector attempt requires canonical signed governance authority"
+            )
         governance = operation.metadata.get("governance_admission")
         governance_admission_digest = ""
         if isinstance(governance, dict):
@@ -284,7 +291,7 @@ class OperationOrchestrator:
         if lease is None:
             raise RExecOpValidationError("execution attempt requires active execution lease")
         operation = self.store.load_operation(str(attempt["operation_id"]))
-        plan = self.store.load_plan(operation.id)
+        plan = self.preflight_rollback_authority(operation)
         permit = attempt.get("_runtime_permit")
         execution_spec = attempt.get("_execution_spec")
         target_binding = attempt.get("_target_binding")
@@ -467,6 +474,7 @@ class OperationOrchestrator:
         operation = self.store.load_operation(operation_id)
         if operation.state != OperationState.PAUSED.value:
             raise RExecOpValidationError(f"resume requires paused operation, got {operation.state}")
+        self.preflight_rollback_authority(operation)
         self._transition(
             operation,
             OperationState.RESUMING,
@@ -502,7 +510,7 @@ class OperationOrchestrator:
         operation = self.store.load_operation(operation_id)
         if operation.state != OperationState.FAILED.value:
             raise RExecOpValidationError(f"retry requires failed operation, got {operation.state}")
-        plan = self.store.load_plan(operation_id)
+        plan = self.preflight_rollback_authority(operation)
         failure = dict(operation.metadata.get("last_failure") or {})
         error_class = str(failure.get("error_class") or "")
         if not self._error_retryable(plan, error_class=error_class):
@@ -555,7 +563,15 @@ class OperationOrchestrator:
         return package
 
     def _prepare_start(self, operation: Operation) -> None:
-        plan = self.store.load_plan(operation.id)
+        plan = self.preflight_rollback_authority(operation)
+        if (
+            self._is_rollback_operation(operation)
+            and plan.required_connectors
+            and self._governance_decision_consumer is None
+        ):
+            raise RExecOpValidationError(
+                "rollback connector execution requires canonical signed governance authority"
+            )
         self._policy_enforcement_for_operation(operation, plan)
         correlation_id = operation.correlation_id
 
@@ -771,11 +787,14 @@ class OperationOrchestrator:
 
     def _finalize_validation(self, operation: Operation) -> Operation:
         shared_state = dict(operation.metadata.get("shared_state") or {})
-        validation = validate_operation_result(
-            intent=operation.intent,
-            shared_state=shared_state,
-            profile=self._profile_for_operation(operation),
-        )
+        if self._is_rollback_operation(operation):
+            validation = self._validate_rollback_result(operation, shared_state)
+        else:
+            validation = validate_operation_result(
+                intent=operation.intent,
+                shared_state=shared_state,
+                profile=self._profile_for_operation(operation),
+            )
         operation.metadata["validation"] = validation
         self._emit_simple_event(
             operation,
@@ -814,6 +833,51 @@ class OperationOrchestrator:
 
         self.store.save_operation(operation)
         return operation
+
+    def _validate_rollback_result(
+        self,
+        operation: Operation,
+        shared_state: dict[str, Any],
+    ) -> dict[str, Any]:
+        plan = self.store.load_plan(operation.id)
+        results_raw = shared_state.get("step_results")
+        results = dict(results_raw) if isinstance(results_raw, dict) else {}
+        missing_or_failed: list[str] = []
+        receipt_failures: list[str] = []
+        connector_receipts = 0
+        for step in plan.planned_steps:
+            step_id = str(step.get("id") or "")
+            result = results.get(step_id)
+            if not isinstance(result, dict) or result.get("success") is not True:
+                missing_or_failed.append(step_id)
+                continue
+            if str(step.get("type") or "") != "connector":
+                continue
+            conformance = result.get("receipt_conformance")
+            if not isinstance(conformance, dict) or conformance.get("conformant") is not True:
+                receipt_failures.append(step_id)
+            else:
+                connector_receipts += 1
+        passed = not missing_or_failed and not receipt_failures
+        return {
+            "passed": passed,
+            "rule": (
+                "rexecop.rollback_steps_completed"
+                if passed
+                else "rexecop.rollback_execution_incomplete"
+            ),
+            "details": {
+                "parent_operation_id": str(
+                    (operation.metadata.get("derived_operation") or {}).get(
+                        "parent_operation_id"
+                    )
+                ),
+                "planned_step_count": len(plan.planned_steps),
+                "connector_receipt_count": connector_receipts,
+                "missing_or_failed_steps": missing_or_failed,
+                "receipt_failures": receipt_failures,
+            },
+        }
 
     def _maybe_plan_auto_reaction(self, operation: Operation) -> None:
         if self._auto_reaction_handler is None:
@@ -915,6 +979,50 @@ class OperationOrchestrator:
                 return False
             return True
         return False
+
+    @staticmethod
+    def _is_rollback_operation(operation: Operation) -> bool:
+        derived = operation.metadata.get("derived_operation")
+        return isinstance(derived, dict) and derived.get("kind") == "rollback"
+
+    def _require_rollback_parent_authority(self, operation: Operation) -> None:
+        if not self._is_rollback_operation(operation):
+            return
+        derived = operation.metadata.get("derived_operation")
+        assert isinstance(derived, dict)
+        parent_id = str(derived.get("parent_operation_id") or "")
+        expected_digest = str(derived.get("failure_authority_digest") or "")
+        if not parent_id or not expected_digest:
+            raise RExecOpValidationError("rollback parent failure authority is missing")
+        parent = self.store.load_operation(parent_id)
+        if parent.state != OperationState.FAILED.value:
+            raise RExecOpValidationError("rollback parent is no longer failed")
+        parent_plan = self.store.load_plan(parent_id)
+        current_digest = rollback_failure_authority_digest(parent, parent_plan)
+        if not hmac.compare_digest(expected_digest, current_digest):
+            raise RExecOpValidationError("rollback parent failure authority drift")
+
+    def _require_rollback_catalog_binding(
+        self,
+        operation: Operation,
+        plan: OperationPlan,
+    ) -> None:
+        if not self._is_rollback_operation(operation):
+            return
+        has_runtime_binding = isinstance(operation.metadata.get("catalog_runtime"), dict)
+        if not has_runtime_binding and not plan.catalog_binding:
+            return
+        if self._catalog_binding_validator is None:
+            raise RExecOpValidationError("rollback catalog binding validator is missing")
+        self._catalog_binding_validator(operation, plan)
+
+    def preflight_rollback_authority(self, operation: Operation) -> OperationPlan:
+        """Validate persisted rollback authority without changing runtime state."""
+
+        plan = self.store.load_plan(operation.id)
+        self._require_rollback_catalog_binding(operation, plan)
+        self._require_rollback_parent_authority(operation)
+        return plan
 
     def _init_execution_cursor(self, operation: Operation, plan: OperationPlan) -> None:
         operation.metadata["execution_cursor"] = {

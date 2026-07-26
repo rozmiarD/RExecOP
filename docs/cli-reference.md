@@ -224,11 +224,18 @@ Requires initialized runtime root unless noted.
 | `resume --operation ID` | Resume from paused state |
 | `cancel --operation ID` | Abort before completion |
 | `retry --operation ID` | Operator retry when profile policy allows |
-| `rollback --operation ID` | Run explicit workflow rollback steps after failure |
+| `rollback --operation ID` | Create/recover the persisted rollback child and start it only when independently admitted |
 | `validate --operation ID` | Re-run declarative profile validation rules for one operation |
 | `escalate --operation ID` | Build operator escalation package |
 | `status --operation ID` | Current operation state |
 | `history --operation ID` | Transition and evidence history |
+
+`rollback` returns `rollback_operation_id`, `parent_operation_id`, mode, state/status, success,
+bounded step results, error classification, `requires_approval`, and a safe `continuation` hint.
+For an approval-required result, run `approve --operation <rollback_operation_id>` and then
+`start --operation <rollback_operation_id>`; approval of the failed parent is not reused. The
+command is idempotent for a parent: repeated calls recover the persisted child and never create a
+second rollback. A failed `outcome_indeterminate` child requires reconciliation, not `retry`.
 
 ## Queue, worker and triggers
 

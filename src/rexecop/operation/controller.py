@@ -137,6 +137,7 @@ class OperationController:
             export_receipt=self.export_receipt,
             auto_reaction_handler=self._maybe_plan_auto_reaction,
             governance_decision_consumer=governance_decision_consumer,
+            catalog_binding_validator=self._verify_catalog_binding,
             inventory_epoch=capability_inventory_epoch,
         )
         self._execution_lease: dict[str, Any] | None = None
@@ -528,13 +529,6 @@ class OperationController:
             return True
         return False
 
-    def _governance_allows_rollback(self, operation: Operation) -> bool:
-        if operation.govengine_decision_type == GovEngineDecisionType.ALLOWED.value:
-            return True
-        if operation.metadata.get("manual_approval"):
-            return True
-        return False
-
     def get_operation(self, operation_id: str) -> Operation:
         return self.store.load_operation(operation_id)
 
@@ -621,24 +615,206 @@ class OperationController:
             return self._drain_queue()
 
     def rollback(self, operation_id: str) -> dict[str, object]:
-        operation = self.get_operation(operation_id)
-        require_mutation_execution_enabled(operation.mode)
-        plan = self.store.load_plan(operation_id)
-        result = self.rollback_executor.execute(
-            operation=operation,
-            plan=plan,
-            govengine_allows=self._governance_allows_rollback(operation),
+        parent = self.get_operation(operation_id)
+        parent_plan = self.store.load_plan(operation_id)
+        child = self._existing_rollback_operation(parent)
+        if child is None:
+            child = self._prepare_rollback_operation(parent, parent_plan)
+
+        self._link_rollback(parent.id, child)
+        if child.state == OperationState.APPROVED.value:
+            with self.execution_lease():
+                self._start_operation(child.id, drain_queue=True)
+            child = self.get_operation(child.id)
+            self._link_rollback(parent.id, child)
+        return self._rollback_summary(child)
+
+    def _existing_rollback_operation(self, parent: Operation) -> Operation | None:
+        expected_id = self.rollback_executor.operation_id(parent.id)
+        link = parent.metadata.get("rollback")
+        if isinstance(link, dict):
+            linked_id = str(link.get("rollback_operation_id") or "")
+            if linked_id and linked_id != expected_id:
+                raise RExecOpValidationError("rollback parent linkage is inconsistent")
+        try:
+            child = self.get_operation(expected_id)
+        except RExecOpValidationError as exc:
+            if "operation not found" not in str(exc):
+                raise
+            return None
+        derived = child.metadata.get("derived_operation")
+        if not isinstance(derived, dict) or (
+            derived.get("kind") != "rollback"
+            or str(derived.get("parent_operation_id") or "") != parent.id
+        ):
+            raise RExecOpValidationError("rollback child linkage is inconsistent")
+        return child
+
+    def _prepare_rollback_operation(
+        self,
+        parent: Operation,
+        parent_plan: OperationPlan,
+    ) -> Operation:
+        prepared = self.rollback_executor.prepare(
+            parent=parent,
+            parent_plan=parent_plan,
+            correlation_id=str(uuid.uuid4()),
         )
-        operation.metadata["rollback"] = result
+        operation = prepared.operation
+        plan = prepared.plan
+        derived = dict(operation.metadata.get("derived_operation") or {})
+        attach_operation_idempotency(
+            operation.metadata,
+            plan_key=f"rollback:{derived.get('rollback_plan_digest', '')}",
+            start_key=start_idempotency_key(operation.id),
+        )
+        self._bind_rollback_policy(operation, plan)
+
+        created_event = self.evidence.emit(
+            operation_id=operation.id,
+            event_type=EvidenceEventType.OPERATION_CREATED,
+            correlation_id=operation.correlation_id,
+            state_after=operation.state,
+            payload={
+                "profile": operation.profile,
+                "environment": operation.environment,
+                "intent": operation.intent,
+                "target": operation.target,
+                "mode": operation.mode,
+                "operation_kind": "rollback",
+                "parent_operation_id": parent.id,
+            },
+        )
+        operation.evidence_event_ids.append(created_event)
+        self._transition(
+            operation,
+            OperationState.PLANNED,
+            reason="rollback_plan_completed",
+            correlation_id=operation.correlation_id,
+        )
+        plan_event = self.evidence.emit(
+            operation_id=operation.id,
+            event_type=EvidenceEventType.PLAN_GENERATED,
+            correlation_id=operation.correlation_id,
+            state_before=OperationState.CREATED.value,
+            state_after=operation.state,
+            payload={
+                "planned_steps": plan.planned_steps,
+                "workflow_id": plan.workflow.get("id"),
+                "operation_kind": "rollback",
+                "parent_operation_id": parent.id,
+            },
+        )
+        operation.evidence_event_ids.append(plan_event)
+
+        # Persist the exact authority record before asking GovEngine or starting
+        # execution. The deterministic child id makes an interrupted write
+        # recoverable without creating a second rollback operation.
+        self.store.save_plan(plan)
+        decision = self._evaluate_governance(
+            operation,
+            plan,
+            operation.correlation_id,
+        )
+        self._apply_governance_transition(
+            operation,
+            decision,
+            operation.correlation_id,
+        )
+        self._emit_sclite_intent(operation, plan)
         self.store.save_operation(operation)
-        return result
+        return operation
+
+    def _bind_rollback_policy(
+        self,
+        operation: Operation,
+        plan: OperationPlan,
+    ) -> None:
+        policy_raw = operation.metadata.get("policy_pack")
+        if not isinstance(policy_raw, dict):
+            return
+        environment_path = str(operation.metadata.get("environment_path") or "").strip()
+        if not environment_path:
+            raise RExecOpValidationError("rollback policy environment binding is missing")
+        environment = load_environment(Path(environment_path))
+        compiled_policy = compile_environment_policy_pack(policy_raw)
+        if compiled_policy is None:
+            raise RExecOpValidationError("compiled rollback policy pack is missing")
+        verdict = evaluate_operation_policy(
+            policy_pack=compiled_policy,
+            operation_id=operation.id,
+            profile=operation.profile,
+            environment=environment,
+            intent=operation.intent,
+            target=operation.target,
+            mode=operation.mode,
+            risk=plan.risk,
+        )
+        plan.govengine_request_preview["policy_decision"] = policy_decision_from_verdict(
+            verdict
+        )
+        operation.metadata["policy_verdict"] = verdict.as_dict()
+        enforcement = build_policy_enforcement_record(compiled_policy, verdict)
+        operation.metadata["policy_enforcement"] = enforcement
+        operation.metadata["policy_pack_lifecycle"] = bind_policy_pack_lifecycle(
+            describe_policy_pack_lifecycle(policy_raw, compiled_policy),
+            enforcement=enforcement,
+        )
+        require_operation_policy_allows_plan(verdict, controls_enforced=True)
+
+    def _link_rollback(self, parent_operation_id: str, child: Operation) -> None:
+        parent = self.get_operation(parent_operation_id)
+        parent.metadata["rollback"] = self._rollback_summary(child)
+        self.store.save_operation(parent)
+
+    def _rollback_summary(self, child: Operation) -> dict[str, object]:
+        plan = self.store.load_plan(child.id)
+        step_results = child.metadata.get("step_results")
+        results = dict(step_results) if isinstance(step_results, dict) else {}
+        executed_steps = [
+            str(step.get("id") or "")
+            for step in plan.planned_steps
+            if str(step.get("id") or "") in results
+        ]
+        failure = child.metadata.get("last_failure")
+        failure_record = dict(failure) if isinstance(failure, dict) else {}
+        requires_approval = child.state == OperationState.WAITING_FOR_APPROVAL.value
+        continuation = ""
+        if requires_approval:
+            continuation = (
+                f"approve rollback operation {child.id}, then start that operation"
+            )
+        elif child.state == OperationState.APPROVED.value:
+            continuation = f"start rollback operation {child.id}"
+        elif failure_record.get("error_class") == "outcome_indeterminate":
+            continuation = (
+                f"reconcile rollback operation {child.id}; automatic retry is forbidden"
+            )
+        return {
+            "rollback_operation_id": child.id,
+            "parent_operation_id": str(
+                (child.metadata.get("derived_operation") or {}).get(
+                    "parent_operation_id"
+                )
+            ),
+            "mode": child.mode,
+            "state": child.state,
+            "status": child.state,
+            "success": child.state == OperationState.COMPLETED.value,
+            "executed_steps": executed_steps,
+            "step_results": results,
+            "error": str(failure_record.get("error") or ""),
+            "error_class": str(failure_record.get("error_class") or ""),
+            "requires_approval": requires_approval,
+            "continuation": continuation,
+        }
 
     def _start_operation(self, operation_id: str, *, drain_queue: bool) -> Operation:
         operation = self.get_operation(operation_id)
         if start_is_idempotent(operation):
             return operation
+        plan = self.orchestrator.preflight_rollback_authority(operation)
         require_mutation_execution_enabled(operation.mode)
-        plan = self.store.load_plan(operation_id)
         self._verify_catalog_binding(operation, plan)
         if operation.state == OperationState.APPROVED.value and is_mutating_mode(operation.mode):
             self.runtime.check_maintenance_window(operation)
@@ -702,6 +878,16 @@ class OperationController:
             if candidate.state != OperationState.APPROVED.value:
                 self.runtime.queue.complete_claim_from_lease(next_id, lease)
                 continue
+            try:
+                self.orchestrator.preflight_rollback_authority(candidate)
+            except RExecOpValidationError:
+                derived = candidate.metadata.get("derived_operation")
+                if isinstance(derived, dict) and derived.get("kind") == "rollback":
+                    self.runtime.queue.complete_claim_from_lease(next_id, lease)
+                    self.runtime.queue.remove(next_id)
+                    candidate.metadata.pop("queue", None)
+                    self.store.save_operation(candidate)
+                raise
             if self.runtime.admit_for_execution(candidate) != "admitted":
                 break
             self._start_operation(next_id, drain_queue=False)
@@ -712,6 +898,7 @@ class OperationController:
     def advance(self, operation_id: str, *, max_steps: int = 1) -> Operation:
         with self.execution_lease():
             operation = self.get_operation(operation_id)
+            self.orchestrator.preflight_rollback_authority(operation)
             require_mutation_execution_enabled(operation.mode)
             if operation.state == OperationState.APPROVED.value and is_mutating_mode(
                 operation.mode
@@ -762,6 +949,7 @@ class OperationController:
     def resume(self, operation_id: str) -> Operation:
         with self.execution_lease():
             operation = self.get_operation(operation_id)
+            self.orchestrator.preflight_rollback_authority(operation)
             require_mutation_execution_enabled(operation.mode)
             if is_mutating_mode(operation.mode):
                 self.runtime.check_maintenance_window(operation)
@@ -789,6 +977,7 @@ class OperationController:
                     "side-effectful attempt requires explicit reconciliation"
                 )
             operation = self.get_operation(operation_id)
+            self.orchestrator.preflight_rollback_authority(operation)
             require_mutation_execution_enabled(operation.mode)
             if is_mutating_mode(operation.mode):
                 self.runtime.check_maintenance_window(operation)

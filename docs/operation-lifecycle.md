@@ -62,6 +62,40 @@ Configured per environment under `safety`:
 Queued operations stay in `approved` with `metadata.queue.status = pending` until the runtime
 coordinator admits them after a slot frees.
 
+## Rollback operations
+
+`rollback` does not run the failed operation's rollback block in place. It creates a separate,
+persisted operation and plan with a deterministic `<parent-id>-rollback` id, exact rollback mode
+and steps, and a digest-bound link to the parent's failed outcome. The child and reciprocal parent
+link are stored before execution, so replay after a crash recovers the same child instead of
+creating or invoking a second rollback.
+
+The rollback child receives a fresh plan-level GovEngine decision. Connector steps also require
+fresh signed per-attempt authority and use the ordinary execution lease, permit, pre-I/O
+revalidation, attempt journal and receipt-conformance path. Parent admission, a parent boolean
+allow result, and parent manual approval are never rollback authority. If GovEngine returns an
+approval-required decision, the child remains `waiting_for_approval`; approve and then start the
+child operation id returned by `rollback`. Re-running `rollback` only reports that same child.
+
+The current rollback workflow block declares no input projection, so the child starts with an
+empty `shared_state`. Parent connector/mutation/internal results, continued failures, executed
+steps, step results, receipts, typed specs/admissions and execution controls are not inherited.
+Rollback steps may produce their own namespaced results only after their own execution.
+
+For a catalog-bound parent, the child copies the persisted `catalog_runtime` reference and exact
+parent-plan `catalog_binding`; rollback preparation does not re-resolve the catalog. The ordinary
+controller `start`, `advance`, `resume` and `retry` entrypoints run one side-effect-free rollback
+authority preflight before maintenance, admission or queue mutation. Resume repeats it before its
+first transition/evidence event, and execution repeats it before permit allocation and immediately
+before rollback connector I/O. Catalog, profile or environment drift therefore stops the child
+without a connector call.
+
+Immediately before rollback start and connector I/O, RExecOp verifies that the parent is still
+`failed` and that its failure/terminal receipt and parent plan still match the persisted failure
+authority digest. A parent retry or drift invalidates the child before connector invocation.
+Rollback connector execution fails closed when canonical signed attempt authority is unavailable.
+An indeterminate rollback outcome is never retried automatically or by `retry`; reconcile it.
+
 ## Workflow execution records
 
 During `start`, `WorkflowRunner` writes:
@@ -86,7 +120,7 @@ approve, re-evaluate policy reasoning, or expose connector configuration.
 ## Authority boundaries
 
 - **GovEngine** decides whether mutating work is allowed.
-- **RExecOp** decides when/how steps run, pause, retry, queue, and lock.
+- **RExecOp** decides when/how steps run, pause, retry, rollback, queue, and lock.
 - **SCLite** records auditable artifacts on the completion export path.
 - **Profiles** define workflow steps and validation rules — the runner never invents steps.
 
