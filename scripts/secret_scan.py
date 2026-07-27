@@ -1,244 +1,185 @@
 #!/usr/bin/env python3
+"""Worktree/history CLI wrapper for the packaged RExecOp secret scanner."""
+
 from __future__ import annotations
 
 import argparse
-import hashlib
-import math
-import re
-import subprocess
-from collections import Counter
-from dataclasses import dataclass
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_BLOB_BYTES = 5 * 1024 * 1024
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
 
-SECRET_PATTERNS = {
-    "private_key": re.compile(
-        rb"-----BEGIN (?:RSA |DSA |EC |OPENSSH |PGP )?PRIVATE KEY-----"
-    ),
-    "aws_access_key": re.compile(rb"(?:AKIA|ASIA)[A-Z0-9]{16}"),
-    "github_token": re.compile(
-        rb"(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{50,255})"
-    ),
-    "gitlab_token": re.compile(rb"glpat-[A-Za-z0-9_-]{20,}"),
-    "slack_token": re.compile(rb"xox[baprs]-[A-Za-z0-9-]{10,}"),
-    "pypi_token": re.compile(rb"pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{20,}"),
-    "npm_token": re.compile(rb"npm_[A-Za-z0-9]{36}"),
-    "google_api_key": re.compile(rb"AIza[0-9A-Za-z_-]{35}"),
-    "jwt": re.compile(
-        rb"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
-    ),
-    "authorization": re.compile(
-        rb"(?i)\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{12,}"
-    ),
-    "credential_url": re.compile(rb"(?i)https?://[^\s/@:]{1,}:[^\s/@]{1,}@"),
-}
-
-CREDENTIAL_ASSIGNMENT = re.compile(
-    rb"(?i)(?<![A-Za-z0-9_])(?:[A-Za-z0-9]+[_-])*(?:password|passwd|pwd|secret|"
-    rb"token|api[_-]?key|access[_-]?key|"
-    rb"private[_-]?key|client[_-]?secret|authorization)"
-    rb"(?![A-Za-z0-9_])\s*([:=])\s*([\"']?)([^\s\"'#,}\]]{4,})"
-)
-PLACEHOLDER = re.compile(
-    rb"(?i)^(?:example|sample|dummy|fake|test|fixture|placeholder|redacted|"
-    rb"changeme|replace(?:_me)?|plaintext|value|abc|tok|token-value|"
-    rb"pbs-secret|from-file|secret-value|secret-token|pbs-token-value|"
-    rb"private-plugin-exception-detail|"
-    rb"user@pam!token-id=uuid|rexecop|write|\$[A-Za-z_{].*|\{[A-Za-z_{].*|<.*)"
-)
-GITHUB_OIDC_PERMISSION = re.compile(rb"(?i)id-token\s*:\s*write")
-SENSITIVE_FILENAMES = re.compile(
-    r"(?i)^(?:\.env(?:\..+)?|credentials(?:\..+)?\.json|secrets?\.(?:ya?ml|json)|"
-    r"id_(?:rsa|dsa|ecdsa|ed25519)|known_hosts|.*\.(?:pem|key|p12|pfx|jks|keystore|kdbx))$"
+from rexecop.security.secret_scan import (  # noqa: E402
+    Finding,
+    scan_commit_messages,
+    scan_data,
+    scan_history,
+    scan_path,
+    scan_worktree,
 )
 
-
-@dataclass(frozen=True)
-class Finding:
-    scope: str
-    identity: str
-    path: str
-    line: int
-    rule: str
-    fingerprint: str
-
-    def render(self) -> str:
-        safe_path = _redact_path(self.path)
-        return (
-            f"{self.scope}:{self.identity[:12]}:{safe_path}:{self.line}:"
-            f"{self.rule}:sha256={self.fingerprint}"
-        )
-
-
-def _fingerprint(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()[:12]
-
-
-def _redact_path(path: str) -> str:
-    value = path.encode("utf-8", "replace")
-    for pattern in SECRET_PATTERNS.values():
-        value = pattern.sub(b"[REDACTED]", value)
-    return value.decode("utf-8", "replace")
-
-
-def _entropy(value: bytes) -> float:
-    counts = Counter(value)
-    length = len(value)
-    return -sum((count / length) * math.log2(count / length) for count in counts.values())
-
-
-def scan_data(*, scope: str, identity: str, path: str, data: bytes) -> list[Finding]:
-    if b"\0" in data[:8192]:
-        return []
-    findings: list[Finding] = []
-    seen: set[tuple[int, str, str]] = set()
-    for line_number, line in enumerate(data.splitlines(), 1):
-        for rule, pattern in SECRET_PATTERNS.items():
-            for match in pattern.finditer(line):
-                value = match.group(0)
-                key = (line_number, rule, _fingerprint(value))
-                if key not in seen:
-                    findings.append(
-                        Finding(scope, identity, path, line_number, rule, key[2])
-                    )
-                    seen.add(key)
-        if GITHUB_OIDC_PERMISSION.search(line):
-            continue
-        for match in CREDENTIAL_ASSIGNMENT.finditer(line):
-            separator = match.group(1)
-            quote = match.group(2)
-            value = match.group(3).rstrip(b";)")
-            if PLACEHOLDER.match(value):
-                continue
-            if path.endswith(".py") and (
-                separator == b":"
-                or
-                value.startswith((b"_", b"self.", b"os.", b"str(", b"dict(", b"getattr("))
-                or b"(" in value
-                or (
-                    not quote
-                    and re.fullmatch(rb"[A-Za-z_][A-Za-z0-9_.]*", value)
-                )
-            ):
-                continue
-            rule = (
-                "high_entropy_credential"
-                if len(value) >= 20 and _entropy(value) >= 4.0
-                else "credential_assignment"
-            )
-            key = (line_number, rule, _fingerprint(value))
-            if key not in seen:
-                findings.append(Finding(scope, identity, path, line_number, rule, key[2]))
-                seen.add(key)
-    return findings
-
-
-def scan_path(*, scope: str, identity: str, path: str) -> list[Finding]:
-    name = Path(path).name
-    if not SENSITIVE_FILENAMES.fullmatch(name):
-        return []
-    if name.endswith(".example") or ".example." in name:
-        return []
-    return [
-        Finding(
-            scope=scope,
-            identity=identity,
-            path=path,
-            line=0,
-            rule="sensitive_filename",
-            fingerprint=_fingerprint(path.encode()),
-        )
-    ]
-
-
-def _git(*args: str, input_data: bytes | None = None) -> bytes:
-    return subprocess.check_output(("git", *args), cwd=ROOT, input=input_data)
-
-
-def scan_worktree() -> list[Finding]:
-    findings: list[Finding] = []
-    for raw_path in _git("ls-files", "-z").split(b"\0"):
-        if not raw_path:
-            continue
-        relative = raw_path.decode("utf-8", "surrogateescape")
-        path = ROOT / relative
-        if path.is_file() and path.stat().st_size <= MAX_BLOB_BYTES:
-            findings.extend(scan_path(scope="worktree", identity="HEAD", path=relative))
-            findings.extend(
-                scan_data(
-                    scope="worktree",
-                    identity="HEAD",
-                    path=relative,
-                    data=path.read_bytes(),
-                )
-            )
-    return findings
-
-
-def scan_history() -> list[Finding]:
-    objects: dict[str, str] = {}
-    for line in _git("rev-list", "--objects", "--all", "--reflog").splitlines():
-        raw_oid, _, raw_path = line.partition(b" ")
-        objects.setdefault(
-            raw_oid.decode(),
-            raw_path.decode("utf-8", "replace") or "(unknown)",
-        )
-    checks = _git(
-        "cat-file",
-        "--batch-check=%(objectname) %(objecttype) %(objectsize)",
-        input_data=("\n".join(objects) + "\n").encode(),
-    ).decode().splitlines()
-    findings: list[Finding] = []
-    for check in checks:
-        oid, kind, raw_size = check.split()
-        if kind != "blob" or int(raw_size) > MAX_BLOB_BYTES:
-            continue
-        findings.extend(
-            scan_path(scope="history", identity=oid, path=objects[oid])
-        )
-        findings.extend(
-            scan_data(
-                scope="history",
-                identity=oid,
-                path=objects[oid],
-                data=_git("cat-file", "blob", oid),
-            )
-        )
-    return findings
+# These findings are reachable immutable Git blobs, not a current-worktree
+# exception. Every field is part of the key so a new finding cannot inherit this
+# baseline merely by sharing a path, rule, or fingerprint.
+IMMUTABLE_HISTORY_BASELINE = frozenset(
+    {
+        (
+            "0a598d14c5186bd6d94eb231ad383f790e66968f",
+            "OPERATOR_RUNBOOK.md",
+            43,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "12b087f0b804bd15d191011bcd032e792020cfc8",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "2988f14c62d5d143eca619cca9f395280505e908",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "3161ce5d72e01deba07153b8a982e92d70ad6a89",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "54646085464809ad47042a8636539c47fb8a7ce8",
+            "OPERATOR_RUNBOOK.md",
+            43,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "5680a8df743b6d7acd35afd9db4c8308c60c39de",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "612a5b423383760c672766f4748f9252f7bb27e1",
+            "OPERATOR_RUNBOOK.md",
+            43,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "6cbbd4c15982574921b6948b0523e5f76791ab90",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "abdc9a4be67d6ef82af0cf79655c8c80d0e1413d",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "b42c5c64c663037e1aa79bac7ce5e970c1c3b6fe",
+            "OPERATOR_RUNBOOK.md",
+            44,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "c2af65328e18d6564d045012b9061d4105cf2c90",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "d0204fdf31276d695c7eb9002e9e8d8f126e98b5",
+            "examples/secrets/staging-http.lab.example.yaml",
+            6,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "d09131023104f23f1fb9d5b1929d41470e1a1e56",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "dad3e657069f78b34c246b7136fc9e8761bd72b6",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+        (
+            "dcde7baf9fe5736494d1e83bbdee2d9c145d9744",
+            "OPERATOR_RUNBOOK.md",
+            48,
+            "credential_assignment",
+            "1d4c203ca55d",
+            "history",
+        ),
+    }
+)
 
 
-def scan_commit_messages() -> list[Finding]:
-    findings: list[Finding] = []
-    for raw_oid in _git("rev-list", "--all", "--reflog").splitlines():
-        oid = raw_oid.decode()
-        commit = _git("cat-file", "commit", oid)
-        _, _, message = commit.partition(b"\n\n")
-        findings.extend(
-            scan_data(
-                scope="commit",
-                identity=oid,
-                path="(commit-message)",
-                data=message,
-            )
-        )
-    return findings
+def _history_baseline_key(finding: Finding) -> tuple[str, str, int, str, str, str]:
+    return (
+        finding.identity,
+        finding.path,
+        finding.line,
+        finding.rule,
+        finding.fingerprint,
+        finding.scope,
+    )
 
 
-def main() -> int:
+def _is_immutable_history_baseline(finding: Finding) -> bool:
+    return _history_baseline_key(finding) in IMMUTABLE_HISTORY_BASELINE
+
+
+def main(*, root: Path, argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Scan RExecOp without printing secret values.")
     parser.add_argument(
         "--history",
         action="store_true",
         help="scan every blob reachable from refs and reflogs",
     )
-    args = parser.parse_args()
-    findings = scan_worktree()
+    args = parser.parse_args(argv)
+    findings = scan_worktree(root)
     if args.history:
-        findings.extend(scan_history())
-        findings.extend(scan_commit_messages())
-    unique = sorted(set(findings), key=lambda item: item.render())
+        findings.extend(scan_history(root))
+        findings.extend(scan_commit_messages(root))
+    unique = sorted(
+        {finding for finding in findings if not _is_immutable_history_baseline(finding)},
+        key=lambda item: item.render(),
+    )
     if unique:
         for finding in unique:
             print(f"possible_secret:{finding.render()}")
@@ -247,5 +188,16 @@ def main() -> int:
     return 0
 
 
+__all__ = [
+    "Finding",
+    "main",
+    "scan_commit_messages",
+    "scan_data",
+    "scan_history",
+    "scan_path",
+    "scan_worktree",
+]
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(root=ROOT))

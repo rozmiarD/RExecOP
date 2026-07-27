@@ -5,6 +5,8 @@ import io
 import json
 import multiprocessing
 import os
+import subprocess
+import sys
 import tarfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1666,6 +1668,98 @@ def test_cli_runtime_recover_and_backup(tmp_path: Path) -> None:
     )
     assert backup.exit_code == 0, backup.output
     assert '"status": "created"' in backup.output
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        "runtime backup secret scan is unavailable",
+        "runtime backup secret scan failed",
+    ],
+)
+def test_cli_backup_create_fails_closed_when_packaged_scanner_is_unavailable_or_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: str,
+) -> None:
+    root = tmp_path / "runtime"
+    initialize_runtime_root(root)
+    output = tmp_path / "bundle.tar"
+
+    def unavailable_scanner(**_kwargs: Any) -> list[Any]:
+        raise RuntimeError("scanner internals must not reach CLI output")
+
+    if error.endswith("unavailable"):
+        def unavailable_loader() -> Any:
+            raise RExecOpValidationError(error)
+
+        monkeypatch.setattr(backup_module, "_load_snapshot_scanner", unavailable_loader)
+    else:
+        monkeypatch.setattr(backup_module, "_load_snapshot_scanner", lambda: unavailable_scanner)
+    result = runner.invoke(
+        app,
+        ["--root", str(root), "backup", "create", "--output", str(output)],
+    )
+
+    assert result.exit_code == 1
+    assert result.exception is not None
+    assert f"error: {error}" in result.output
+    assert "scanner internals" not in result.output
+    assert not output.exists()
+    assert not output.with_suffix(".manifest.json").exists()
+
+
+def test_cli_import_and_backup_fail_closed_when_scanner_import_is_sabotaged(
+    tmp_path: Path,
+) -> None:
+    source = REPO_ROOT / "src"
+    root = tmp_path / "runtime"
+    output = tmp_path / "bundle.tar"
+    script = """
+import importlib.abc
+import sys
+from pathlib import Path
+
+class BlockSecretScanner(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "rexecop.security.secret_scan":
+            raise ModuleNotFoundError("sabotaged scanner import")
+        return None
+
+sys.meta_path.insert(0, BlockSecretScanner())
+from typer.testing import CliRunner
+from rexecop.cli import app
+from rexecop.runtime.init import initialize_runtime_root
+
+root = Path(sys.argv[1])
+output = Path(sys.argv[2])
+initialize_runtime_root(root)
+result = CliRunner().invoke(
+    app,
+    ["--root", str(root), "backup", "create", "--output", str(output)],
+)
+assert result.exit_code == 1, result.output
+assert "error: runtime backup secret scan is unavailable" in result.output
+assert "sabotaged scanner import" not in result.output
+assert "Traceback" not in result.output
+assert not output.exists()
+assert not output.with_suffix(".manifest.json").exists()
+print("scanner_preimport_sabotage_ok")
+"""
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(source)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(root), str(output)],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.strip() == "scanner_preimport_sabotage_ok"
 
 
 def test_cli_backup_create_rejects_configured_backend_mismatch_before_output(

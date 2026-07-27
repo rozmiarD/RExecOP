@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from rexecop.security import secret_scan as packaged_scanner
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "secret_scan.py"
 
@@ -53,6 +55,20 @@ def test_secret_scanner_allows_explicit_placeholder() -> None:
         data=b"api_token: REPLACE_ME",
     )
     assert findings == []
+
+
+def test_secret_scanner_detects_former_domain_placeholder_exemptions() -> None:
+    scanner = _load_scanner()
+    former_domain_values = (b"p" + b"bs-secret", b"p" + b"bs-token-value")
+
+    for value in former_domain_values:
+        findings = scanner.scan_data(
+            scope="test",
+            identity="fixture",
+            path="environment.yaml",
+            data=b"api_token=" + value,
+        )
+        assert [finding.rule for finding in findings] == ["credential_assignment"]
 
 
 def test_secret_scanner_detects_compound_token_key() -> None:
@@ -111,3 +127,71 @@ def test_secret_scanner_redacts_provider_token_from_reported_path() -> None:
     )
     assert provider_value not in finding.render()
     assert "[REDACTED]" in finding.render()
+
+
+def test_worktree_wrapper_uses_packaged_scanner_types_and_functions() -> None:
+    scanner = _load_scanner()
+
+    assert scanner.Finding is packaged_scanner.Finding
+    assert scanner.scan_data is packaged_scanner.scan_data
+    assert scanner.scan_path is packaged_scanner.scan_path
+    assert scanner.scan_worktree is packaged_scanner.scan_worktree
+    assert scanner.scan_history is packaged_scanner.scan_history
+    assert scanner.scan_commit_messages is packaged_scanner.scan_commit_messages
+
+
+def test_worktree_wrapper_and_packaged_scanner_preserve_findings() -> None:
+    scanner = _load_scanner()
+    secret = b"github_pat_" + b"A" * 60
+    cases = (
+        ("fixture.txt", b"credential=" + secret),
+        ("example.yaml", b"api_token: REPLACE_ME"),
+        ("runtime.py", b"approval = decision.approval\n"),
+    )
+
+    for path, data in cases:
+        assert scanner.scan_data(
+            scope="test", identity="fixture", path=path, data=data
+        ) == packaged_scanner.scan_data(scope="test", identity="fixture", path=path, data=data)
+
+
+def _baseline_finding(scanner, **changes: object):
+    identity, path, line, rule, fingerprint, scope = next(iter(scanner.IMMUTABLE_HISTORY_BASELINE))
+    fields: dict[str, object] = {
+        "identity": identity,
+        "path": path,
+        "line": line,
+        "rule": rule,
+        "fingerprint": fingerprint,
+        "scope": scope,
+    }
+    fields.update(changes)
+    return scanner.Finding(**fields)
+
+
+def test_immutable_history_baseline_is_exact_and_history_only() -> None:
+    scanner = _load_scanner()
+    finding = _baseline_finding(scanner)
+
+    assert len(scanner.IMMUTABLE_HISTORY_BASELINE) == 15
+    assert scanner._is_immutable_history_baseline(finding)
+    for field, value in (
+        ("identity", "f" * 40),
+        ("path", "new-path.md"),
+        ("line", finding.line + 1),
+        ("rule", "high_entropy_credential"),
+        ("fingerprint", "0" * 12),
+        ("scope", "worktree"),
+    ):
+        assert not scanner._is_immutable_history_baseline(
+            _baseline_finding(scanner, **{field: value})
+        )
+    assert not scanner._is_immutable_history_baseline(
+        _baseline_finding(scanner, scope="commit", path="(commit-message)")
+    )
+
+
+def test_secret_scan_cli_suppresses_only_current_immutable_history_baseline() -> None:
+    scanner = _load_scanner()
+
+    assert scanner.main(root=ROOT, argv=["--history"]) == 0

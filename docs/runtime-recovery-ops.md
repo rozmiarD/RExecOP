@@ -114,8 +114,9 @@ rexecop --root "$RESTORE_ROOT" backup restore --archive "$BACKUP_DIR/rexecop-202
   only real directories and regular files, with symbolic links and other types
   rejected. Archive and sidecar outputs must be outside the runtime root.
 - Creation copies the selected files to a private staging snapshot, validates
-  the runtime manifest, and runs the configured sensitive-filename scan over
-  that snapshot. A scan finding blocks publication.
+  the runtime manifest, and runs RExecOp's packaged sensitive-filename scan over
+  that snapshot. A scan finding, unavailable scanner, or unexpected scanner
+  failure blocks publication before archive or sidecar output is allocated.
 - The sidecar (`rexecop.runtime_backup.v0.1`, at most 1 MiB) binds the exact
   archive basename, exact member set and count, and SHA-256 for every member.
   It does **not** provide an archive-wide digest, authenticity, or a signature.

@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Install the built wheel in an isolated venv and verify M6/M7/M8 public surfaces."""
+"""Install an artifact outside the repository and exercise its public surfaces."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
+import signal
 import subprocess
 import sys
+import tarfile
 import tempfile
+import time
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,21 +50,162 @@ print(
 )
 """
 
+_CAPTURE_MAX_BYTES = 16 * 1024
+_COMMAND_TIMEOUT_SECONDS = 60.0
+_TERMINATE_GRACE_SECONDS = 2.0
+_KILL_GRACE_SECONDS = 1.0
+_REAP_GRACE_SECONDS = 0.2
+_BUILD_TIMEOUT_SECONDS = 180.0
+_VENV_TIMEOUT_SECONDS = 120.0
+_PIP_TIMEOUT_SECONDS = 180.0
+_SURFACE_TIMEOUT_SECONDS = 30.0
+_CLI_TIMEOUT_SECONDS = 30.0
+_ARTIFACT_WORKFLOW_TIMEOUT_SECONDS = 600.0
+_TIMEOUT_RETURN_CODE = 124
+
 
 def _python(venv: Path) -> Path:
     return venv / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
 
 
-def _run(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+def _append_capped(output: bytearray, data: bytes) -> None:
+    remaining = _CAPTURE_MAX_BYTES - len(output)
+    if remaining > 0:
+        output.extend(data[:remaining])
+
+
+def _read_capped(handle: object) -> bytes:
+    getattr(handle, "seek")(0)
+    return getattr(handle, "read")(_CAPTURE_MAX_BYTES)
+
+
+def _prepend_timeout_marker(stderr: bytearray) -> None:
+    marker = b"command_timed_out\n"
+    stderr[:] = marker + stderr[: _CAPTURE_MAX_BYTES - len(marker)]
+
+
+def _live_group_id(process: subprocess.Popen[bytes]) -> int | None:
+    if process.poll() is not None:
+        return None
+    try:
+        group_id = os.getpgid(process.pid)
+    except OSError:
+        return None
+    if group_id != process.pid or group_id <= 1 or group_id == os.getpgrp():
+        return None
+    if process.poll() is not None:
+        return None
+    return group_id
+
+
+def _signal_live_target(process: subprocess.Popen[bytes], signal_number: int) -> None:
+    group_id = _live_group_id(process)
+    if group_id is not None:
+        try:
+            os.killpg(group_id, signal_number)
+            return
+        except ProcessLookupError:
+            return
+    if process.poll() is not None:
+        return
+    try:
+        if signal_number == signal.SIGKILL:
+            process.kill()
+        else:
+            process.terminate()
+    except ProcessLookupError:
+        pass
+
+
+def _wait_until(process: subprocess.Popen[bytes], deadline: float) -> bool:
+    while process.poll() is None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        try:
+            process.wait(timeout=min(0.05, remaining))
+        except subprocess.TimeoutExpired:
+            continue
+    return True
+
+
+def _cleanup_timeout(
+    process: subprocess.Popen[bytes],
+    *,
+    outer_deadline: float,
+    terminate_grace_seconds: float,
+    kill_grace_seconds: float,
+) -> None:
+    _signal_live_target(process, signal.SIGTERM)
+    terminate_deadline = min(time.monotonic() + terminate_grace_seconds, outer_deadline)
+    if _wait_until(process, terminate_deadline):
+        return
+    _signal_live_target(process, signal.SIGKILL)
+    reap_deadline = min(
+        time.monotonic() + kill_grace_seconds + _REAP_GRACE_SECONDS,
+        outer_deadline,
+    )
+    _wait_until(process, reap_deadline)
+
+
+def _run(
+    command: list[str],
+    *,
+    cwd: Path,
+    timeout_seconds: float = _COMMAND_TIMEOUT_SECONDS,
+    terminate_grace_seconds: float = _TERMINATE_GRACE_SECONDS,
+    kill_grace_seconds: float = _KILL_GRACE_SECONDS,
+    outer_deadline: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if os.name != "posix":
+        raise RuntimeError("artifact install smoke requires POSIX process groups")
     env = dict(os.environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    return subprocess.run(
+    env.pop("PYTHONPATH", None)
+    for variable in ("REXECOP_ROOT", "REXECOP_INSTANCE", "REXECOP_STORAGE"):
+        env.pop(variable, None)
+    cleanup_reserve = terminate_grace_seconds + kill_grace_seconds + _REAP_GRACE_SECONDS
+    now = time.monotonic()
+    effective_outer_deadline = outer_deadline or now + timeout_seconds + cleanup_reserve
+    work_budget = effective_outer_deadline - now - cleanup_reserve
+    if work_budget <= 0:
+        raise RuntimeError("artifact smoke outer deadline has no command work budget")
+    stage_timeout = min(timeout_seconds, work_budget)
+    with tempfile.TemporaryFile(mode="w+b", dir="/tmp") as stdout_file, tempfile.TemporaryFile(
+        mode="w+b", dir="/tmp"
+    ) as stderr_file:
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd),
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            env=env,
+            start_new_session=True,
+        )
+        timed_out = False
+        try:
+            process.wait(timeout=stage_timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            _cleanup_timeout(
+                process,
+                outer_deadline=effective_outer_deadline,
+                terminate_grace_seconds=terminate_grace_seconds,
+                kill_grace_seconds=kill_grace_seconds,
+            )
+        stdout = bytearray(_read_capped(stdout_file))
+        stderr = bytearray(_read_capped(stderr_file))
+    if timed_out:
+        _prepend_timeout_marker(stderr)
+        returncode = _TIMEOUT_RETURN_CODE
+    else:
+        returncode = process.returncode
+    return subprocess.CompletedProcess(
         command,
-        cwd=str(cwd),
-        text=True,
-        capture_output=True,
-        check=False,
-        env=env,
+        returncode if returncode is not None else _TIMEOUT_RETURN_CODE,
+        bytes(stdout).decode("utf-8", "replace"),
+        bytes(stderr).decode("utf-8", "replace"),
     )
 
 
@@ -68,11 +214,20 @@ def _project_version() -> str:
     return str(data["project"]["version"])
 
 
-def _resolve_wheel(dist_dir: Path) -> Path:
-    wheels = sorted(dist_dir.glob("*.whl"))
-    if not wheels:
-        raise SystemExit(f"artifact_install_smoke_failed:no_wheel:{dist_dir}")
-    return wheels[-1]
+def _select_artifact(dist_dir: Path, pattern: str, kind: str) -> Path:
+    artifacts = sorted(dist_dir.glob(pattern))
+    if not artifacts:
+        raise SystemExit(f"artifact_install_smoke_failed:no_{kind}:{dist_dir}")
+    if len(artifacts) != 1:
+        raise SystemExit(f"artifact_install_smoke_failed:ambiguous_{kind}:{dist_dir}")
+    return artifacts[0]
+
+
+def _resolve_artifacts(dist_dir: Path) -> tuple[Path, Path]:
+    return (
+        _select_artifact(dist_dir, "*.whl", "wheel"),
+        _select_artifact(dist_dir, "*.tar.gz", "sdist"),
+    )
 
 
 def _candidate_install_options(candidate_wheel_dirs: Sequence[Path]) -> list[str]:
@@ -85,93 +240,244 @@ def _candidate_install_options(candidate_wheel_dirs: Sequence[Path]) -> list[str
     return options
 
 
+def _rexecop(venv: Path) -> Path:
+    return venv / ("Scripts/rexecop.exe" if sys.platform == "win32" else "bin/rexecop")
+
+
+def _run_installed_workflow(
+    artifact: Path,
+    *,
+    artifact_kind: str,
+    workspace: Path,
+    python: str,
+    version: str,
+    candidate_options: list[str],
+    stage: Callable[..., subprocess.CompletedProcess[str]],
+) -> int:
+    venv = workspace / "venv"
+    empty_cwd = workspace / "empty-cwd"
+    empty_cwd.mkdir()
+    create = stage([python, "-m", "venv", str(venv)], cwd=ROOT, timeout=_VENV_TIMEOUT_SECONDS)
+    if create.returncode != 0:
+        print(create.stderr, file=sys.stderr)
+        return create.returncode
+    venv_python = str(_python(venv))
+    rexecop = str(_rexecop(venv))
+    install = stage(
+        [
+            venv_python,
+            "-m",
+            "pip",
+            "install",
+            "-q",
+            "--upgrade",
+            "pip",
+            *candidate_options,
+            str(artifact.resolve()),
+        ],
+        cwd=ROOT,
+        timeout=_PIP_TIMEOUT_SECONDS,
+    )
+    if install.returncode != 0:
+        print(install.stdout)
+        print(install.stderr, file=sys.stderr)
+        return install.returncode
+    pip_check = stage(
+        [venv_python, "-m", "pip", "check"],
+        cwd=ROOT,
+        timeout=_SURFACE_TIMEOUT_SECONDS,
+    )
+    if pip_check.returncode != 0:
+        print(pip_check.stdout)
+        print(pip_check.stderr, file=sys.stderr)
+        return pip_check.returncode
+    smoke = stage(
+        [venv_python, "-c", INSTALLED_SURFACE_SMOKE.format(version=version)],
+        cwd=empty_cwd,
+        timeout=_SURFACE_TIMEOUT_SECONDS,
+    )
+    if smoke.returncode != 0:
+        print(smoke.stdout)
+        print(smoke.stderr, file=sys.stderr)
+        return smoke.returncode
+    source = empty_cwd / "source"
+    archive = empty_cwd / "runtime-backup.tar"
+    sidecar = empty_cwd / "runtime-backup.manifest.json"
+    target = empty_cwd / "restored"
+    init = stage(
+        [rexecop, "--root", str(source), "--json", "init"],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if init.returncode != 0:
+        print(init.stdout)
+        print(init.stderr, file=sys.stderr)
+        return init.returncode
+    (source / "operations" / "record.json").write_text('{"id": "smoke"}\n', encoding="utf-8")
+    backup = stage(
+        [
+            rexecop,
+            "--root",
+            str(source),
+            "--json",
+            "backup",
+            "create",
+            "--output",
+            str(archive),
+        ],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if backup.returncode != 0:
+        print(backup.stdout)
+        print(backup.stderr, file=sys.stderr)
+        return backup.returncode
+    created = json.loads(backup.stdout)
+    if created.get("archive") != str(archive) or created.get("manifest") != str(sidecar):
+        print("artifact_install_smoke_failed:backup_output_name", file=sys.stderr)
+        return 1
+    manifest = json.loads(sidecar.read_text(encoding="utf-8"))
+    manifest_members = [str(item["path"]) for item in manifest["files"]]
+    with tarfile.open(archive, "r:") as handle:
+        archive_members = [member.name for member in handle.getmembers()]
+        if (
+            archive_members != manifest_members
+            or len(set(archive_members)) != len(archive_members)
+        ):
+            print("artifact_install_smoke_failed:backup_member_set", file=sys.stderr)
+            return 1
+        if manifest.get("file_count") != len(archive_members):
+            print("artifact_install_smoke_failed:backup_member_count", file=sys.stderr)
+            return 1
+        for member, item in zip(handle.getmembers(), manifest["files"], strict=True):
+            extracted = handle.extractfile(member)
+            if (
+                extracted is None
+                or hashlib.sha256(extracted.read()).hexdigest() != item["sha256"]
+            ):
+                print("artifact_install_smoke_failed:backup_member_digest", file=sys.stderr)
+                return 1
+    restore = stage(
+        [
+            rexecop,
+            "--root",
+            str(target),
+            "--json",
+            "backup",
+            "restore",
+            "--archive",
+            str(archive),
+            "--manifest",
+            str(sidecar),
+        ],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if restore.returncode != 0 or json.loads(restore.stdout).get("status") != "restored":
+        print(restore.stdout)
+        print(restore.stderr, file=sys.stderr)
+        return restore.returncode or 1
+    restored_record = (target / "operations" / "record.json").read_text(encoding="utf-8")
+    if restored_record != '{"id": "smoke"}\n':
+        print("artifact_install_smoke_failed:restored_content", file=sys.stderr)
+        return 1
+    reopen_script = (
+        "from pathlib import Path; from rexecop.storage.factory import create_store; "
+        "import sys; root = Path(sys.argv[1]); "
+        "assert create_store(root, backend='file').root == root"
+    )
+    reopen = stage(
+        [venv_python, "-c", reopen_script, str(target)],
+        cwd=empty_cwd,
+        timeout=_SURFACE_TIMEOUT_SECONDS,
+    )
+    if reopen.returncode != 0:
+        print(reopen.stdout)
+        print(reopen.stderr, file=sys.stderr)
+        return reopen.returncode
+    (source / "operations" / "credentials.json").write_text(
+        '{"token": "value"}\n', encoding="utf-8"
+    )
+    blocked_archive = empty_cwd / "blocked.tar"
+    blocked_sidecar = empty_cwd / "blocked.manifest.json"
+    blocked = stage(
+        [
+            rexecop,
+            "--root",
+            str(source),
+            "--json",
+            "backup",
+            "create",
+            "--output",
+            str(blocked_archive),
+        ],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    blocked_output = blocked.stdout + blocked.stderr
+    if (
+        blocked.returncode != 1
+        or "Traceback" in blocked_output
+        or "value" in blocked_output
+        or blocked_archive.exists()
+        or blocked_sidecar.exists()
+    ):
+        print("artifact_install_smoke_failed:backup_secret_scan", file=sys.stderr)
+        return 1
+    print(f"{smoke.stdout.strip()}:artifact={artifact_kind}")
+    print(f"artifact_runtime_backup_smoke_ok:artifact={artifact_kind}:members={len(archive_members)}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dist",
-        type=Path,
-        default=ROOT / "dist",
-        help="Directory containing the built wheel.",
-    )
-    parser.add_argument(
-        "--build",
-        action="store_true",
-        help="Run python -m build before installing the wheel.",
-    )
-    parser.add_argument(
-        "--candidate-wheel-dir",
-        action="append",
-        type=Path,
-        default=[],
-        help=(
-            "Local wheelhouse used to resolve exact dependency pins before publication; "
-            "repeat for multiple directories."
-        ),
-    )
+    parser.add_argument("--dist", type=Path, default=ROOT / "dist")
+    parser.add_argument("--build", action="store_true")
+    parser.add_argument("--candidate-wheel-dir", action="append", type=Path, default=[])
     args = parser.parse_args()
-
     version = _project_version()
     python = sys.executable
+    with tempfile.TemporaryDirectory(prefix="rexecop-artifact-smoke-", dir="/tmp") as tmp:
+        tmp_root = Path(tmp)
+        outer_deadline = time.monotonic() + _ARTIFACT_WORKFLOW_TIMEOUT_SECONDS
 
-    if args.build:
-        build = _run([python, "-m", "build"], cwd=ROOT)
-        if build.returncode != 0:
-            print(build.stdout)
-            print(build.stderr, file=sys.stderr)
-            return build.returncode
+        def stage(
+            command: list[str], *, cwd: Path, timeout: float
+        ) -> subprocess.CompletedProcess[str]:
+            return _run(command, cwd=cwd, timeout_seconds=timeout, outer_deadline=outer_deadline)
 
-    wheel = _resolve_wheel(args.dist)
-    with tempfile.TemporaryDirectory(prefix="rexecop-artifact-smoke-") as tmp:
-        venv = Path(tmp) / "venv"
-        create = _run([python, "-m", "venv", str(venv)], cwd=ROOT)
-        if create.returncode != 0:
-            print(create.stderr, file=sys.stderr)
-            return create.returncode
-
-        venv_python = str(_python(venv))
+        dist_dir = args.dist
+        if args.build:
+            dist_dir = tmp_root / "build-dist"
+            build = stage(
+                [python, "-m", "build", "--outdir", str(dist_dir)],
+                cwd=ROOT,
+                timeout=_BUILD_TIMEOUT_SECONDS,
+            )
+            if build.returncode != 0:
+                print(build.stdout)
+                print(build.stderr, file=sys.stderr)
+                return build.returncode
         try:
             candidate_options = _candidate_install_options(args.candidate_wheel_dir)
         except RuntimeError as exc:
             print(f"artifact_install_smoke_failed:{exc}", file=sys.stderr)
             return 1
-        install = _run(
-            [
-                venv_python,
-                "-m",
-                "pip",
-                "install",
-                "-q",
-                "--upgrade",
-                "pip",
-                *candidate_options,
-                str(wheel.resolve()),
-            ],
-            cwd=ROOT,
-        )
-        if install.returncode != 0:
-            print(install.stdout)
-            print(install.stderr, file=sys.stderr)
-            return install.returncode
-
-        pip_check = _run([venv_python, "-m", "pip", "check"], cwd=ROOT)
-        if pip_check.returncode != 0:
-            print(pip_check.stdout)
-            print(pip_check.stderr, file=sys.stderr)
-            return pip_check.returncode
-
-        smoke = _run(
-            [
-                venv_python,
-                "-c",
-                INSTALLED_SURFACE_SMOKE.format(version=version),
-            ],
-            cwd=ROOT,
-        )
-        if smoke.returncode != 0:
-            print(smoke.stdout)
-            print(smoke.stderr, file=sys.stderr)
-            return smoke.returncode
-        print(smoke.stdout.strip())
+        wheel, sdist = _resolve_artifacts(dist_dir)
+        for artifact_kind, artifact in (("wheel", wheel), ("sdist", sdist)):
+            workspace = tmp_root / artifact_kind
+            workspace.mkdir()
+            workflow_result = _run_installed_workflow(
+                artifact,
+                artifact_kind=artifact_kind,
+                workspace=workspace,
+                python=python,
+                version=version,
+                candidate_options=candidate_options,
+                stage=stage,
+            )
+            if workflow_result != 0:
+                return workflow_result
     return 0
 
 

@@ -10,7 +10,7 @@ import stat
 import tarfile
 import tempfile
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -54,9 +54,6 @@ _WINDOWS_RESERVED_BASENAMES = {
     *(f"com{index}" for index in range(1, 10)),
     *(f"lpt{index}" for index in range(1, 10)),
 }
-
-_SECRET_SCANNER = None
-
 
 @dataclass(frozen=True, slots=True)
 class _SnapshotFile:
@@ -107,23 +104,6 @@ class _DigestingReader:
         self.digest.update(data)
         self.size += len(data)
         return data
-
-
-def _secret_scanner():
-    global _SECRET_SCANNER
-    if _SECRET_SCANNER is None:
-        import importlib.util
-        import sys
-
-        script = Path(__file__).resolve().parents[3] / "scripts" / "secret_scan.py"
-        spec = importlib.util.spec_from_file_location("rexecop_secret_scan", script)
-        if spec is None or spec.loader is None:
-            raise RExecOpValidationError("secret scan script is unavailable")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
-        _SECRET_SCANNER = module
-    return _SECRET_SCANNER
 
 
 def _absolute_path(path: Path) -> Path:
@@ -438,17 +418,30 @@ def _validate_snapshot_runtime_manifest(records: list[_SnapshotFile]) -> None:
     )
 
 
+def _load_snapshot_scanner() -> Callable[..., list[Any]]:
+    try:
+        from rexecop.security.secret_scan import scan_path
+    except Exception as exc:
+        raise RExecOpValidationError("runtime backup secret scan is unavailable") from exc
+    if not callable(scan_path):
+        raise RExecOpValidationError("runtime backup secret scan is unavailable")
+    return scan_path
+
+
 def _scan_snapshot(identity: str, records: list[_SnapshotFile]) -> list[str]:
-    scanner = _secret_scanner()
-    findings: list[str] = []
-    for record in records:
-        for finding in scanner.scan_path(
-            scope="runtime_backup",
-            identity=identity,
-            path=str(record.path),
-        ):
-            findings.append(finding.render())
-    return findings
+    scanner = _load_snapshot_scanner()
+    try:
+        findings: list[str] = []
+        for record in records:
+            for finding in scanner(
+                scope="runtime_backup",
+                identity=identity,
+                path=str(record.path),
+            ):
+                findings.append(finding.render())
+        return findings
+    except Exception as exc:
+        raise RExecOpValidationError("runtime backup secret scan failed") from exc
 
 
 def _write_strict_archive(output: BinaryIO, records: list[_SnapshotFile]) -> None:
