@@ -68,6 +68,15 @@ rexecop --root /var/lib/rexecop worker run \
   --poll-interval 60
 ```
 
+Without watchdog mode, an inbox item that fails processing is moved immediately
+to `<root>/inbox/failed/inbox-<random>.json`, outside the direct inbox selection.
+The worker emits a redacted `inbox_item_quarantined` structured runtime log and
+continues its current snapshot. If either the bounded no-overwrite move or that
+required log fails, the worker stops before later inbox or queue work. Operators
+must inspect and replay quarantined input explicitly; RExecOp does not replay it
+automatically. Producers remain responsible for atomically publishing complete,
+immutable JSON files into the inbox.
+
 A neutral trigger event can be mapped by profile-owned
 `triggers/trigger_rules.yaml`:
 
@@ -117,6 +126,24 @@ queue, inbox and stale-operation observations under `<root>/watchdog/`.
 Exhausted inbox retries move files to `<root>/dead_letter/`. Stale operations
 produce a `block_autostart` record; the watchdog does not rewrite the operation
 state to hide the condition.
+
+Watchdog retry attempts below the configured budget intentionally leave an item
+in the inbox. At the budget, GovEngine supervisor admission still precedes the
+same bounded no-overwrite move into `dead_letter`; retry state is cleared only
+after that move and the required watchdog record/projection persistence succeed.
+A failed final move keeps the reached attempt count capped at the configured
+budget so a later poll can retry that governed move after the environment is
+repaired. These same-filesystem moves do not claim directory fsync or power-loss
+durability, and quarantine logs are runtime diagnostics, not canonical evidence
+or governance decisions. Source and reservation identities are revalidated
+immediately before the move; this does not claim protection against a
+non-cooperating same-UID process that races a replacement after that final
+check.
+
+If the dead-letter move succeeds but required watchdog record or projection
+persistence fails, the item remains contained and the capped retry state is not
+reported as cleared. RExecOp does not automatically reconcile that partial
+persistence condition; operator inspection is required.
 
 RExecOp owns `watchdog_decision.v0.1` and its runtime semantics. GovEngine owns
 bounded supervisor-action admission. SCLite machinery verifies the artifact

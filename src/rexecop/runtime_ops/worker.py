@@ -9,6 +9,13 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.operation.controller import OperationController
 from rexecop.operation.model import Operation
+from rexecop.runtime_ops.inbox import (
+    INBOX_ITEM_QUARANTINE_ERROR,
+    normalize_inbox_directory,
+    prepare_inbox_destination,
+    quarantine_inbox_item,
+    read_inbox_item_text,
+)
 from rexecop.runtime_ops.recovery import run_startup_recovery
 from rexecop.runtime_ops.watchdog import (
     DEFAULT_INBOX_RETRY_BUDGET,
@@ -16,7 +23,6 @@ from rexecop.runtime_ops.watchdog import (
     DEFAULT_WORKER_ID,
     WatchdogService,
 )
-from rexecop.storage.atomic import secure_directory, secure_file
 from rexecop.triggers.service import TriggerService
 
 
@@ -205,15 +211,13 @@ def _process_inbox(
     if root is None:
         return []
     inbox = root / "inbox"
-    if not inbox.is_dir():
+    if not normalize_inbox_directory(inbox):
         return []
-    secure_directory(inbox)
 
     started: list[str] = []
     for path in sorted(inbox.glob("*.json")):
         try:
-            secure_file(path)
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(read_inbox_item_text(path))
             if not isinstance(payload, dict):
                 raise RExecOpValidationError(f"invalid inbox trigger: {path.name}")
             parsed = parse_trigger_payload(payload)
@@ -251,5 +255,29 @@ def _process_inbox(
                     max_attempts=inbox_retry_budget,
                 )
             else:
-                path.rename(inbox / f"failed-{path.name}")
+                try:
+                    failed_directory = inbox / "failed"
+                    prepare_inbox_destination(failed_directory)
+                    quarantine_inbox_item(path, failed_directory)
+                    controller.structured_log.emit(
+                        event_kind="inbox_item_quarantined",
+                        correlation_id="worker-inbox",
+                        message="Inbox item quarantined after processing failure",
+                        details={
+                            "outcome": "contained",
+                            "destination": "failed",
+                            "automatic_replay": False,
+                        },
+                    )
+                except Exception:
+                    try:
+                        controller.structured_log.emit(
+                            event_kind="inbox_quarantine_failed",
+                            correlation_id="worker-inbox",
+                            message="Inbox quarantine failed; worker stopped",
+                            details={"outcome": "fail_stop"},
+                        )
+                    except Exception:
+                        pass
+                    raise RExecOpValidationError(INBOX_ITEM_QUARANTINE_ERROR) from None
     return started

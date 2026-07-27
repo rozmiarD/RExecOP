@@ -29,6 +29,16 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Fixed
 
+- Prevented non-watchdog inbox failures from repeatedly renaming and
+  reprocessing themselves by quarantining them under fixed, no-overwrite names;
+  quarantine or required-log failures now stop later inbox and queue work.
+- Preserved reached watchdog retry state when the governed final dead-letter
+  move fails, capped its retry count for repair attempts, and clear it only after
+  the move and required record/projection persistence succeed.
+- Reject symlinked inbox and dead-letter directory topology before permissions
+  are normalized, and revalidate source identity immediately before quarantine.
+- Bound watchdog record/projection persistence failures after dead-letter
+  containment without falsely clearing the capped retry state.
 - Clarified that GovEngine owns attempt-bound governance authorization while
   RExecOp owns the runtime permit, lease and fencing enforcement.
 - Removed universal-GovEngine-admission wording for the explicit

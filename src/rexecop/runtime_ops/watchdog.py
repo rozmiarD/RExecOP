@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import time
 import uuid
 from datetime import UTC, datetime
@@ -20,7 +21,13 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.evidence.manager import EvidenceManager
 from rexecop.runtime_ops.coordinator import ACTIVE_RUNTIME_STATES
-from rexecop.storage.atomic import atomic_write_text, secure_directory, secure_file
+from rexecop.runtime_ops.inbox import (
+    normalize_inbox_directory,
+    prepare_inbox_destination,
+    quarantine_inbox_item,
+    refresh_inbox_item,
+)
+from rexecop.storage.atomic import atomic_write_text, secure_directory
 from rexecop.storage.port import RuntimeStore
 
 WATCHDOG_SCHEMA = "rexecop.watchdog_record.v0.1"
@@ -55,7 +62,7 @@ class WatchdogService:
         secure_directory(self.watchdog_dir)
         secure_directory(self.records_dir)
         secure_directory(self.sclite_dir)
-        secure_directory(self.dead_letter_dir)
+        prepare_inbox_destination(self.dead_letter_dir)
 
     def record_heartbeat(
         self,
@@ -106,15 +113,20 @@ class WatchdogService:
             raise RExecOpValidationError("max_age_seconds must be positive")
         self.ensure_layout()
         inbox = self.root / "inbox"
-        if not inbox.is_dir():
+        if not normalize_inbox_directory(inbox):
             return []
-        secure_directory(inbox)
 
         observed_at = now or _utc_now()
         now_seconds = observed_at.timestamp()
         records: list[dict[str, Any]] = []
         for path in sorted(inbox.glob("*.json")):
-            age_seconds = max(0.0, now_seconds - path.stat().st_mtime)
+            try:
+                metadata = path.lstat()
+            except OSError:
+                raise RExecOpValidationError("inbox item quarantine failed") from None
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                raise RExecOpValidationError("inbox item quarantine failed")
+            age_seconds = max(0.0, now_seconds - metadata.st_mtime)
             if age_seconds <= max_age_seconds:
                 continue
             records.append(
@@ -139,12 +151,7 @@ class WatchdogService:
         details: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.ensure_layout()
-        if not path.is_file():
-            raise RExecOpValidationError(f"inbox item not found: {path.name}")
-        secure_file(path)
         event_time = observed_at or _utc_now()
-        timestamp = _timestamp(event_time)
-        destination = self.dead_letter_dir / f"{timestamp}-{uuid.uuid4().hex[:8]}-{path.name}"
         record = self._build_record(
             observation="inbox_item",
             decision="move_to_dead_letter",
@@ -152,14 +159,27 @@ class WatchdogService:
             payload={
                 "reason": reason,
                 "source_name": path.name,
-                "dead_letter_name": destination.name,
                 "details": dict(details or {}),
             },
         )
-        admission_context = self._admit_record(record)
-        path.replace(destination)
-        secure_file(destination)
-        self._persist_record(record, admission_context=admission_context)
+        admission_context: dict[str, Any] | None = None
+
+        def admit_before_move(destination: Path) -> None:
+            nonlocal admission_context
+            record["payload"]["dead_letter_name"] = destination.name
+            admission_context = self._admit_record(record)
+
+        quarantine_inbox_item(
+            path,
+            self.dead_letter_dir,
+            before_move=admit_before_move,
+        )
+        if admission_context is None:
+            raise RExecOpValidationError("inbox item quarantine failed")
+        try:
+            self._persist_record(record, admission_context=admission_context)
+        except Exception:
+            raise RExecOpValidationError("inbox item quarantine failed") from None
         return record
 
     def record_inbox_processing_failure(
@@ -175,7 +195,8 @@ class WatchdogService:
         self.ensure_layout()
         state = self._load_retry_budget()
         item = dict(state.get(path.name) or {})
-        attempts = int(item.get("attempts") or 0) + 1
+        prior_attempts = max(0, int(item.get("attempts") or 0))
+        attempts = min(prior_attempts + 1, max_attempts)
         item = {
             "attempts": attempts,
             "max_attempts": max_attempts,
@@ -186,9 +207,7 @@ class WatchdogService:
         self._save_retry_budget(state)
 
         if attempts >= max_attempts:
-            state.pop(path.name, None)
-            self._save_retry_budget(state)
-            return self.move_inbox_item_to_dead_letter(
+            record = self.move_inbox_item_to_dead_letter(
                 path,
                 reason="retry_budget_exhausted",
                 observed_at=observed_at,
@@ -198,12 +217,14 @@ class WatchdogService:
                     "error_type": error_type,
                 },
             )
+            state.pop(path.name, None)
+            self._save_retry_budget(state)
+            return record
 
         # Keep the item in the inbox for a later poll, but refresh mtime so
         # stale-item handling does not dead-letter it during the retry budget.
         now_seconds = (observed_at or _utc_now()).timestamp()
-        path.touch()
-        path.chmod(0o600)
+        refresh_inbox_item(path)
         return self._write_record(
             observation="inbox_item",
             decision="retry_later",
