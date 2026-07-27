@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import fcntl
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from rexecop.errors import RExecOpValidationError
 from rexecop.operation.state import OperationState
-from rexecop.storage.atomic import atomic_write_text, secure_directory
+from rexecop.storage.atomic import atomic_write_text, secure_directory, secure_file
 from rexecop.storage.port import RuntimeStore
 
 ACTIVE_LOCK_STATES = frozenset(
@@ -39,6 +42,18 @@ class TargetLockManager:
         secure_directory(self.locks_dir)
         return self.locks_dir / lock_filename(environment, target)
 
+    @contextmanager
+    def _target_guard(self, environment: str, target: str) -> Iterator[None]:
+        record_path = self._path(environment, target)
+        guard_path = record_path.with_suffix(".guard")
+        with guard_path.open("a+", encoding="utf-8") as guard_file:
+            secure_file(guard_path)
+            fcntl.flock(guard_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(guard_file.fileno(), fcntl.LOCK_UN)
+
     def read(self, environment: str, target: str) -> dict[str, Any] | None:
         path = self._path(environment, target)
         if not path.is_file():
@@ -63,37 +78,30 @@ class TargetLockManager:
         return operation.state not in ACTIVE_LOCK_STATES
 
     def acquire(self, *, environment: str, target: str, operation_id: str) -> bool:
-        existing = self.read(environment, target)
-        if existing and not self.is_stale(existing):
-            return str(existing.get("operation_id")) == operation_id
-        if existing and self.is_stale(existing):
-            self.release(
-                environment=environment,
-                target=target,
-                operation_id=str(existing.get("operation_id") or ""),
-            )
-        record = {
-            "operation_id": operation_id,
-            "environment": environment,
-            "target": target,
-            "acquired_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
-        }
-        path = self._path(environment, target)
-        atomic_write_text(path, json.dumps(record, indent=2, sort_keys=True) + "\n")
-        return True
+        with self._target_guard(environment, target):
+            existing = self.read(environment, target)
+            if existing and not self.is_stale(existing):
+                return str(existing.get("operation_id")) == operation_id
+            record = {
+                "operation_id": operation_id,
+                "environment": environment,
+                "target": target,
+                "acquired_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
+            }
+            path = self._path(environment, target)
+            atomic_write_text(path, json.dumps(record, indent=2, sort_keys=True) + "\n")
+            return True
 
     def try_acquire(self, *, environment: str, target: str, operation_id: str) -> bool:
-        existing = self.read(environment, target)
-        if existing and not self.is_stale(existing):
-            return str(existing.get("operation_id")) == operation_id
         return self.acquire(environment=environment, target=target, operation_id=operation_id)
 
     def release(self, *, environment: str, target: str, operation_id: str) -> None:
-        existing = self.read(environment, target)
-        if not existing:
-            return
-        if str(existing.get("operation_id") or "") not in {"", operation_id}:
-            return
-        path = self._path(environment, target)
-        if path.is_file():
-            path.unlink()
+        with self._target_guard(environment, target):
+            existing = self.read(environment, target)
+            if not existing:
+                return
+            if str(existing.get("operation_id") or "") not in {"", operation_id}:
+                return
+            path = self._path(environment, target)
+            if path.is_file():
+                path.unlink()

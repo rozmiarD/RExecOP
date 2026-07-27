@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import fcntl
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from rexecop.errors import RExecOpConcurrencyConflict, RExecOpValidationError
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
-from rexecop.storage.atomic import atomic_write_text, secure_directory
+from rexecop.storage.atomic import atomic_write_text, secure_directory, secure_file
 
 
 class FileStore:
@@ -294,6 +296,17 @@ class FileStore:
             and operation.metadata["sclite_projection"].get("status") == "pending"
         ]
 
+    @contextmanager
+    def _execution_permit_guard(self, operation_dir: Path) -> Iterator[None]:
+        guard_path = operation_dir / ".attempt-permit.guard"
+        with guard_path.open("a+", encoding="utf-8") as guard_file:
+            secure_file(guard_path)
+            fcntl.flock(guard_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(guard_file.fileno(), fcntl.LOCK_UN)
+
     def save_execution_permit(self, permit: dict[str, Any]) -> Path:
         self.ensure_layout()
         operation_id = str(permit["operation_id"])
@@ -304,11 +317,12 @@ class FileStore:
         attempts_dir = operation_dir / "attempts"
         secure_directory(attempts_dir)
         attempt_path = attempts_dir / f"{attempt_id}.json"
-        if attempt_path.exists():
-            raise RExecOpValidationError("runtime attempt permit already exists")
-        self._write_json(attempt_path, permit)
-        path = operation_dir / f"{step_id}.json"
-        self._write_json(path, permit)
+        with self._execution_permit_guard(operation_dir):
+            if attempt_path.exists():
+                raise RExecOpValidationError("runtime attempt permit already exists")
+            self._write_json(attempt_path, permit)
+            path = operation_dir / f"{step_id}.json"
+            self._write_json(path, permit)
         return attempt_path
 
     def load_execution_permit(self, operation_id: str, step_id: str) -> dict[str, Any]:

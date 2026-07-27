@@ -44,12 +44,31 @@ Factory: `rexecop.storage.factory.create_store()`.
 | `governance_claims/*.json` | Consumed decision-digest and nonce indexes | process-locked claim-once plus atomic replace |
 | `permits/<op>/attempts/*.json` | Immutable runtime attempt permits | create once after governance claim |
 | `permits/<op>/<step>.json` | Latest-per-step permit compatibility view | atomic replace |
+| `permits/<op>/.attempt-permit.guard` | Stable per-operation permit guard | POSIX advisory process lock |
+| `locks/*.lock` | Replaceable target-owner records | atomic replace under a distinct target guard |
+| `locks/*.guard` | Stable per-target guards | POSIX advisory process lock |
 | `sclite/<op>/` | Persisted bundle using SCLite canonical contracts | directory per operation |
 | `queue/`, `locks/`, `inbox/` | Runtime coordination (not in StoragePort JSON API) | file drops |
 
 `FileStore` uses `storage.atomic.atomic_write_text` (write temp + `os.replace`) for JSON
 files to avoid torn reads on crash. Runtime directories are forced to mode `0700`; JSON,
 receipt, lock, queue and SCLite files are forced to `0600`.
+
+For cooperating processes on one POSIX host, the stable per-operation guard serializes
+the immutable attempt-permit existence check and atomic publication, followed by the
+replaceable latest-per-step projection. If projection fails after immutable publication,
+the immutable permit remains authoritative for runtime retry handling: the same attempt
+is rejected, while a new attempt may refresh the projection. A stable per-target guard,
+separate from each replaceable `*.lock` record, serializes target-owner read, stale-owner
+takeover, replacement and owner-checked release. The same active owner is idempotent, and
+a delayed old-owner release cannot remove a newer record.
+
+These guards provide POSIX single-host advisory locking for cooperating processes only.
+They do not claim Windows, NFS or distributed-lock behavior; same-UID adversary
+protection; power-loss durability; or two-file atomicity between an immutable permit and
+its latest projection. Target-owner records do not add a fencing token, epoch or TTL;
+the worker lease remains the runtime fence. Slash-to-underscore target-name collisions
+and direct `AttemptJournal` create semantics remain outside this guarantee.
 
 The stable certification is deliberately narrow: one active executor per runtime root,
 enforced by the fenced execution lease. Set `REXECOP_EXECUTOR_POSTURE=single_executor`;
