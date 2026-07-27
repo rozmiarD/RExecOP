@@ -44,6 +44,48 @@ python -m pip install -e ../tecrax
 This keeps the public RExecOp core install independent of a domain package
 release. Tecrax remains an external source consumer and plugin.
 
+## Diagnose an incompatible plugin install
+
+`rexecop doctor` reports a structured `plugin_posture` blocker with
+`reason_code: plugin_incompatible` when a connector or internal-action plugin
+cannot be diagnosed compatibly. The blocker includes bounded, redacted
+`incompatible_plugins` evidence; a stale profile entry-point load error likewise
+shows only the bounded profile identity, stable failure reason and exception
+class. Enumeration, entry-point name access, load, entry-point invocation,
+loaded-result conversion, path expansion/resolution, path validation and
+non-directory failures stay inside that structured boundary. They do not expose
+the returned path, original exception text, module target or traceback, and a
+later valid duplicate entry point may still resolve successfully.
+
+Plugin allowlists continue to contain reviewed raw entry-point names. Exact long
+names are accepted; operators neither provide nor receive diagnostic digest
+tokens.
+
+Prefer a fresh environment containing one exact, mutually supported constraint
+set. For this release line the RExecOp-owned core constraints are:
+
+```bash
+python -m venv .venv-fresh && source .venv-fresh/bin/activate
+python -m pip install --upgrade pip
+python -m pip install \
+  "rexecop==1.0.0rc1" \
+  "govengine==1.0.0rc1" \
+  "sclite-core==2.0.0" \
+  "<profile-or-plugin>==<exact-compatible-version>"
+python -m pip check
+rexecop doctor --profile <registered-profile>
+```
+
+When inspecting an existing environment instead, first repair or remove each
+identified incompatible distribution. Then run `python -m pip check`, rerun
+`rexecop doctor`, and do not continue to execution until both the dependency
+graph and plugin posture pass. Doctor only reports the incompatibility; it does
+not select, install, remove or upgrade packages. This guidance does not make
+sequential `pip` replacement atomic and does not qualify any currently
+incompatible Tecrax graph. Plugin imports and registrars remain trusted
+in-process work without sandbox or timeout/hang containment; bounded diagnostic
+serialization also does not contain a hostile or hanging `__str__` method.
+
 ## Coordinated editable install
 
 ```bash

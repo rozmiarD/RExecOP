@@ -214,9 +214,45 @@ view. Legacy `public_projection.safe_fields` applies only to `public_shareable`.
 ## Plugin compatibility report
 
 `build_plugin_compatibility_report()` (used by `profiles show` and developer
-checks) verifies that registered `rexecop.connector_backends` factories return a
-valid runtime and that `rexecop.internal_actions` entry points load. Failures are
-bounded JSON errors without backend IO.
+checks) snapshots registered connector and internal-action entry points for
+diagnosis. It verifies that `rexecop.connector_backends` factories return a valid
+runtime and loads each `rexecop.internal_actions` entry point once per snapshot.
+When the loaded object is callable, the report validates and calls that registrar
+once. Successful internal actions are derived from the registrar's bounded
+`registered_actions` result.
+
+Enumeration, import, registrar-contract, non-mapping return and action-collision
+failures produce a failed report with additive `incompatible_plugins` evidence.
+That evidence contains only bounded entry-point/distribution identities, stable
+reason codes, bounded action names when relevant, and the exception class when
+an exception occurred. Raw exception text, entry-point module targets, local
+paths and registrar payload values are not reported. When failure evidence needs
+unavailable distribution metadata it uses `unknown`; missing metadata is not an
+incompatibility by itself.
+Raw connector and action identities exist only in the local inspection frame
+that performs exact lookup or collision decisions. Diagnostic output uses one
+terminal bounded display with a stable digest suffix when truncation or unsafe
+character projection is required, so distinct long identities remain
+distinguishable without exposing their raw form. The same connector display is
+copied into inventory and top-level compatibility items; it is not projected a
+second time. Successful internal actions remain globally sorted by their bounded
+reported names.
+Displays are field-aware: entry-point/distribution names and action identifiers
+must match their conservative ASCII name grammar, while exception classes must
+match a conventional Python class identifier. Printable path, module-target,
+whitespace or delimiter syntax outside that grammar is replaced by a neutral
+label plus digest suffix. Full identity digests are private correlation values:
+they are not report fields or operator allowlist tokens. Stable allowlisting
+continues to accept exact raw entry-point names, including long names. Legacy
+successful connector, internal-action and inventory item keys remain unchanged;
+`incompatible_plugins` is the report's only additive root field.
+
+This tolerant behavior is diagnostic-only. Extension manifests, capability
+listing, handler loading and execution retain the strict loader and fail closed.
+Plugins remain trusted in-process code: the report is not a sandbox, does not
+contain a hung import/factory/registrar, and does not invoke an action or returned
+connector runtime. Bounded serialization does not contain a hostile or hanging
+`__str__` implementation. The report neither repairs nor upgrades a plugin.
 
 ## Authority boundaries
 

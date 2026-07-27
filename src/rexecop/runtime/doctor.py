@@ -11,8 +11,10 @@ from rexecop.connectors.http_support import destination_binding
 from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
+from rexecop.plugins.diagnostic_identity import project_diagnostic_identity
 from rexecop.profile.conformance import validate_profile_conformance
-from rexecop.profile.extension_manifest import build_plugin_compatibility_report
+from rexecop.profile.extension_manifest import _build_plugin_compatibility_snapshot
+from rexecop.profile.resolver import _snapshot_profile_resolution
 from rexecop.runtime.contract_compatibility import (
     DOCTOR_REPORT_SCHEMA,
     contract_versions_summary,
@@ -48,8 +50,6 @@ _SECURITY_CHECK_IDS = frozenset(
         "typed_execution_stack_compatibility",
     }
 )
-
-
 def run_runtime_doctor(
     root: Path,
     *,
@@ -277,37 +277,62 @@ def _check_plugin_posture(
     allowlist_value: str | None,
 ) -> dict[str, Any]:
     posture = deployment_posture.strip().lower()
-    report = build_plugin_compatibility_report()
-    inventory = report.get("inventory") or {}
-    connector_plugins = [
-        str(item.get("name") or "") for item in inventory.get("connector_backends") or []
-    ]
-    internal_plugins = [
-        str(item.get("name") or "") for item in inventory.get("internal_action_registrars") or []
-    ]
-    installed = sorted(set(connector_plugins + internal_plugins) - {""})
-    allowlist = sorted(
-        {item.strip() for item in (allowlist_value or "").split(",") if item.strip()}
+    compatibility = _build_plugin_compatibility_snapshot()
+    report = compatibility.report
+    installed_identities = compatibility.installed_entry_points
+    installed = sorted({identity.display for identity in installed_identities})
+    raw_allowlist = sorted(
+        {
+            item.strip()
+            for item in (allowlist_value or "").split(",")
+            if item.strip()
+        }
     )
-    unallowed = sorted(set(installed) - set(allowlist))
+    allowlist_identities = tuple(
+        project_diagnostic_identity(item, kind="entry") for item in raw_allowlist
+    )
+    allowlist_digests = {identity.full_digest for identity in allowlist_identities}
+    allowlist = sorted({identity.display for identity in allowlist_identities})
+    unallowed = sorted(
+        {
+            identity.display
+            for identity in installed_identities
+            if identity.full_digest not in allowlist_digests
+        }
+    )
     compatibility_failures = list(report.get("failed") or [])
+    incompatible_plugins = list(report.get("incompatible_plugins") or [])
     blockers = list(compatibility_failures)
+    if incompatible_plugins:
+        blockers.append("plugin_incompatible")
     if posture == "stable":
         blockers.extend(unallowed)
     if blockers:
+        details = {
+            "deployment_posture": posture,
+            "execution_model": "trusted_in_process",
+            "installed": installed,
+            "allowlist": allowlist,
+            "unallowed": unallowed,
+            "compatibility_failures": compatibility_failures,
+        }
+        next_action = "set REXECOP_PLUGIN_ALLOWLIST to reviewed plugin entry-point names"
+        if incompatible_plugins:
+            details["reason_code"] = "plugin_incompatible"
+            details["incompatible_plugins"] = incompatible_plugins
+            next_action = (
+                f"create a fresh environment with one exact supported constraint set "
+                f"(rexecop=={__version__}, govengine=={EXPECTED_GOVENGINE}, "
+                f"sclite-core=={EXPECTED_SCLITE} and compatible profile/plugins), or repair "
+                "or remove the identified incompatible distribution(s), run python -m pip "
+                "check, rerun rexecop doctor, and do not execute until compatibility passes"
+            )
         return _check(
             "plugin_posture",
             CHECK_BLOCKER,
             "plugin inventory is incompatible with the requested deployment posture",
-            details={
-                "deployment_posture": posture,
-                "execution_model": "trusted_in_process",
-                "installed": installed,
-                "allowlist": allowlist,
-                "unallowed": unallowed,
-                "compatibility_failures": compatibility_failures,
-            },
-            next_action="set REXECOP_PLUGIN_ALLOWLIST to reviewed plugin entry-point names",
+            details=details,
+            next_action=next_action,
         )
     return _check(
         "plugin_posture",
@@ -461,9 +486,29 @@ def _check_profile(profile: str | None) -> dict[str, Any]:
             "profile was not provided",
             next_action="rerun doctor with --profile when checking profile conformance",
         )
+    profile_input: str | Path = profile
+    profile_text = profile.strip()
+    if "/" not in profile_text and "\\" not in profile_text and not profile_text.startswith("."):
+        snapshot = _snapshot_profile_resolution(profile_text)
+        if snapshot.failure is not None:
+            failure = snapshot.failure
+            return _check(
+                "profile_conformance",
+                CHECK_BLOCKER,
+                f"profile entry {failure.identity.display!r} failed: "
+                f"{failure.reason_code}:{failure.exception_class.display}",
+                details={
+                    "profile": failure.identity.display,
+                    "reason_code": failure.reason_code,
+                    "exception_class": failure.exception_class.display,
+                },
+                next_action=f"install or fix profile: {failure.identity.display}",
+            )
+        if snapshot.path is not None:
+            profile_input = snapshot.path
     try:
         result = validate_profile_conformance(
-            profile,
+            profile_input,
             require_reaction_observation=False,
             track="readonly",
         )

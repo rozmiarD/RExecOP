@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from typer.testing import CliRunner
@@ -9,6 +10,25 @@ from rexecop.cli import app
 
 runner = CliRunner()
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _DiagnosticEntryPoint:
+    def __init__(self, name: str, loaded, *, distribution: object | None = None) -> None:
+        self.name = name
+        self._loaded = loaded
+        self.dist = distribution
+
+    def load(self):
+        if isinstance(self._loaded, Exception):
+            raise self._loaded
+        return self._loaded
+
+
+def _diagnostic_entry_points(*points: _DiagnosticEntryPoint):
+    def collect(**_kwargs):
+        return list(points)
+
+    return collect
 
 
 def _write_doctor_fixture(root: Path) -> tuple[Path, Path, Path]:
@@ -343,6 +363,122 @@ def test_cli_doctor_passes_with_fixture_profile_env_and_catalog(tmp_path: Path) 
     assert payload["status"] == "passed"
     assert payload["blockers"] == []
     assert payload["warnings"] == []
+
+
+def test_cli_doctor_reports_stale_profile_and_internal_plugins_without_traceback(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "runtime-root"
+    assert runner.invoke(app, ["--root", str(root), "init"]).exit_code == 0
+    sensitive = "doctor-plugin-payload-must-not-leak-5df1"
+    sensitive_profile_path = "/private/operator/secret-profile-root"
+    sensitive_distribution = "/private/operator/secret-distribution"
+    hostile_exception = type("HostileDoctorFailure", (RuntimeError,), {})
+    hostile_exception.__name__ = "Failure/private/module.target"
+    profile_point = _DiagnosticEntryPoint(
+        "stale_profile",
+        lambda: sensitive_profile_path,
+    )
+    broken_point = _DiagnosticEntryPoint(
+        "broken\n" + ("E" * 120),
+        hostile_exception(f"{sensitive} module.target"),
+        distribution=type("Distribution", (), {"name": sensitive_distribution})(),
+    )
+    collision_point = _DiagnosticEntryPoint(
+        "collision_actions",
+        lambda: {"record_execution_checkpoint": lambda _context: {}},
+    )
+    with (
+        patch(
+            "rexecop.profile.resolver.entry_points",
+            side_effect=_diagnostic_entry_points(profile_point),
+        ),
+        patch(
+            "rexecop.execution.internal_registry.entry_points",
+            side_effect=_diagnostic_entry_points(broken_point, collision_point),
+        ),
+        patch("rexecop.connectors.fixture_loader.entry_points", return_value=[]),
+    ):
+        result = runner.invoke(
+            app,
+            ["--root", str(root), "doctor", "--profile", "stale_profile"],
+        )
+
+    assert result.exit_code == 1, result.output
+    assert "Traceback" not in result.output
+    assert sensitive not in result.output
+    assert sensitive_profile_path not in result.output
+    assert sensitive_distribution not in result.output
+    assert "Failure/private/module.target" not in result.output
+    assert "module.target" not in result.output
+    payload = json.loads(result.stdout)
+    checks = {check["id"]: check for check in payload["checks"]}
+    assert {
+        "plugin_posture",
+        "profile_conformance",
+        "stack_packages",
+        "environment",
+        "catalog",
+    }.issubset(checks)
+    plugin = checks["plugin_posture"]
+    assert plugin["status"] == "blocker"
+    assert plugin["details"]["reason_code"] == "plugin_incompatible"
+    incompatible = plugin["details"]["incompatible_plugins"]
+    assert {item["reason_codes"][0] for item in incompatible} == {
+        "entry_point_load_failed",
+        "action_collision",
+    }
+    assert all(len(item["name"]) <= 96 for item in incompatible)
+    assert all("\n" not in item["name"] for item in incompatible)
+    broken = next(
+        item for item in incompatible if item["reason_codes"] == ["entry_point_load_failed"]
+    )
+    assert broken["name"].startswith("unknown~")
+    assert broken["distribution"].startswith("unknown~")
+    assert broken["exception_class"].startswith("Exception~")
+    collision = next(item for item in incompatible if item["name"] == "collision_actions")
+    assert collision["conflicting_actions"] == ["record_execution_checkpoint"]
+    assert len(collision["conflicting_actions"]) <= 64
+    assert checks["profile_conformance"]["status"] == "blocker"
+    assert "profile_path_not_directory:NotADirectoryError" in checks[
+        "profile_conformance"
+    ]["summary"]
+    assert "repair or remove" in plugin["next_action"]
+    assert "python -m pip check" in plugin["next_action"]
+
+
+def test_cli_doctor_reports_profile_enumeration_failure_as_json_and_continues(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "runtime-root"
+    assert runner.invoke(app, ["--root", str(root), "init"]).exit_code == 0
+    sensitive = "profile-enumeration-private-sentinel-18d7"
+    with (
+        patch(
+            "rexecop.profile.resolver.entry_points",
+            side_effect=RuntimeError(sensitive),
+        ),
+        patch("rexecop.execution.internal_registry.entry_points", return_value=[]),
+        patch("rexecop.connectors.fixture_loader.entry_points", return_value=[]),
+    ):
+        result = runner.invoke(
+            app,
+            ["--root", str(root), "doctor", "--profile", "stale_profile"],
+        )
+
+    assert result.exit_code == 1, result.output
+    assert "Traceback" not in result.output
+    assert sensitive not in result.output
+    payload = json.loads(result.stdout)
+    checks = {check["id"]: check for check in payload["checks"]}
+    profile = checks["profile_conformance"]
+    assert profile["status"] == "blocker"
+    assert profile["details"] == {
+        "profile": "stale_profile",
+        "reason_code": "entry_point_enumeration_failed",
+        "exception_class": "RuntimeError",
+    }
+    assert {"plugin_posture", "stack_packages", "environment", "catalog"}.issubset(checks)
 
 
 def test_cli_env_lint_passes_with_fixture_environment(tmp_path: Path) -> None:
