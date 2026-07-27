@@ -61,6 +61,7 @@ def test_artifact_selection_requires_exactly_one_wheel_and_sdist(tmp_path: Path)
     sdist.touch()
 
     assert artifact._resolve_artifacts(tmp_path) == (wheel, sdist)
+    assert artifact._resolve_wheel(tmp_path) == wheel
 
 
 @pytest.mark.parametrize(
@@ -354,6 +355,30 @@ def test_main_runs_once_per_artifact_in_separate_external_workspaces(
     workspaces = [workspace for _selected, _kind, workspace in calls]
     assert len(set(workspaces)) == 2
     assert all(workspace.is_relative_to(Path("/tmp")) for workspace in workspaces)
+
+
+def test_supply_chain_installer_uses_compatibility_wheel_selector(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gate = _load()
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    wheel = dist_dir / "rexecop-1.0.0-py3-none-any.whl"
+    wheel.touch()
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(gate, "_run", fake_run)
+
+    venv, venv_python = gate.install_wheel_venv(dist_dir, tmp_path / "install-root")
+
+    assert venv == tmp_path / "install-root" / "venv"
+    assert venv_python == venv / "bin" / "python"
+    assert commands[1][-1] == str(wheel.resolve())
 
 
 def test_supply_chain_gate_filters_documented_exceptions() -> None:

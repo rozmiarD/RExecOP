@@ -230,6 +230,10 @@ def _resolve_artifacts(dist_dir: Path) -> tuple[Path, Path]:
     )
 
 
+def _resolve_wheel(dist_dir: Path) -> Path:
+    return _select_artifact(dist_dir, "*.whl", "wheel")
+
+
 def _candidate_install_options(candidate_wheel_dirs: Sequence[Path]) -> list[str]:
     options: list[str] = []
     for wheel_dir in candidate_wheel_dirs:
