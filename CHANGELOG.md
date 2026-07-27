@@ -29,6 +29,12 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Fixed
 
+- Rejected distinct secret references that collapse to the same legacy
+  `REXECOP_SECRET_*` environment key across loaders, doctor inspection and
+  per-resolver runtime lookup, while preserving exact file refs and hyphenated
+  reference compatibility.
+- Made generated secret-reference suggestions fail boundedly on complete-set
+  duplicate or environment-key ambiguity instead of inventing replacement names.
 - Prevented non-watchdog inbox failures from repeatedly renaming and
   reprocessing themselves by quarantining them under fixed, no-overwrite names;
   quarantine or required-log failures now stop later inbox and queue work.

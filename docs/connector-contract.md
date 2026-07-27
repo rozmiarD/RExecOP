@@ -127,6 +127,12 @@ Never store resolved secrets under `.rexecop/` or commit them to git. The secret
 be a regular file owned by the current user, with mode `0600` or stricter; symlinks and
 group/world-readable files are rejected.
 
+The legacy environment mapping trims a ref, uppercases it and replaces each
+hyphen with an underscore. Distinct refs sharing the resulting key fail before
+environment lookup or value return, and that collision is terminal in the
+chained resolver. Ordinary missing refs still fall back to the secrets file;
+direct file lookup continues to use the exact trimmed ref.
+
 ## local_shell_readonly
 
 ```yaml

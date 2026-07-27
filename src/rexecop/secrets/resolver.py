@@ -9,6 +9,7 @@ import yaml
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import register_secret_value
 from rexecop.secrets.port import SecretResolver
+from rexecop.secrets.reference import _EnvKeyClaims, _SecretRefEnvCollision
 
 MAX_SECRETS_FILE_BYTES = 1024 * 1024
 
@@ -16,11 +17,11 @@ MAX_SECRETS_FILE_BYTES = 1024 * 1024
 class EnvSecretResolver:
     """Resolve secret_ref from REXECOP_SECRET_<REF> environment variables."""
 
+    def __init__(self) -> None:
+        self._claims = _EnvKeyClaims()
+
     def resolve(self, secret_ref: str) -> str:
-        ref = secret_ref.strip()
-        if not ref:
-            raise RExecOpValidationError("secret_ref is required")
-        env_key = f"REXECOP_SECRET_{ref.upper().replace('-', '_')}"
+        _, env_key = self._claims.claim(secret_ref)
         value = os.environ.get(env_key)
         if value is None or value == "":
             raise RExecOpValidationError(f"secret not found in environment: {env_key}")
@@ -106,6 +107,8 @@ class ChainedSecretResolver:
         for resolver in self.resolvers:
             try:
                 return resolver.resolve(secret_ref)
+            except _SecretRefEnvCollision:
+                raise
             except RExecOpValidationError as exc:
                 last_error = exc
         if last_error is not None:

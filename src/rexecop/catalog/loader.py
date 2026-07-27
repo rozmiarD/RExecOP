@@ -9,7 +9,11 @@ from typing import Any
 import yaml
 
 from rexecop.catalog.digest import canonical_digest
-from rexecop.environment.loader import load_environment
+from rexecop.environment.loader import (
+    _load_environment_for_secret_inspection,
+    load_environment,
+)
+from rexecop.environment.model import Environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpValidationError
 from rexecop.profile.loader import load_profile
@@ -54,6 +58,28 @@ _UniqueKeyLoader.add_constructor(
 
 
 def load_catalog_document(path: Path) -> tuple[str, list[dict[str, Any]], str]:
+    version, entries, digest, _ = _load_catalog_document(
+        path,
+        inspect_secret_ref_collisions=False,
+    )
+    return version, entries, digest
+
+
+def _load_catalog_environments_for_secret_inspection(
+    path: Path,
+) -> list[tuple[Path, Environment]]:
+    _, _, _, environments = _load_catalog_document(
+        path,
+        inspect_secret_ref_collisions=True,
+    )
+    return sorted(environments.items(), key=lambda item: str(item[0]))
+
+
+def _load_catalog_document(
+    path: Path,
+    *,
+    inspect_secret_ref_collisions: bool,
+) -> tuple[str, list[dict[str, Any]], str, dict[Path, Environment]]:
     resolved = path.expanduser().resolve()
     _validate_catalog_file(resolved)
     try:
@@ -78,24 +104,49 @@ def load_catalog_document(path: Path) -> tuple[str, list[dict[str, Any]], str]:
     if len(targets) > MAX_TARGETS:
         raise RExecOpValidationError("target catalog exceeds target limit")
     entries: list[dict[str, Any]] = []
+    environments: dict[Path, Environment] = {}
     seen: set[str] = set()
     for index, item in enumerate(targets):
         if not isinstance(item, dict):
             raise RExecOpValidationError(f"target catalog entry {index} must be a mapping")
         _strict_keys(item, TARGET_KEYS, f"target_catalog.targets[{index}]")
-        normalized = _normalize_target_entry(item, resolved.parent, index)
+        normalized = _normalize_target_entry(
+            item,
+            resolved.parent,
+            index,
+            environments=environments,
+            inspect_secret_ref_collisions=inspect_secret_ref_collisions,
+        )
         target_id = str(normalized["id"])
         if target_id in seen:
             raise RExecOpValidationError(f"duplicate target catalog id: {target_id}")
         seen.add(target_id)
         entries.append(normalized)
-    return version, entries, canonical_digest(raw)
+    if not inspect_secret_ref_collisions:
+        from rexecop.secrets.reference import (
+            enforce_secret_ref_env_collision_freedom,
+        )
+
+        enforce_secret_ref_env_collision_freedom(
+            {
+                "environments": [
+                    environment.as_dict()
+                    for _, environment in sorted(
+                        environments.items(), key=lambda item: str(item[0])
+                    )
+                ]
+            }
+        )
+    return version, entries, canonical_digest(raw), environments
 
 
 def _normalize_target_entry(
     item: dict[str, Any],
     catalog_dir: Path,
     index: int,
+    *,
+    environments: dict[Path, Environment],
+    inspect_secret_ref_collisions: bool,
 ) -> dict[str, Any]:
     prefix = f"target_catalog.targets[{index}]"
     target_id = _token(item.get("id"), f"{prefix}.id")
@@ -118,7 +169,14 @@ def _normalize_target_entry(
     resolved_profile_path = resolve_profile_path(profile_input).resolve()
     profile = load_profile(resolved_profile_path)
     profile_path = profile.root.resolve()
-    environment = load_environment(environment_path)
+    environment = environments.get(environment_path)
+    if environment is None:
+        environment = (
+            _load_environment_for_secret_inspection(environment_path)
+            if inspect_secret_ref_collisions
+            else load_environment(environment_path)
+        )
+        environments[environment_path] = environment
     if environment.profile and environment.profile != profile.name:
         raise RExecOpValidationError(
             f"catalog environment profile mismatch for target {target_id}"

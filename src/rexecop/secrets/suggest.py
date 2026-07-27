@@ -4,7 +4,11 @@ from pathlib import Path
 from typing import Any
 
 from rexecop.environment.loader import load_environment
-from rexecop.secrets.doctor import collect_secret_ref_bindings
+from rexecop.secrets.reference import (
+    canonicalize_suggested_ref,
+    collect_secret_ref_bindings,
+    validate_suggestion_identities,
+)
 
 SECRETS_SUGGEST_REF_SCHEMA = "rexecop.secrets_suggest_ref.v0.1"
 
@@ -27,6 +31,13 @@ def suggest_secret_refs(
         if isinstance(config, dict)
         for item in _connector_suggestions(name, config)
     ]
+    all_existing_bindings = collect_secret_ref_bindings(
+        {"connectors": environment.connectors}
+    )
+    validation_existing_refs = [
+        {"path": binding["path"], "ref": binding["ref"]}
+        for binding in all_existing_bindings
+    ]
     existing_refs = [
         {
             "connector": _connector_from_path(binding["path"]),
@@ -34,9 +45,10 @@ def suggest_secret_refs(
             "ref": binding["ref"],
             "status": "existing",
         }
-        for binding in collect_secret_ref_bindings({"connectors": connectors})
+        for binding in all_existing_bindings
         if connector is None or _connector_from_path(binding["path"]) == connector
     ]
+    validate_suggestion_identities(validation_existing_refs, suggestions)
     return {
         "schema": SECRETS_SUGGEST_REF_SCHEMA,
         "environment": {
@@ -82,13 +94,9 @@ def _suggestion(connector: str, path: str, ref: str) -> dict[str, str]:
     return {
         "connector": connector,
         "path": f"connectors.{connector}.{path}",
-        "suggested_ref": _normalize_ref(ref),
+        "suggested_ref": canonicalize_suggested_ref(ref),
         "status": "suggested",
     }
-
-
-def _normalize_ref(value: str) -> str:
-    return "_".join(part for part in value.strip().lower().replace("-", "_").split("_") if part)
 
 
 def _connector_from_path(path: str) -> str:

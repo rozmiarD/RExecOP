@@ -9,7 +9,8 @@ from typing import Any
 
 import yaml
 
-from rexecop.environment.loader import load_environment
+from rexecop.catalog.loader import _load_catalog_environments_for_secret_inspection
+from rexecop.environment.loader import _load_environment_for_secret_inspection
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError, RExecOpValidationError
 from rexecop.evidence.redaction import (
@@ -19,13 +20,17 @@ from rexecop.evidence.redaction import (
     redact_text,
     register_secret_value,
 )
+from rexecop.secrets.reference import (
+    collect_secret_ref_bindings,
+    env_key_for_secret_ref,
+    secret_ref_env_collisions,
+)
 from rexecop.secrets.resolver import MAX_SECRETS_FILE_BYTES
 
 SECRETS_DOCTOR_SCHEMA = "rexecop.secrets_doctor.v0.1"
 CHECK_PASSED = "passed"
 CHECK_WARNING = "warning"
 CHECK_BLOCKER = "blocker"
-SECRET_REF_KEYS = frozenset({"secret_ref"})
 REDACTION_PROBE = "rexecop-secrets-doctor-redaction-probe-7c4f91"
 
 
@@ -36,19 +41,26 @@ def run_secrets_doctor(
     secrets_file: Path | None = None,
 ) -> dict[str, Any]:
     documents: list[tuple[str, dict[str, Any]]] = []
+    seen_environment_paths: set[Path] = set()
     if env_path is not None:
-        environment = load_environment(env_path)
+        resolved_environment = env_path.expanduser().resolve()
+        environment = _load_environment_for_secret_inspection(resolved_environment)
+        seen_environment_paths.add(resolved_environment)
         documents.append(("environment", environment.as_dict()))
     if catalog_path is not None:
-        catalog_data = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
-        if not isinstance(catalog_data, dict):
-            raise RExecOpValidationError(f"invalid catalog yaml: {catalog_path}")
-        documents.append(("catalog", catalog_data))
+        referenced = _load_catalog_environments_for_secret_inspection(catalog_path)
+        for index, (environment_path, environment) in enumerate(referenced):
+            resolved_environment = environment_path.expanduser().resolve()
+            if resolved_environment in seen_environment_paths:
+                continue
+            seen_environment_paths.add(resolved_environment)
+            documents.append((f"catalog_environment[{index}]", environment.as_dict()))
 
     configured_file = secrets_file or _configured_secrets_file()
     checks = [
         _check_inline_secrets(documents),
         _check_secret_ref_bindings(documents),
+        _check_secret_ref_env_collisions(documents),
         _check_missing_refs(documents, configured_file),
         _check_duplicate_refs(documents),
         _check_secrets_file_permissions(configured_file, documents),
@@ -81,28 +93,6 @@ def run_secrets_doctor(
             ),
         },
     }
-
-
-def collect_secret_ref_bindings(
-    value: Any,
-    *,
-    path: str = "",
-) -> list[dict[str, str]]:
-    bindings: list[dict[str, str]] = []
-    if isinstance(value, dict):
-        for key, item in value.items():
-            key_text = str(key)
-            child_path = f"{path}.{key_text}" if path else key_text
-            if key_text in SECRET_REF_KEYS or key_text.endswith("_secret_ref"):
-                ref = str(item or "").strip()
-                bindings.append({"path": child_path, "ref": ref})
-            bindings.extend(collect_secret_ref_bindings(item, path=child_path))
-        return bindings
-    if isinstance(value, list):
-        for index, item in enumerate(value):
-            child_path = f"{path}[{index}]"
-            bindings.extend(collect_secret_ref_bindings(item, path=child_path))
-    return bindings
 
 
 def _check(
@@ -199,7 +189,7 @@ def _check_missing_refs(
         missing.append(
             {
                 "ref": ref,
-                "env_key": _env_key_for_ref(ref),
+                "env_key": env_key_for_secret_ref(ref),
                 "paths": sorted(refs[ref]),
             }
         )
@@ -225,6 +215,29 @@ def _check_missing_refs(
             next_action="fix REXECOP_SECRETS_FILE permissions and ownership",
         )
     return _check("missing_refs", CHECK_PASSED, "all declared secret_ref values are resolvable")
+
+
+def _check_secret_ref_env_collisions(
+    documents: list[tuple[str, dict[str, Any]]],
+) -> dict[str, Any]:
+    bindings: list[dict[str, str]] = []
+    for name, document in documents:
+        for binding in collect_secret_ref_bindings(document):
+            bindings.append({**binding, "document": name})
+    collisions = secret_ref_env_collisions(bindings)
+    if collisions:
+        return _check(
+            "secret_ref_env_collision",
+            CHECK_BLOCKER,
+            "distinct secret_ref names map to the same environment key",
+            details={"collisions": collisions},
+            next_action="rename colliding refs explicitly before runtime use",
+        )
+    return _check(
+        "secret_ref_env_collision",
+        CHECK_PASSED,
+        "secret_ref environment-key mappings are collision free",
+    )
 
 
 def _check_duplicate_refs(documents: list[tuple[str, dict[str, Any]]]) -> dict[str, Any]:
@@ -365,12 +378,8 @@ def _configured_secrets_file() -> Path | None:
     return Path(configured).expanduser()
 
 
-def _env_key_for_ref(ref: str) -> str:
-    return f"REXECOP_SECRET_{ref.upper().replace('-', '_')}"
-
-
 def _ref_available_in_env(ref: str) -> bool:
-    return bool(os.environ.get(_env_key_for_ref(ref), "").strip())
+    return bool(os.environ.get(env_key_for_secret_ref(ref), "").strip())
 
 
 def _validate_secrets_file_policy(path: Path) -> None:

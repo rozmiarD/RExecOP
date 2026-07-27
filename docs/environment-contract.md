@@ -28,8 +28,12 @@ rexecop secrets doctor --env ./environment.yaml --secrets-file ~/.rexecop/secret
 ```
 
 `env lint` checks YAML hygiene; `secrets doctor` checks missing refs, duplicate
-ref reuse, `REXECOP_SECRETS_FILE` permissions, orphan file keys, and a redaction
-self-test. See [secrets-operator.md](secrets-operator.md).
+ref reuse, legacy environment-key collisions, `REXECOP_SECRETS_FILE`
+permissions, orphan file keys, and a redaction self-test. Normal environment
+loading fails closed when distinct trimmed refs map to the same
+`REXECOP_SECRET_*` key. Hyphenated refs remain valid and the mapping remains
+uppercase with hyphens replaced by underscores. See
+[secrets-operator.md](secrets-operator.md).
 
 ## Target semantics
 

@@ -62,8 +62,8 @@ security review.
 | Command | Purpose |
 | --- | --- |
 | `env lint --env PATH [--profile]` | Validate environment YAML and inline-secret hygiene |
-| `secrets doctor --env PATH` and/or `--catalog PATH` | Missing refs, duplicate ref reuse, secrets-file policy, redaction self-test |
-| `secrets suggest-ref --env PATH [--connector NAME]` | Suggest `secret_ref` names from connector shape without reading stores |
+| `secrets doctor --env PATH` and/or `--catalog PATH` | Environment-key collisions, missing refs, duplicate ref reuse, secrets-file policy, redaction self-test |
+| `secrets suggest-ref --env PATH [--connector NAME]` | Suggest collision-checked `secret_ref` names from connector shape without reading stores |
 
 See [secrets-operator.md](secrets-operator.md).
 
