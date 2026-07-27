@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 from rexecop.environment.model import Environment
 from rexecop.errors import RExecOpValidationError
+from rexecop.yaml_input import load_yaml_file
 
 
 def load_environment(path: Path) -> Environment:
@@ -23,7 +22,7 @@ def _load_environment(
 ) -> Environment:
     if not path.is_file():
         raise RExecOpValidationError(f"environment file not found: {path}")
-    data = yaml.safe_load(path.read_text())
+    data = load_yaml_file(path)
     if not isinstance(data, dict):
         raise RExecOpValidationError(f"invalid environment yaml: {path}")
     try:

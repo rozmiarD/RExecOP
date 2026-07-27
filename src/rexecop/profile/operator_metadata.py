@@ -5,12 +5,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.catalog.digest import canonical_digest
 from rexecop.errors import RExecOpValidationError
 from rexecop.observability.failure_classes import FAILURE_CLASSES
 from rexecop.profile.loader import LoadedProfile
+from rexecop.yaml_input import load_yaml_file
 
 OPERATOR_METADATA_SCHEMA = "rexecop.profile_operator_metadata.v0.1"
 OPERATION_PROFILE_EXPLAIN_SCHEMA = "rexecop.operation_profile_explain.v0.1"
@@ -55,7 +54,7 @@ def load_operator_metadata(profile: LoadedProfile) -> dict[str, Any] | None:
     path = operator_metadata_path(profile.root)
     if not path.is_file():
         return None
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data = load_yaml_file(path)
     if not isinstance(data, dict):
         raise RExecOpValidationError(f"invalid operator metadata yaml: {path}")
     document = data.get("operator_metadata")

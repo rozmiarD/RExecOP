@@ -29,6 +29,11 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Fixed
 
+- Replaced permissive YAML ingestion with one bounded, alias-free,
+  duplicate-key-safe parser across environment, profile, catalog, action,
+  reaction, trigger and secrets boundaries; non-finite values now also fail
+  closed before canonical digest or runtime-store persistence with stable,
+  redacted reason codes.
 - Rejected distinct secret references that collapse to the same legacy
   `REXECOP_SECRET_*` environment key across loaders, doctor inspection and
   per-resolver runtime lookup, while preserving exact file refs and hyphenated

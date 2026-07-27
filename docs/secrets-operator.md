@@ -17,6 +17,13 @@ root and process environment as sensitive.
 1. `REXECOP_SECRET_<REF>` — ref normalized to uppercase with `-` replaced by `_`;
 2. `REXECOP_SECRETS_FILE` — operator-managed YAML with a top-level `secrets:` mapping.
 
+The secrets file retains its 1 MiB, owner-only regular-file policy and is parsed
+through the same bounded YAML path as environments and catalogs. Duplicate
+keys, aliases/merge keys, non-string keys, multiple documents, unsafe or
+explicit timestamp/binary tags and non-finite values are rejected before a
+secret lookup. Resolver failures use the redacted `invalid_yaml_structure`
+reason and never echo a secret value, key, path or parser diagnostic.
+
 The environment-variable mapping is retained for compatibility, including
 hyphenated refs. Distinct trimmed refs that project to the same key are rejected:
 for example, `foo-bar` and `foo_bar` both project to
@@ -69,7 +76,10 @@ JSON schema: `rexecop.secrets_doctor.v0.1`.
 
 The command's supported output contract omits resolved secret values. Error
 messages from malformed secret files are bounded and avoid echoing file
-content.
+content. Malformed environment/catalog input reaches the existing CLI error
+envelope with `reason_code: invalid_yaml_structure`; a malformed optional
+secrets file remains a bounded doctor policy/check result so the doctor schema
+does not change.
 
 Collision checks run before missing-ref checks and include environments reached
 through a strictly parsed target catalog. Repeated catalog targets referencing

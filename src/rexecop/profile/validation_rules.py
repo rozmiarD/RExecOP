@@ -3,9 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.errors import RExecOpValidationError
+from rexecop.yaml_input import load_yaml_file
 
 
 def load_validation_rule_spec(profile_root: Path, intent: str) -> dict[str, Any]:
@@ -13,7 +12,7 @@ def load_validation_rule_spec(profile_root: Path, intent: str) -> dict[str, Any]
     if not path.is_file():
         raise RExecOpValidationError(f"no validation rules for intent: {intent}")
 
-    data = yaml.safe_load(path.read_text())
+    data = load_yaml_file(path)
     if not isinstance(data, dict):
         raise RExecOpValidationError(f"invalid validation rules file: {path}")
 

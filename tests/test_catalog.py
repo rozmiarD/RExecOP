@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from rexecop.adapters.sclite_port.emitter import (
     build_intent_contract,
     build_policy_decision,
 )
+from rexecop.catalog.digest import canonical_digest
 from rexecop.catalog.service import CatalogService
 from rexecop.cli import app
 from rexecop.errors import RExecOpValidationError
@@ -20,19 +22,18 @@ from rexecop.runtime.init import initialize_runtime_root
 
 
 def _profile_contract(name: str) -> dict[str, object]:
-    required = {"required": True}
     return {
         "profile_contract": {
             "name": name,
             "version": "1.0",
-            "intents": required,
-            "workflows": required,
-            "connector_requirements": required,
-            "risk_classes": required,
-            "evidence_requirements": required,
-            "governance_expectations": required,
-            "validation_rules": required,
-            "escalation_rules": required,
+            "intents": {"required": True},
+            "workflows": {"required": True},
+            "connector_requirements": {"required": True},
+            "risk_classes": {"required": True},
+            "evidence_requirements": {"required": True},
+            "governance_expectations": {"required": True},
+            "validation_rules": {"required": True},
+            "escalation_rules": {"required": True},
         }
     }
 
@@ -211,7 +212,7 @@ def test_catalog_rejects_duplicate_target_alias(tmp_path: Path) -> None:
     _, _, catalog = _write_fixture(tmp_path)
     data = yaml.safe_load(catalog.read_text())
     data["target_catalog"]["targets"].append(
-        dict(data["target_catalog"]["targets"][0])
+        copy.deepcopy(data["target_catalog"]["targets"][0])
     )
     catalog.write_text(yaml.safe_dump(data, sort_keys=False))
 
@@ -228,8 +229,18 @@ def test_catalog_rejects_duplicate_yaml_key(tmp_path: Path) -> None:
         "  targets: []\n"
     )
 
-    with pytest.raises(RExecOpValidationError, match="duplicate catalog key"):
+    with pytest.raises(RExecOpValidationError) as raised:
         CatalogService(catalog)
+    assert raised.value.reason_code == "invalid_yaml_structure"
+    assert str(catalog) not in str(raised.value)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_canonical_digest_rejects_non_finite_json_values(value: float) -> None:
+    with pytest.raises(RExecOpValidationError) as raised:
+        canonical_digest({"nested": [value]})
+
+    assert raised.value.reason_code == "invalid_json_value"
 
 
 def test_catalog_plan_binds_digests_into_sclite_execution_contract(

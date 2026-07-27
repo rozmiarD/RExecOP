@@ -7,8 +7,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.catalog.loader import _load_catalog_environments_for_secret_inspection
 from rexecop.environment.loader import _load_environment_for_secret_inspection
 from rexecop.environment.sanitize import validate_no_inline_secrets
@@ -26,6 +24,7 @@ from rexecop.secrets.reference import (
     secret_ref_env_collisions,
 )
 from rexecop.secrets.resolver import MAX_SECRETS_FILE_BYTES
+from rexecop.yaml_input import load_yaml_bytes
 
 SECRETS_DOCTOR_SCHEMA = "rexecop.secrets_doctor.v0.1"
 CHECK_PASSED = "passed"
@@ -293,7 +292,6 @@ def _check_secrets_file_permissions(
         "secrets_file_permissions",
         CHECK_PASSED,
         "secrets file policy is acceptable",
-        details={"path": str(secrets_file)},
     )
 
 
@@ -407,8 +405,11 @@ def _load_secrets_file_keys(path: Path | None) -> tuple[frozenset[str], str]:
     except RExecOpValidationError as exc:
         return frozenset(), str(exc)
     try:
-        data = yaml.safe_load(_read_secrets_file(path))
-    except (UnicodeError, yaml.YAMLError):
+        data = load_yaml_bytes(
+            _read_secrets_file(path),
+            max_bytes=MAX_SECRETS_FILE_BYTES,
+        )
+    except RExecOpValidationError:
         return frozenset(), "invalid REXECOP_SECRETS_FILE"
     if not isinstance(data, dict):
         return frozenset(), "invalid REXECOP_SECRETS_FILE"
@@ -418,11 +419,11 @@ def _load_secrets_file_keys(path: Path | None) -> tuple[frozenset[str], str]:
     return frozenset(str(key) for key in secrets), ""
 
 
-def _read_secrets_file(path: Path) -> str:
+def _read_secrets_file(path: Path) -> bytes:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags)
     try:
-        with os.fdopen(descriptor, encoding="utf-8") as handle:
+        with os.fdopen(descriptor, "rb") as handle:
             descriptor = -1
             return handle.read(MAX_SECRETS_FILE_BYTES + 1)
     finally:

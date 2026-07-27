@@ -19,6 +19,26 @@ class RExecOpValidationError(RExecOpError):
     public_message = "runtime input or contract validation failed"
 
 
+class _InvalidYamlStructure(RExecOpValidationError):
+    """Private stable failure for bounded YAML input parsing."""
+
+    reason_code = "invalid_yaml_structure"
+    public_message = "YAML input is invalid or exceeds structural limits"
+
+    def __init__(self) -> None:
+        super().__init__(self.public_message)
+
+
+class _InvalidJsonValue(RExecOpValidationError):
+    """Private stable failure for values that cannot be encoded as finite JSON."""
+
+    reason_code = "invalid_json_value"
+    public_message = "value is not finite JSON-compatible data"
+
+    def __init__(self) -> None:
+        super().__init__(self.public_message)
+
+
 class RExecOpGovernanceDecisionError(RExecOpValidationError):
     """Stable runtime-consumer failure for one GovEngine decision."""
 

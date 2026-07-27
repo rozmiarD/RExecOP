@@ -4,12 +4,11 @@ import os
 import stat
 from pathlib import Path
 
-import yaml
-
 from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import register_secret_value
 from rexecop.secrets.port import SecretResolver
 from rexecop.secrets.reference import _EnvKeyClaims, _SecretRefEnvCollision
+from rexecop.yaml_input import load_yaml_bytes
 
 MAX_SECRETS_FILE_BYTES = 1024 * 1024
 
@@ -39,10 +38,10 @@ class FileSecretResolver:
     def resolve(self, secret_ref: str) -> str:
         if self.path is None:
             raise RExecOpValidationError("REXECOP_SECRETS_FILE is not configured")
-        try:
-            data = yaml.safe_load(self._read_secure_file())
-        except (UnicodeError, yaml.YAMLError) as exc:
-            raise RExecOpValidationError("invalid REXECOP_SECRETS_FILE") from exc
+        data = load_yaml_bytes(
+            self._read_secure_file(),
+            max_bytes=MAX_SECRETS_FILE_BYTES,
+        )
         if not isinstance(data, dict):
             raise RExecOpValidationError("invalid REXECOP_SECRETS_FILE")
         secrets = data.get("secrets")
@@ -56,7 +55,7 @@ class FileSecretResolver:
         register_secret_value(resolved)
         return resolved
 
-    def _read_secure_file(self) -> str:
+    def _read_secure_file(self) -> bytes:
         assert self.path is not None
         try:
             info = self.path.lstat()
@@ -85,10 +84,10 @@ class FileSecretResolver:
                 raise RExecOpValidationError(
                     "REXECOP_SECRETS_FILE changed during validation"
                 )
-            with os.fdopen(descriptor, encoding="utf-8") as handle:
+            with os.fdopen(descriptor, "rb") as handle:
                 descriptor = -1
                 content = handle.read(MAX_SECRETS_FILE_BYTES + 1)
-                if len(content.encode("utf-8")) > MAX_SECRETS_FILE_BYTES:
+                if len(content) > MAX_SECRETS_FILE_BYTES:
                     raise RExecOpValidationError(
                         "REXECOP_SECRETS_FILE exceeds the size limit"
                     )

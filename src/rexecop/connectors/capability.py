@@ -2,16 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 from rexecop.errors import RExecOpValidationError
+from rexecop.yaml_input import load_yaml_file
 
 
 def load_profile_connector_capabilities(profile_root: Path, connector_name: str) -> frozenset[str]:
   path = profile_root / "connectors" / f"{connector_name}.yaml"
   if not path.is_file():
     raise RExecOpValidationError(f"profile connector contract not found: {connector_name}")
-  data = yaml.safe_load(path.read_text())
+  data = load_yaml_file(path)
   if not isinstance(data, dict):
     raise RExecOpValidationError(f"invalid connector contract: {path}")
   connector = data.get("connector")

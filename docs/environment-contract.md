@@ -17,6 +17,21 @@ sanitization rules used by runtime paths, optionally checks that the environment
 profile matches the supplied profile, and reports target, connector and
 `secret_ref` counts as JSON.
 
+Environment, catalog and action inspection paths share the runtime's bounded
+YAML input rules. A document is limited to 1 MiB, 64 nested levels (root is
+level one) and 50,000 composed nodes. Duplicate mapping keys, aliases and merge
+keys, non-string mapping keys, multiple documents, unsafe or explicit
+timestamp/binary tags and non-finite numbers are rejected before environment
+model construction. Accepted values are JSON-compatible scalars, sequences and
+string-keyed mappings. YAML `true`/`false` remain booleans; YAML 1.1 words such
+as `on`, `off`, `yes`, `no` and implicit date-like values remain strings.
+
+Structural failures use the stable `invalid_yaml_structure` reason code and a
+constant redacted message. The error does not echo the input path, key, value
+or parser diagnostic. Domain validation still runs after parsing and retains
+its established errors. These rules do not provide YAML round-trip, alias,
+comment or ordering guarantees.
+
 ## Secrets doctor
 
 Use `secrets doctor` when the environment declares `secret_ref` fields and you

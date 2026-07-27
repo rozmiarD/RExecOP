@@ -4,10 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.errors import RExecOpValidationError
 from rexecop.profile.contract import validate_profile_contract
+from rexecop.yaml_input import load_yaml_file
 
 
 @dataclass
@@ -24,7 +23,7 @@ class LoadedProfile:
         return path
 
     def resolve_workflow_path(self, intent_id: str) -> Path:
-        intent_data = yaml.safe_load(self.intent_path(intent_id).read_text())
+        intent_data = load_yaml_file(self.intent_path(intent_id))
         if not isinstance(intent_data, dict):
             raise RExecOpValidationError(f"invalid intent file: {intent_id}")
         intent = intent_data.get("intent")
@@ -44,7 +43,7 @@ class LoadedProfile:
         return workflow_path
 
     def intent_metadata(self, intent_id: str) -> dict[str, Any]:
-        intent_data = yaml.safe_load(self.intent_path(intent_id).read_text())
+        intent_data = load_yaml_file(self.intent_path(intent_id))
         if not isinstance(intent_data, dict):
             raise RExecOpValidationError(f"invalid intent file: {intent_id}")
         intent = intent_data.get("intent")
@@ -56,7 +55,7 @@ class LoadedProfile:
         path = self.root / "connectors" / f"{connector_name}.yaml"
         if not path.is_file():
             return None
-        data = yaml.safe_load(path.read_text())
+        data = load_yaml_file(path)
         if not isinstance(data, dict) or not isinstance(data.get("connector"), dict):
             raise RExecOpValidationError(f"invalid connector contract: {connector_name}")
         contract = dict(data["connector"])
@@ -77,7 +76,7 @@ def load_profile(profile_path: Path) -> LoadedProfile:
     if not profile_file.is_file():
         raise RExecOpValidationError(f"profile file not found: {profile_file}")
 
-    data = yaml.safe_load(profile_file.read_text())
+    data = load_yaml_file(profile_file)
     if not isinstance(data, dict):
         raise RExecOpValidationError(f"invalid profile yaml: {profile_file}")
 

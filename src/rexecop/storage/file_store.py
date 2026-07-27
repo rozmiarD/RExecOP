@@ -7,10 +7,15 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from rexecop.errors import RExecOpConcurrencyConflict, RExecOpValidationError
+from rexecop.errors import (
+    RExecOpConcurrencyConflict,
+    RExecOpValidationError,
+    _InvalidJsonValue,
+)
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.storage.atomic import atomic_write_text, secure_directory, secure_file
+from rexecop.yaml_input import ensure_finite_json_value
 
 
 class FileStore:
@@ -48,12 +53,20 @@ class FileStore:
         return path
 
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
-        atomic_write_text(
-            path,
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        )
+        ensure_finite_json_value(payload)
+        try:
+            rendered = json.dumps(
+                payload,
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise _InvalidJsonValue() from exc
+        atomic_write_text(path, rendered + "\n")
 
     def save_operation(self, operation: Operation) -> None:
+        ensure_finite_json_value(operation.as_dict())
         self.ensure_layout()
         path = self.operations_dir / f"{operation.id}.json"
         lock_path = self.operations_dir / f"{operation.id}.lock"
@@ -72,8 +85,11 @@ class FileStore:
                 raise RExecOpConcurrencyConflict(
                     f"concurrency_conflict: operation {operation.id} no longer exists"
                 )
-            operation.operation_revision = current_revision + 1
-            self._write_json(path, operation.as_dict())
+            next_revision = current_revision + 1
+            payload = operation.as_dict()
+            payload["operation_revision"] = next_revision
+            self._write_json(path, payload)
+            operation.operation_revision = next_revision
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     def load_operation(self, operation_id: str) -> Operation:

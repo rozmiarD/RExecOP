@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -80,6 +81,30 @@ def test_global_format_table_on_env_lint(tmp_path) -> None:
     assert result.exit_code == 0
     assert 'env lint status=passed' in result.stdout
     assert 'environment=demo-env' in result.stdout
+
+
+def test_profile_lint_nested_invalid_yaml_preserves_error_envelope(tmp_path) -> None:
+    profile_root = tmp_path / 'private-profile'
+    shutil.copytree(PROFILE.parent, profile_root)
+    intent = profile_root / 'intents' / 'apply_fixture_change.yaml'
+    intent.write_text(
+        'intent:\n  id: first\n  id: private-intent-marker\n',
+        encoding='utf-8',
+    )
+
+    result = runner.invoke(
+        app,
+        ['--json', 'profile', 'lint', '--profile', str(profile_root)],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload['schema'] == CLI_ERROR_SCHEMA
+    assert payload['command'] == 'profile lint'
+    assert payload['reason_code'] == 'invalid_yaml_structure'
+    assert payload['message'] == 'YAML input is invalid or exceeds structural limits'
+    assert 'private-intent-marker' not in result.stdout
+    assert str(intent) not in result.stdout
 
 
 def test_global_json_on_policy_explain_failure_emits_cli_error(tmp_path) -> None:

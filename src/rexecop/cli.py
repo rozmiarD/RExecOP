@@ -236,6 +236,29 @@ def _emit_cli_error(payload: dict[str, object]) -> None:
     emit_cli_error(payload)
 
 
+def _emit_validation_failure(
+    *,
+    command: tuple[str, ...],
+    exc: RExecOpError,
+    default_reason_code: str = "validation_error",
+    safe_next_actions: tuple[str, ...] = (),
+) -> None:
+    reason_code = str(getattr(exc, "reason_code", default_reason_code))
+    if reason_code not in {"invalid_yaml_structure", "invalid_json_value"}:
+        reason_code = default_reason_code
+    message = (
+        str(getattr(exc, "public_message", str(exc)))
+        if reason_code in {"invalid_yaml_structure", "invalid_json_value"}
+        else str(exc)
+    )
+    emit_failure(
+        command=command,
+        message=message,
+        reason_code=reason_code,
+        safe_next_actions=safe_next_actions,
+    )
+
+
 _LIFECYCLE_LOOKUP_ACTIONS = (
     "Check the operation id.",
     "Run rexecop history from the same runtime root.",
@@ -366,7 +389,7 @@ def env_lint_cmd(
             },
         }
     except RExecOpError as exc:
-        emit_failure(command=("env", "lint"), message=str(exc))
+        _emit_validation_failure(command=("env", "lint"), exc=exc)
     emit_payload(result, renderers=ENV_LINT_RENDERERS)
 
 
@@ -675,19 +698,32 @@ def profile_lint_cmd(
             track=track,
         )
     except RExecOpError as exc:
-        emit_failure(
+        _emit_validation_failure(
             command=("profile", "lint"),
-            message=str(exc),
-            reason_code="profile_conformance_unavailable",
+            exc=exc,
+            default_reason_code="profile_conformance_unavailable",
             safe_next_actions=("Check the profile path or registered profile name.",),
         )
     payload = result.as_dict()
     if result.status != "passed":
+        errors = payload.get("errors") or []
+        invalid_yaml = any(
+            "YAML input is invalid or exceeds structural limits" in str(error)
+            for error in errors
+        )
         emit_failure_payload(
             cli_error_payload(
                 error_class="validation_error",
-                reason_code="profile_conformance_failed",
-                message=f"profile conformance failed for {result.profile}",
+                reason_code=(
+                    "invalid_yaml_structure"
+                    if invalid_yaml
+                    else "profile_conformance_failed"
+                ),
+                message=(
+                    "YAML input is invalid or exceeds structural limits"
+                    if invalid_yaml
+                    else f"profile conformance failed for {result.profile}"
+                ),
                 command=("profile", "lint"),
                 safe_next_actions=("Fix reported profile conformance errors.",),
                 details=payload,
@@ -1168,7 +1204,7 @@ def operations_explain_cmd(
         loaded = load_profile(resolve_profile_path(profile))
         result = explain_profile_operation(loaded, intent)
     except RExecOpError as exc:
-        emit_failure(command=("operations", "explain"), message=str(exc))
+        _emit_validation_failure(command=("operations", "explain"), exc=exc)
     emit_payload(result, renderers=OPERATIONS_EXPLAIN_RENDERERS)
 
 
@@ -1340,7 +1376,7 @@ def plan_cmd(
                 catalog_path=catalog,
             )
         except RExecOpError as exc:
-            emit_failure(command=("plan",), message=str(exc))
+            _emit_validation_failure(command=("plan",), exc=exc)
         emit_payload(result, renderers=PLAN_EXPLAIN_RENDERERS)
         if result["status"] == "blocked":
             raise typer.Exit(code=1)
@@ -1358,7 +1394,7 @@ def plan_cmd(
             auto_react=auto_react,
         )
     except RExecOpError as exc:
-        emit_failure(command=("plan",), message=str(exc))
+        _emit_validation_failure(command=("plan",), exc=exc)
 
     typer.echo(operation.id)
 

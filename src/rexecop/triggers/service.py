@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import yaml
 from govengine import (
     GovApiError,
     TriggerPlanningRequest,
@@ -23,13 +22,14 @@ from rexecop.contracts.orchestration import (
     trigger_decision_descriptor,
     trigger_decision_digest,
 )
-from rexecop.errors import RExecOpValidationError
+from rexecop.errors import RExecOpValidationError, _InvalidJsonValue
 from rexecop.evidence.event import EvidenceEventType
 from rexecop.operation.controller import OperationController
 from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.profile.resolver import resolve_profile_path
 from rexecop.runtime_ops.idempotency import trigger_plan_key
 from rexecop.storage.atomic import atomic_write_text, secure_directory
+from rexecop.yaml_input import ensure_finite_json_value, load_yaml_file
 
 TRIGGER_RULES_RELATIVE_PATH = Path("triggers") / "trigger_rules.yaml"
 MAX_EVENT_BYTES = 256 * 1024
@@ -92,7 +92,18 @@ def _now_utc() -> datetime:
 
 
 def _canonical_json(value: Mapping[str, Any]) -> str:
-    return json.dumps(dict(value), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    payload = dict(value)
+    ensure_finite_json_value(payload)
+    try:
+        return json.dumps(
+            payload,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise _InvalidJsonValue() from exc
 
 
 def _digest(value: Mapping[str, Any]) -> str:
@@ -167,10 +178,7 @@ def _load_trigger_rules(profile: LoadedProfile) -> TriggerRuleSet:
     path = profile.root / TRIGGER_RULES_RELATIVE_PATH
     if not path.is_file():
         raise RExecOpValidationError("profile trigger rules not found")
-    try:
-        document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
-        raise RExecOpValidationError("invalid profile trigger rules") from exc
+    document = load_yaml_file(path)
     if not isinstance(document, Mapping):
         raise RExecOpValidationError("trigger rules document must be a mapping")
     raw = document.get("trigger_rules")
@@ -725,4 +733,10 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _write_json(path: Path, value: Mapping[str, Any]) -> None:
-    atomic_write_text(path, json.dumps(dict(value), indent=2, sort_keys=True) + "\n")
+    payload = dict(value)
+    ensure_finite_json_value(payload)
+    try:
+        rendered = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise _InvalidJsonValue() from exc
+    atomic_write_text(path, rendered + "\n")

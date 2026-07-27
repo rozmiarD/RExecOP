@@ -37,6 +37,24 @@ Lint output includes conformance **categories**: `readonly`, `mutation`,
 `reaction`, `catalog`, `connector`, and `validation`. Each category reports
 `status`, `errors`, and `warnings` independently of the overall track result.
 
+## Bounded YAML input
+
+Profile metadata, intents, workflows, connector contracts, validation rules,
+operator metadata, reaction packs and trigger rules use the same strict parser
+as runtime compilation. Inputs are limited by default to 1 MiB, 64 nested
+levels and 50,000 composed nodes; reaction packs retain their narrower 256 KiB
+limit. Duplicate keys, every YAML alias or merge-key dereference, non-string
+mapping keys, multiple documents, unsafe or explicit timestamp/binary tags and
+non-finite values fail before profile models are constructed.
+
+Only null, booleans, integers, finite floats, strings, lists and string-keyed
+mappings are accepted. `true` and `false` resolve as booleans, while `on`,
+`off`, `yes`, `no` and implicit dates resolve as strings. Structural failures
+surface as `invalid_yaml_structure` with a constant redacted message in lint
+and runtime error envelopes. Later profile/domain checks and ownership remain
+unchanged; this is input-integrity enforcement, not a new profile schema or
+configuration framework.
+
 ## Developer surface
 
 Profile authors can inspect registered profiles, extension contracts and plugin

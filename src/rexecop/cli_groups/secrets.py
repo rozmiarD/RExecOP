@@ -16,6 +16,18 @@ app = typer.Typer(
 )
 
 
+def _emit_secret_failure(command: tuple[str, ...], exc: RExecOpError) -> None:
+    reason_code = str(getattr(exc, "reason_code", "validation_error"))
+    if reason_code not in {"invalid_yaml_structure", "invalid_json_value"}:
+        reason_code = "validation_error"
+    message = (
+        str(getattr(exc, "public_message", str(exc)))
+        if reason_code in {"invalid_yaml_structure", "invalid_json_value"}
+        else str(exc)
+    )
+    emit_failure(command=command, message=message, reason_code=reason_code)
+
+
 @app.command("doctor")
 def secrets_doctor_cmd(
     env: Path | None = typer.Option(None, "--env", help="Environment YAML to inspect."),
@@ -40,7 +52,7 @@ def secrets_doctor_cmd(
             secrets_file=secrets_file,
         )
     except RExecOpError as exc:
-        emit_failure(command=("secrets", "doctor"), message=str(exc))
+        _emit_secret_failure(("secrets", "doctor"), exc)
     emit_payload(result, renderers=SECRETS_DOCTOR_RENDERERS)
     if result["status"] == CHECK_BLOCKER:
         raise typer.Exit(code=1)
@@ -55,5 +67,5 @@ def secrets_suggest_ref_cmd(
     try:
         result = suggest_secret_refs(env_path=env, connector=connector)
     except RExecOpError as exc:
-        emit_failure(command=("secrets", "suggest-ref"), message=str(exc))
+        _emit_secret_failure(("secrets", "suggest-ref"), exc)
     emit_payload(result)

@@ -4,12 +4,12 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-import yaml
 from sclite.artifacts import artifact_sha256
 
 from rexecop.errors import RExecOpValidationError
 from rexecop.profile.loader import LoadedProfile
 from rexecop.reaction.model import ReactionCondition, ReactionPack, ReactionRule
+from rexecop.yaml_input import load_yaml_file
 
 MAX_PACK_BYTES = 262_144
 MAX_RULES = 128
@@ -128,10 +128,7 @@ def compile_reaction_pack(profile: LoadedProfile, path: Path | None = None) -> R
     pack_path = path or profile.root / "reactions" / "reaction_pack.yaml"
     if not pack_path.is_file():
         raise RExecOpValidationError(f"reaction pack not found: {pack_path}")
-    raw_bytes = pack_path.read_bytes()
-    if len(raw_bytes) > MAX_PACK_BYTES:
-        raise RExecOpValidationError(f"reaction pack exceeds {MAX_PACK_BYTES} bytes")
-    document = yaml.safe_load(raw_bytes)
+    document = load_yaml_file(pack_path, max_bytes=MAX_PACK_BYTES)
     root = _mapping(document, "reaction_pack document")
     pack = _mapping(root.get("reaction_pack"), "reaction_pack")
     _strict_keys(pack, PACK_KEYS, "reaction_pack")

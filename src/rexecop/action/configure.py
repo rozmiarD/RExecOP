@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.action.surface import _backend_class, _resolve_context
 from rexecop.action.templates import (
     command_shape_from_template,
@@ -17,6 +15,7 @@ from rexecop.catalog.service import compile_operation_descriptor
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpValidationError
 from rexecop.workflow.loader import load_workflow
+from rexecop.yaml_input import load_yaml_file
 
 ACTION_CONFIGURE_SCHEMA = "rexecop.action_configure.v0.1"
 
@@ -82,7 +81,7 @@ def configure_action(
         "schema": "rexecop.action_configure_patch.v0.1",
         "operations": operations,
     }
-    patch_json = json.dumps(patch, indent=2, sort_keys=True)
+    patch_json = json.dumps(patch, indent=2, sort_keys=True, allow_nan=False)
     if write_patch is not None:
         write_patch.write_text(patch_json + "\n", encoding="utf-8")
     return {
@@ -112,7 +111,7 @@ def configure_action(
 
 
 def _load_environment_document(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data = load_yaml_file(path)
     if not isinstance(data, dict) or not isinstance(data.get("environment"), dict):
         raise RExecOpValidationError(f"invalid environment yaml: {path}")
     return data

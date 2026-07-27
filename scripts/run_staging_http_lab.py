@@ -17,6 +17,7 @@ if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 
 from helpers.staging_http_server import StagingHttpServer  # noqa: E402
+from rexecop.yaml_input import load_yaml_file  # noqa: E402
 
 PROFILE = ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 LOCAL_ENV_TEMPLATE = (
@@ -25,7 +26,7 @@ LOCAL_ENV_TEMPLATE = (
 
 
 def _local_environment(server_base_url: str) -> dict:
-    template = yaml.safe_load(LOCAL_ENV_TEMPLATE.read_text(encoding="utf-8"))
+    template = load_yaml_file(LOCAL_ENV_TEMPLATE)
     env = template["environment"]
     for connector in env.get("connectors", {}).values():
         if isinstance(connector, dict) and connector.get("backend") == "http_api":

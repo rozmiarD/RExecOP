@@ -8,11 +8,16 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from rexecop.errors import RExecOpConcurrencyConflict, RExecOpValidationError
+from rexecop.errors import (
+    RExecOpConcurrencyConflict,
+    RExecOpValidationError,
+    _InvalidJsonValue,
+)
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
 from rexecop.storage.atomic import FILE_MODE, secure_directory, secure_file
 from rexecop.storage.file_store import FileStore
+from rexecop.yaml_input import ensure_finite_json_value
 
 _SCHEMA_VERSION = 1
 _SCHEMA_SQL = """
@@ -36,6 +41,14 @@ CREATE TABLE IF NOT EXISTS evidence_events (
 CREATE INDEX IF NOT EXISTS idx_evidence_events_operation
     ON evidence_events (operation_id);
 """
+
+
+def _serialize_json(value: dict[str, Any]) -> str:
+    ensure_finite_json_value(value)
+    try:
+        return json.dumps(value, sort_keys=True, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise _InvalidJsonValue() from exc
 
 
 class SqliteStore:
@@ -209,6 +222,8 @@ class SqliteStore:
         return self._files.claim_governance_decision_once(**claim)
 
     def save_operation(self, operation: Operation) -> None:
+        ensure_finite_json_value(operation.as_dict())
+        next_revision = 0
         with self._connection(immediate=True) as conn:
             row = conn.execute(
                 "SELECT payload FROM operations WHERE id = ?", (operation.id,)
@@ -221,8 +236,10 @@ class SqliteStore:
                     f"concurrency_conflict: operation {operation.id} expected revision "
                     f"{operation.operation_revision}, found {current_revision}"
                 )
-            operation.operation_revision = current_revision + 1
-            payload = json.dumps(operation.as_dict(), sort_keys=True)
+            next_revision = current_revision + 1
+            operation_payload = operation.as_dict()
+            operation_payload["operation_revision"] = next_revision
+            payload = _serialize_json(operation_payload)
             conn.execute(
                 """
                 INSERT INTO operations (id, payload) VALUES (?, ?)
@@ -230,6 +247,7 @@ class SqliteStore:
                 """,
                 (operation.id, payload),
             )
+        operation.operation_revision = next_revision
 
     def load_operation(self, operation_id: str) -> Operation:
         with self._connection() as conn:
@@ -247,7 +265,7 @@ class SqliteStore:
         return [Operation.from_dict(json.loads(str(row[0]))) for row in rows]
 
     def save_plan(self, plan: OperationPlan) -> None:
-        payload = json.dumps(plan.as_dict(), sort_keys=True)
+        payload = _serialize_json(plan.as_dict())
         with self._connection() as conn:
             conn.execute(
                 """
@@ -269,7 +287,7 @@ class SqliteStore:
 
     def save_evidence_event(self, operation_id: str, event: dict[str, Any]) -> None:
         event_id = str(event["event_id"])
-        payload = json.dumps(event, sort_keys=True)
+        payload = _serialize_json(event)
         with self._connection() as conn:
             conn.execute(
                 """

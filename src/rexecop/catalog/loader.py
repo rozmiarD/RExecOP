@@ -6,8 +6,6 @@ import stat
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.catalog.digest import canonical_digest
 from rexecop.environment.loader import (
     _load_environment_for_secret_inspection,
@@ -18,6 +16,7 @@ from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpValidationError
 from rexecop.profile.loader import load_profile
 from rexecop.profile.resolver import resolve_profile_path
+from rexecop.yaml_input import load_yaml_file
 
 MAX_CATALOG_BYTES = 1024 * 1024
 MAX_TARGETS = 1024
@@ -34,26 +33,6 @@ TARGET_KEYS = frozenset(
         "connector_refs",
         "classification",
     }
-)
-
-
-class _UniqueKeyLoader(yaml.SafeLoader):
-    pass
-
-
-def _construct_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode, deep: bool = False):
-    mapping: dict[Any, Any] = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        if key in mapping:
-            raise RExecOpValidationError(f"duplicate catalog key: {key}")
-        mapping[key] = loader.construct_object(value_node, deep=deep)
-    return mapping
-
-
-_UniqueKeyLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-    _construct_mapping,
 )
 
 
@@ -82,12 +61,7 @@ def _load_catalog_document(
 ) -> tuple[str, list[dict[str, Any]], str, dict[Path, Environment]]:
     resolved = path.expanduser().resolve()
     _validate_catalog_file(resolved)
-    try:
-        document = yaml.load(resolved.read_text(encoding="utf-8"), Loader=_UniqueKeyLoader)
-    except RExecOpValidationError:
-        raise
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
-        raise RExecOpValidationError(f"invalid target catalog yaml: {resolved}") from exc
+    document = load_yaml_file(resolved, max_bytes=MAX_CATALOG_BYTES)
     if not isinstance(document, dict):
         raise RExecOpValidationError("target_catalog document must be a mapping")
     validate_no_inline_secrets(document)

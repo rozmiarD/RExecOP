@@ -4,8 +4,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.action.configure import configure_action
 from rexecop.action.surface import _backend_class, _resolve_context
 from rexecop.catalog.digest import canonical_digest, yaml_document_digest
@@ -17,6 +15,7 @@ from rexecop.connectors.action_shape import (
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpValidationError
 from rexecop.workflow.loader import load_workflow
+from rexecop.yaml_input import load_yaml_file
 
 ACTION_DIFF_SCHEMA = "rexecop.action_diff.v0.1"
 
@@ -94,7 +93,7 @@ def diff_action(
 
 
 def _validate_environment_document(path: Path) -> None:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data = load_yaml_file(path)
     if not isinstance(data, dict) or not isinstance(data.get("environment"), dict):
         raise RExecOpValidationError(f"invalid environment yaml: {path}")
     validate_no_inline_secrets(data["environment"])

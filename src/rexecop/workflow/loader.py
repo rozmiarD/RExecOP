@@ -3,16 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from rexecop.errors import RExecOpValidationError
 from rexecop.workflow.model import Workflow
+from rexecop.yaml_input import load_yaml_file
 
 
 def load_workflow(path: Path) -> Workflow:
     if not path.is_file():
         raise RExecOpValidationError(f"workflow file not found: {path}")
-    data = yaml.safe_load(path.read_text())
+    data = load_yaml_file(path)
     if not isinstance(data, dict):
         raise RExecOpValidationError(f"invalid workflow yaml: {path}")
     try:

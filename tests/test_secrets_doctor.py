@@ -218,6 +218,70 @@ def test_cli_secrets_doctor_requires_input() -> None:
     assert "provide --env and/or --catalog" in result.stderr
 
 
+@pytest.mark.parametrize("command", [("doctor",), ("suggest-ref",)])
+def test_secret_cli_invalid_yaml_uses_stable_redacted_error(
+    tmp_path: Path,
+    command: tuple[str, ...],
+) -> None:
+    env_path = tmp_path / "private-environment.yaml"
+    env_path.write_text(
+        "environment:\n  id: first\n  id: private-id-marker\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["--json", "secrets", *command, "--env", str(env_path)],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["reason_code"] == "invalid_yaml_structure"
+    assert payload["message"] == "YAML input is invalid or exceeds structural limits"
+    assert "private-id-marker" not in result.stdout
+    assert str(env_path) not in result.stdout
+
+
+def test_secrets_doctor_cli_invalid_utf8_file_stays_bounded(
+    tmp_path: Path,
+) -> None:
+    secrets_file = tmp_path / "private-invalid-utf8-secrets.yaml"
+    secrets_file.write_bytes(
+        b"secrets:\n  fixture_ref: private-secret-value\xff\n"
+    )
+    secrets_file.chmod(0o600)
+
+    result = runner.invoke(
+        app,
+        [
+            "--json",
+            "secrets",
+            "doctor",
+            "--env",
+            str(STAGING_ENV),
+            "--secrets-file",
+            str(secrets_file),
+        ],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["schema"] == "rexecop.secrets_doctor.v0.1"
+    assert payload["status"] == "blocker"
+    rendered = result.stdout
+    for marker in (
+        str(secrets_file),
+        "private-secret-value",
+        "utf-8",
+        "UnicodeDecodeError",
+        "codec",
+        "0xff",
+        "\\xff",
+        "Traceback",
+    ):
+        assert marker not in rendered
+
+
 def test_cli_secrets_doctor_passes_with_env_vars(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

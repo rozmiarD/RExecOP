@@ -67,6 +67,16 @@ security review.
 
 See [secrets-operator.md](secrets-operator.md).
 
+All product-owned YAML inputs used by environment, profile, catalog, action,
+reaction, trigger and secrets commands share bounded structural validation.
+Duplicate or non-string mapping keys, aliases/merge keys, multiple documents,
+unsafe/explicit timestamp or binary tags, non-finite numbers and byte/depth/node
+budget overflows fail before model construction or connector work. Supported
+JSON error envelopes preserve their command/schema shape and report
+`invalid_yaml_structure` with a constant redacted message. Runtime persistence
+defensively reports `invalid_json_value` for an injected non-finite value before
+writing an operation, plan or event.
+
 ## Profile developer surface
 
 | Command | Purpose |

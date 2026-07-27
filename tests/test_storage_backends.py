@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
 from rexecop.operation.model import Operation
 from rexecop.operation.plan import OperationPlan
@@ -96,3 +97,73 @@ def test_sclite_dir_stays_on_disk_for_sqlite(runtime_store: RuntimeStore) -> Non
     assert path.is_dir()
     assert path.parent.name == "sclite"
     assert runtime_store.root.name == ".rexecop"
+
+
+def test_storage_rejects_non_finite_operation_without_persistence(
+    runtime_store: RuntimeStore,
+) -> None:
+    operation = Operation(
+        id="op-non-finite",
+        profile="fixture",
+        environment="fixture",
+        intent="inspect",
+        target="target",
+        mode="dry_run",
+        state=OperationState.PLANNED.value,
+        requested_by="test",
+        created_at="2026-07-27T00:00:00+00:00",
+        updated_at="2026-07-27T00:00:00+00:00",
+        metadata={"invalid": float("nan")},
+    )
+
+    with pytest.raises(RExecOpValidationError) as raised:
+        runtime_store.save_operation(operation)
+
+    assert raised.value.reason_code == "invalid_json_value"
+    assert operation.operation_revision == 0
+    assert not any(item.id == operation.id for item in runtime_store.list_operations())
+
+
+def test_storage_rejects_non_finite_plan_without_persistence(
+    runtime_store: RuntimeStore,
+) -> None:
+    plan = OperationPlan(
+        operation_id="plan-non-finite",
+        profile="fixture",
+        environment="fixture",
+        intent="inspect",
+        target="target",
+        mode="dry_run",
+        workflow={"invalid": float("inf")},
+        planned_steps=[],
+        required_connectors=[],
+        risk="low",
+        govengine_request_preview={},
+        expected_evidence=[],
+        pause_safe_points=[],
+        retry_policy_summary={},
+        rollback_available=False,
+    )
+
+    with pytest.raises(RExecOpValidationError) as raised:
+        runtime_store.save_plan(plan)
+
+    assert raised.value.reason_code == "invalid_json_value"
+    with pytest.raises(RExecOpValidationError, match="operation plan not found"):
+        runtime_store.load_plan(plan.operation_id)
+
+
+def test_storage_rejects_non_finite_event_without_persistence(
+    runtime_store: RuntimeStore,
+) -> None:
+    event = {
+        "event_id": "event-non-finite",
+        "event_type": "test",
+        "invalid": float("-inf"),
+    }
+
+    with pytest.raises(RExecOpValidationError) as raised:
+        runtime_store.save_evidence_event("op-non-finite", event)
+
+    assert raised.value.reason_code == "invalid_json_value"
+    assert runtime_store.list_evidence_events("op-non-finite") == []

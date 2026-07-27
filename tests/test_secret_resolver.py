@@ -93,6 +93,52 @@ def test_file_secret_resolver_hides_malformed_yaml_content(tmp_path: Path) -> No
     assert str(secrets_file) not in str(raised.value)
 
 
+def test_file_secret_resolver_rejects_aliases_and_non_finite_values(
+    tmp_path: Path,
+) -> None:
+    for content in (
+        "secrets:\n  first: &shared value\n  second: *shared\n",
+        "secrets:\n  fixture_ref: .nan\n",
+    ):
+        secrets_file = tmp_path / "secrets.yaml"
+        secrets_file.write_text(content, encoding="utf-8")
+        secrets_file.chmod(0o600)
+
+        with pytest.raises(RExecOpValidationError) as raised:
+            FileSecretResolver(secrets_file).resolve("fixture_ref")
+
+        assert raised.value.reason_code == "invalid_yaml_structure"
+        assert str(secrets_file) not in str(raised.value)
+
+
+def test_file_secret_resolver_rejects_invalid_utf8_without_leaking(
+    tmp_path: Path,
+) -> None:
+    secrets_file = tmp_path / "private-invalid-utf8-secrets.yaml"
+    secrets_file.write_bytes(
+        b"secrets:\n  fixture_ref: private-secret-value\xff\n"
+    )
+    secrets_file.chmod(0o600)
+
+    with pytest.raises(RExecOpValidationError) as raised:
+        FileSecretResolver(secrets_file).resolve("fixture_ref")
+
+    rendered = str(raised.value)
+    assert raised.value.reason_code == "invalid_yaml_structure"
+    assert rendered == "YAML input is invalid or exceeds structural limits"
+    for marker in (
+        str(secrets_file),
+        "private-secret-value",
+        "utf-8",
+        "UnicodeDecodeError",
+        "codec",
+        "0xff",
+        "\\xff",
+        "Traceback",
+    ):
+        assert marker not in rendered
+
+
 def test_inline_secret_outside_connectors_is_rejected() -> None:
     with pytest.raises(RExecOpValidationError, match="inline secret-like value"):
         validate_no_inline_secrets(

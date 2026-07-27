@@ -5,26 +5,27 @@ import json
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-from rexecop.errors import RExecOpValidationError
+from rexecop.errors import RExecOpValidationError, _InvalidJsonValue
+from rexecop.yaml_input import ensure_finite_json_value, load_yaml_file
 
 
 def canonical_digest(value: Any) -> str:
-    rendered = json.dumps(
-        value,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
+    ensure_finite_json_value(value)
+    try:
+        rendered = json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise _InvalidJsonValue() from exc
     return hashlib.sha256(rendered).hexdigest()
 
 
 def yaml_document_digest(path: Path) -> str:
-    try:
-        value = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
-        raise RExecOpValidationError(f"cannot digest yaml document: {path}") from exc
+    value = load_yaml_file(path)
     return canonical_digest(value)
 
 
