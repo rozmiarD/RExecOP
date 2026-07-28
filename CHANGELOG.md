@@ -19,6 +19,10 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Changed
 
+- Ordinary CI sibling checkouts now use reviewed immutable source snapshots
+  validated as an exact job, repository, path, and commit-ref multiset. This
+  does not auto-update sources, prove package compatibility, or change publish
+  and repair workflows.
 - Reworked README and operator documentation around the verified execution
   kernel, stable read-only posture, explicit claims/non-claims and actual
   GovEngine/SCLite ownership boundaries.

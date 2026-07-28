@@ -71,6 +71,19 @@ The aggregate qualification gate is the broader local/release check. Consult
 `.github/workflows/ci.yml` and `scripts/run_alpha_signoff_checks.sh` for the
 executable source of truth.
 
+## Ordinary CI source snapshots
+
+The `test` and `package-dry-run` jobs check out reviewed, immutable full-commit
+source snapshots for their ordinary sibling sources. Advancing a snapshot needs
+an explicit reviewed workflow change; CI does not auto-update to a latest
+branch, tag, or expression.
+
+These refs establish exact source identity only. They do not prove package
+compatibility or release qualification. In particular, the Tecrax
+`--no-deps` profile smoke is an external profile-load check, not validation of
+Tecrax dependency metadata or a publicly installable dependency graph. Publish
+and repair workflows, permissions, secrets, and release gates are unchanged.
+
 ## Human acceptance
 
 Record completion in

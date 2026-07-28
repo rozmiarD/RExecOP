@@ -22,18 +22,21 @@ jobs:
         with:
           repository: rozmiarD/tecrax
           path: ci-deps/tecrax
+          ref: ae91fb278879fefc965dc3fd51d86889385dc4f0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: rozmiarD/SCLite
           path: ci-deps/sclite
+          ref: 0b90c21569ea908ba7ddb468cd1ab6126342924f
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: rozmiarD/GovEngine
           path: ci-deps/govengine
+          ref: 0826accff407fdbc10df420803ff49cdd5818870
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -110,12 +113,14 @@ jobs:
         with:
           repository: rozmiarD/SCLite
           path: ci-deps/sclite
+          ref: 0b90c21569ea908ba7ddb468cd1ab6126342924f
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: rozmiarD/GovEngine
           path: ci-deps/govengine
+          ref: 0826accff407fdbc10df420803ff49cdd5818870
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1

@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import re
+from collections import Counter
 from pathlib import Path
+
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -22,6 +25,38 @@ REQUIRED_PINS = {
         "cef221092ed1bacb1cc03d23a2d87d1d172e277b"
     ),
 }
+EXPECTED_CI_SIBLING_CHECKOUTS = (
+    (
+        "test",
+        "rozmiarD/tecrax",
+        "ci-deps/tecrax",
+        "ae91fb278879fefc965dc3fd51d86889385dc4f0",
+    ),
+    (
+        "test",
+        "rozmiarD/SCLite",
+        "ci-deps/sclite",
+        "0b90c21569ea908ba7ddb468cd1ab6126342924f",
+    ),
+    (
+        "test",
+        "rozmiarD/GovEngine",
+        "ci-deps/govengine",
+        "0826accff407fdbc10df420803ff49cdd5818870",
+    ),
+    (
+        "package-dry-run",
+        "rozmiarD/SCLite",
+        "ci-deps/sclite",
+        "0b90c21569ea908ba7ddb468cd1ab6126342924f",
+    ),
+    (
+        "package-dry-run",
+        "rozmiarD/GovEngine",
+        "ci-deps/govengine",
+        "0826accff407fdbc10df420803ff49cdd5818870",
+    ),
+)
 
 
 def validate_workflow_security() -> dict[str, int]:
@@ -47,6 +82,7 @@ def validate_workflow_security() -> dict[str, int]:
     missing = sorted(set(REQUIRED_PINS) - seen)
     if missing:
         raise AssertionError(f"workflow_required_action_missing:{','.join(missing)}")
+    sibling_checkout_count = _validate_ci_sibling_checkouts()
     publish = (WORKFLOWS / "publish.yml").read_text(encoding="utf-8")
     for marker in (
         "name: pypi",
@@ -114,7 +150,53 @@ def validate_workflow_security() -> dict[str, int]:
     for forbidden in ("HEAD:release-evidence", "refs/heads/release-evidence", "git worktree"):
         if forbidden in repair:
             raise AssertionError(f"workflow_repair_legacy_branch_setting:{forbidden}")
-    return {"workflows": len(paths), "actions": action_count}
+    return {
+        "workflows": len(paths),
+        "actions": action_count,
+        "sibling_checkouts": sibling_checkout_count,
+    }
+
+
+def _validate_ci_sibling_checkouts() -> int:
+    ci_path = WORKFLOWS / "ci.yml"
+    try:
+        document = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise AssertionError("workflow_ci_invalid_yaml") from exc
+    if not isinstance(document, dict) or not isinstance(document.get("jobs"), dict):
+        raise AssertionError("workflow_ci_jobs_missing")
+
+    actual: list[tuple[str, str, str, str]] = []
+    for job_name, job in document["jobs"].items():
+        if not isinstance(job_name, str) or not isinstance(job, dict):
+            raise AssertionError("workflow_ci_job_invalid")
+        steps = job.get("steps", [])
+        if not isinstance(steps, list):
+            raise AssertionError(f"workflow_ci_steps_invalid:{job_name}")
+        for step in steps:
+            if not isinstance(step, dict) or not str(step.get("uses", "")).startswith(
+                "actions/checkout@"
+            ):
+                continue
+            options = step.get("with", {})
+            if not isinstance(options, dict):
+                raise AssertionError(f"workflow_ci_checkout_options_invalid:{job_name}")
+            if "repository" not in options and "path" not in options:
+                continue
+            repository = options.get("repository")
+            path = options.get("path")
+            reference = options.get("ref")
+            if not all(isinstance(item, str) for item in (repository, path, reference)):
+                raise AssertionError(f"workflow_ci_sibling_checkout_invalid:{job_name}")
+            if not FULL_SHA.fullmatch(reference):
+                raise AssertionError(
+                    f"workflow_ci_sibling_ref_not_literal_sha:{job_name}:{repository}:{path}"
+                )
+            actual.append((job_name, repository, path, reference))
+
+    if Counter(actual) != Counter(EXPECTED_CI_SIBLING_CHECKOUTS):
+        raise AssertionError("workflow_ci_sibling_checkout_mismatch")
+    return len(actual)
 
 
 def main(argv: list[str] | None = None) -> int:

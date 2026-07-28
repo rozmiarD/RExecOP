@@ -462,6 +462,31 @@ def collect_errors() -> list[str]:
     _require(errors, "docs/architecture.md", "materializable package resource")
     _require(errors, "docs/known-limitations.md", "no network/distributed atomicity")
     _require(errors, "docs/release-qualification.md", "first-run materialization")
+    _require(errors, "docs/release-qualification.md", "reviewed, immutable full-commit")
+    _require(errors, "docs/release-qualification.md", "exact source identity only")
+    _require(
+        errors,
+        "docs/release-qualification.md",
+        "They do not prove package\ncompatibility",
+    )
+    _require(errors, "docs/release-qualification.md", "Tecrax\n`--no-deps` profile smoke")
+    _require(errors, "docs/release-qualification.md", "does not auto-update to a latest")
+    _require(errors, "docs/release-qualification.md", "Publish\nand repair workflows")
+    _require(
+        errors,
+        ".github/workflows/ci.yml",
+        "ref: ae91fb278879fefc965dc3fd51d86889385dc4f0",
+    )
+    _require(
+        errors,
+        ".github/workflows/ci.yml",
+        "ref: 0b90c21569ea908ba7ddb468cd1ab6126342924f",
+    )
+    _require(
+        errors,
+        ".github/workflows/ci.yml",
+        "ref: 0826accff407fdbc10df420803ff49cdd5818870",
+    )
     _require(
         errors,
         "scripts/validate_first_run_smoke.py",
