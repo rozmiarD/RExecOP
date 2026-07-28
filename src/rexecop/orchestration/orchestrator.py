@@ -10,6 +10,9 @@ from govengine.receipt_conformance import (
     build_runtime_receipt_binding,
     evaluate_receipt_conformance,
 )
+from govengine.typed_execution_governance import (
+    typed_execution_governance_request_digest,
+)
 
 from rexecop.adapters.govengine_port.contracts import (
     BLOCKING_DECISIONS,
@@ -18,7 +21,9 @@ from rexecop.adapters.govengine_port.contracts import (
 )
 from rexecop.adapters.govengine_port.runtime_authority import (
     ClaimedGovernanceDecision,
+    ClaimedGovernedAttempt,
     TrustedGovernanceDecisionConsumer,
+    TrustedGovernedAttemptConsumer,
 )
 from rexecop.catalog.digest import canonical_digest
 from rexecop.connectors.composite_runtime import build_connector_runtime
@@ -34,7 +39,10 @@ from rexecop.evidence.manager import EvidenceManager
 from rexecop.evidence.public_projection import resolve_public_projection_allowlist
 from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
 from rexecop.execution.executor import StepExecutor
-from rexecop.execution.govengine_governance import typed_execution_governance_overlay
+from rexecop.execution.govengine_governance import (
+    build_governed_typed_execution_precheck_request,
+    typed_execution_governance_overlay,
+)
 from rexecop.observability.emitter import StructuredLogEmitter
 from rexecop.observability.structured_log import StructuredLogRefs
 from rexecop.operation.model import Operation
@@ -139,6 +147,7 @@ class OperationOrchestrator:
         export_receipt: Any,
         auto_reaction_handler: Callable[[Operation], dict[str, Any] | None] | None = None,
         governance_decision_consumer: TrustedGovernanceDecisionConsumer | None = None,
+        governed_attempt_consumer: TrustedGovernedAttemptConsumer | None = None,
         catalog_binding_validator: Callable[[Operation, OperationPlan], None] | None = None,
         inventory_epoch: int = 0,
     ) -> None:
@@ -149,6 +158,7 @@ class OperationOrchestrator:
         self._export_receipt = export_receipt
         self._auto_reaction_handler = auto_reaction_handler
         self._governance_decision_consumer = governance_decision_consumer
+        self._governed_attempt_consumer = governed_attempt_consumer
         self._catalog_binding_validator = catalog_binding_validator
         self._inventory_epoch = inventory_epoch
         self.execution_lease_record: dict[str, Any] | None = None
@@ -178,6 +188,7 @@ class OperationOrchestrator:
             attempt_pre_io_handler=self._require_attempt_fresh,
             attempt_finish_handler=self._finish_attempt,
             attempt_receipt_handler=self._bind_attempt_receipt,
+            governed_attempt_enabled=self._governed_attempt_consumer is not None,
         )
         return WorkflowRunner(executor)
 
@@ -190,15 +201,16 @@ class OperationOrchestrator:
         self.store.validate_execution_lease(lease)
         operation = self.store.load_operation(context.operation_id)
         plan = self.preflight_rollback_authority(operation)
-        if self._is_rollback_operation(operation) and self._governance_decision_consumer is None:
+        if self._is_rollback_operation(operation) and self._governed_attempt_consumer is None:
             raise RExecOpValidationError(
-                "rollback connector attempt requires canonical signed governance authority"
+                "rollback connector attempt requires governed approval authority"
             )
         governance = operation.metadata.get("governance_admission")
         governance_admission_digest = ""
         if isinstance(governance, dict):
             governance_admission_digest = str(governance.get("admission_digest") or "")
         typed_admissions = context.shared_state.get("typed_execution_admissions")
+        step_admission = None
         if isinstance(typed_admissions, dict):
             step_admission = typed_admissions.get(str(context.step.get("id") or ""))
             if isinstance(step_admission, dict):
@@ -206,9 +218,63 @@ class OperationOrchestrator:
                     step_admission.get("admission_digest") or governance_admission_digest
                 )
         execution_spec = dict(spec or {})
+        mutating = is_mutating_mode(context.mode)
+        typed_request = None
+        if mutating:
+            if self._governed_attempt_consumer is None:
+                raise RExecOpValidationError("governed approval authority required for mutation")
+            if not isinstance(step_admission, dict):
+                raise RExecOpValidationError("governed mutation requires typed execution precheck")
+            typed_request = build_governed_typed_execution_precheck_request(
+                spec=execution_spec,
+                operation_id=operation.id,
+                actual_operation_mode=context.mode,
+                shared_state=context.shared_state,
+            )
+            request_digest = typed_execution_governance_request_digest(typed_request)
+            if not hmac.compare_digest(
+                str(step_admission.get("request_digest") or ""),
+                request_digest,
+            ):
+                raise RExecOpValidationError("typed execution governed precheck request drift")
+            if (
+                step_admission.get("actual_operation_mode") != context.mode
+                or step_admission.get("typed_execution_operation_mode") != "apply"
+            ):
+                raise RExecOpValidationError("typed execution governed precheck mode drift")
         attempt_id = self.store.allocate_execution_attempt_id()
         governance_claim = None
-        if self._governance_decision_consumer is not None:
+        governed_claim = None
+        if mutating:
+            assert self._governed_attempt_consumer is not None
+            assert typed_request is not None
+            facts = build_runtime_attempt_governance_facts(
+                operation_id=operation.id,
+                step_id=str(context.step.get("id") or ""),
+                attempt_id=attempt_id,
+                target=context.target,
+                execution_spec=execution_spec,
+                lease=lease,
+                inventory_epoch=self._inventory_epoch,
+            )
+            governed_claim = self._governed_attempt_consumer.authorize_and_claim(
+                facts,
+                typed_execution_request=typed_request,
+                actual_operation_mode=context.mode,
+            )
+            governance_admission_digest = governed_claim.governed_admission.admission_digest
+            current_facts = build_runtime_attempt_governance_facts(
+                operation_id=operation.id,
+                step_id=str(context.step.get("id") or ""),
+                attempt_id=attempt_id,
+                target=context.target,
+                execution_spec=execution_spec,
+                lease=lease,
+                inventory_epoch=self._inventory_epoch,
+            )
+            if current_facts != facts:
+                raise RExecOpValidationError("governance_runtime_facts_drift")
+        elif self._governance_decision_consumer is not None:
             facts = build_runtime_attempt_governance_facts(
                 operation_id=operation.id,
                 step_id=str(context.step.get("id") or ""),
@@ -250,17 +316,7 @@ class OperationOrchestrator:
             lease=lease,
             governance_admission_digest=governance_admission_digest,
             governance_claim=governance_claim,
-        )
-        self.permits.require_fresh(
-            permit,
-            operation=self.store.load_operation(operation.id),
-            plan=self.store.load_plan(operation.id),
-            attempt_id=attempt_id,
-            execution_spec=execution_spec,
-            target_binding=target_binding,
-            lease=lease,
-            governance_admission_digest=governance_admission_digest,
-            governance_claim=governance_claim,
+            governed_claim=governed_claim,
         )
         attempt = self.store.start_execution_attempt(
             operation_id=operation.id,
@@ -282,6 +338,15 @@ class OperationOrchestrator:
             # These objects live only until the immediate post-I/O conformance
             # check. The durable attempt and permit remain JSON-only records.
             attempt["_governance_claim"] = governance_claim
+        if governed_claim is not None:
+            attempt["_governed_claim"] = governed_claim
+            typed_specs = context.shared_state.get("typed_execution_specs")
+            if isinstance(typed_specs, dict):
+                typed_binding = typed_specs.get(str(context.step.get("id") or ""))
+                if isinstance(typed_binding, dict):
+                    typed_binding["governed_admission_binding"] = dict(
+                        permit["governed_admission_binding"]
+                    )
         return attempt
 
     def _require_attempt_fresh(self, attempt: dict[str, Any]) -> None:
@@ -301,6 +366,22 @@ class OperationOrchestrator:
             raise RExecOpValidationError("execution attempt binding missing before connector I/O")
         claim = attempt.get("_governance_claim")
         governance_claim = claim if isinstance(claim, ClaimedGovernanceDecision) else None
+        raw_governed_claim = attempt.get("_governed_claim")
+        governed_claim = (
+            raw_governed_claim if isinstance(raw_governed_claim, ClaimedGovernedAttempt) else None
+        )
+        if governed_claim is not None:
+            current_facts = build_runtime_attempt_governance_facts(
+                operation_id=operation.id,
+                step_id=str(attempt["step_id"]),
+                attempt_id=str(attempt["attempt_id"]),
+                target=str(target_binding.get("target") or ""),
+                execution_spec=execution_spec,
+                lease=lease,
+                inventory_epoch=self._inventory_epoch,
+            )
+            if current_facts != governed_claim.facts:
+                raise RExecOpValidationError("governance_runtime_facts_drift")
         self.permits.require_fresh(
             permit,
             operation=operation,
@@ -309,11 +390,16 @@ class OperationOrchestrator:
             execution_spec=execution_spec,
             target_binding=target_binding,
             lease=lease,
-            governance_admission_digest=str(
-                attempt.get("_governance_admission_digest") or ""
-            ),
+            governance_admission_digest=str(attempt.get("_governance_admission_digest") or ""),
             governance_claim=governance_claim,
+            governed_claim=governed_claim,
         )
+        if governed_claim is not None:
+            if self._governed_attempt_consumer is None:
+                raise RExecOpValidationError(
+                    "governed approval authority missing before connector I/O"
+                )
+            self._governed_attempt_consumer.require_current(governed_claim)
 
     def _finish_attempt(
         self,
@@ -364,11 +450,12 @@ class OperationOrchestrator:
         attempt: dict[str, Any],
         result: StepExecutionResult,
     ) -> StepExecutionResult:
-        claim = attempt.get("_governance_claim")
+        claim = attempt.get("_governed_claim") or attempt.get("_governance_claim")
         permit = attempt.get("_runtime_permit")
-        if not isinstance(claim, ClaimedGovernanceDecision) or not isinstance(
-            permit, dict
-        ):
+        if not isinstance(
+            claim,
+            (ClaimedGovernanceDecision, ClaimedGovernedAttempt),
+        ) or not isinstance(permit, dict):
             return result
         permit_digest = self.permits.record_digest(permit)
         if not hmac.compare_digest(
@@ -388,9 +475,7 @@ class OperationOrchestrator:
         )
         output_sizes = result.output.get("output_sizes")
         output_bytes = (
-            int(output_sizes.get("record_bytes") or 0)
-            if isinstance(output_sizes, dict)
-            else 0
+            int(output_sizes.get("record_bytes") or 0) if isinstance(output_sizes, dict) else 0
         )
         binding = build_runtime_receipt_binding(
             receipt_id=f"runtime-receipt:{attempt['attempt_id']}",
@@ -567,10 +652,10 @@ class OperationOrchestrator:
         if (
             self._is_rollback_operation(operation)
             and plan.required_connectors
-            and self._governance_decision_consumer is None
+            and self._governed_attempt_consumer is None
         ):
             raise RExecOpValidationError(
-                "rollback connector execution requires canonical signed governance authority"
+                "rollback connector execution requires governed approval authority"
             )
         self._policy_enforcement_for_operation(operation, plan)
         correlation_id = operation.correlation_id
@@ -868,9 +953,7 @@ class OperationOrchestrator:
             ),
             "details": {
                 "parent_operation_id": str(
-                    (operation.metadata.get("derived_operation") or {}).get(
-                        "parent_operation_id"
-                    )
+                    (operation.metadata.get("derived_operation") or {}).get("parent_operation_id")
                 ),
                 "planned_step_count": len(plan.planned_steps),
                 "connector_receipt_count": connector_receipts,

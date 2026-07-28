@@ -9,7 +9,8 @@ This document states what the candidate does **not** provide so expectations sta
 | --- | --- |
 | GovEngine is authority | RExecOp does not interpret organizational policy; `StaticGovEngineAdapter` is test-only |
 | Stable runtime is read-only | `REXECOP_MUTATION_POSTURE` defaults to `stable_read_only`; `apply` and `recovery` fail with `mutation_not_certified` before execution and are rechecked before connector IO, regardless of a positive GovEngine decision |
-| Signed-decision host adapter required for mutation | Source supports the canonical verify/bind/claim path programmatically; the CLI does not yet configure production signer/verifier/trust adapters, so mutating connector IO fails closed |
+| Governed-attempt host adapters required for mutation | Source supports the canonical composite verify/bind/revocation/claim path programmatically; the CLI does not configure a production `GovernedAttemptAuthority`, approval revocation provider, signer/verifier, or trust adapters, so mutating connector IO fails closed |
+| Governed admission is source-qualified, not public-baseline capability | The additive GovEngine `typed_execution_governed_admission` v0.1 surface is qualified against immutable source commit `c9df37ad0245f31990652131df38326452c5a897`. Public `govengine==1.0.0rc1` remains sufficient for ordinary read-only use but may lack this optional surface; configured mutation fails closed. |
 | SCLite contract authority | Receipt exports under `<root>/receipts/` are summaries; SCLite defines and verifies the canonical contracts projected into bundles under `<root>/sclite/`; RExecOp persists those bundles |
 | No second policy engine | Configured policy packs and all mutating admission go through GovEngine — no bypass API |
 
@@ -57,7 +58,7 @@ This document states what the candidate does **not** provide so expectations sta
 | Redaction has finite detectors | Exact-path `public_projection.safe_fields` is the disclosure boundary and undeclared values become digest-only; any deliberately allowlisted plaintext still relies on finite key/value detectors and operator review |
 | DNS rebinding | Stable-live HTTP depends on operator-enforced DNS/egress controls; runtime and `doctor` fail closed when the dependency is undeclared, but transport-level DNS pinning is not claimed |
 | CI secret scan is heuristic | Full tracked tree/history scan covers common providers, private keys and credential assignments; it is not a KMS or external repository audit |
-| Apply on critical targets | Not stable-certified. The `lab_only` mechanics posture still requires explicit operator approval, GovEngine allow, trusted signed decision, atomic attempt claim, and operational procedure |
+| Apply on critical targets | Not stable-certified. The `lab_only` mechanics posture still requires explicit operator approval, exact GovEngine composite admission, current revocation checks, trusted signed decision, atomic attempt claim, and operational procedure |
 
 ## Distribution
 
@@ -95,6 +96,9 @@ the complete release candidate.
   the authority, verifier and trust policy. It validates deterministic bindings
   and postconditions but cannot prove an already compromised runtime reported
   honest output metrics.
+- Approval-attested mutation mechanics are an additive host-configured source
+  surface. They do not activate `mutation_ready`, provide a production approval
+  service, or turn durable attempt state into external exactly-once execution.
 - Connectors: `mock`, `http_api`, `local_shell_readonly`, temporary `ssh_readonly` (bounded output + digests)
 - Workflow execution contracts: digest-bound `ExecutionRequest` / `ExecutionReceipt` in `shared_state` (schema `v0.2`)
 - GovEngine `PolicyEngine` when `environment.policy_pack` is configured (operation admission/control projection + connector invoke)

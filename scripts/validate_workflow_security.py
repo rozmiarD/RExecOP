@@ -18,12 +18,8 @@ REQUIRED_PINS = {
     "actions/checkout": "df4cb1c069e1874edd31b4311f1884172cec0e10",
     "actions/setup-python": "ece7cb06caefa5fff74198d8649806c4678c61a1",
     "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
-    "actions/attest-build-provenance": (
-        "977bb373ede98d70efdf65b84cb5f73e068dcc2a"
-    ),
-    "pypa/gh-action-pypi-publish": (
-        "cef221092ed1bacb1cc03d23a2d87d1d172e277b"
-    ),
+    "actions/attest-build-provenance": ("977bb373ede98d70efdf65b84cb5f73e068dcc2a"),
+    "pypa/gh-action-pypi-publish": ("cef221092ed1bacb1cc03d23a2d87d1d172e277b"),
 }
 EXPECTED_CI_SIBLING_CHECKOUTS = (
     (
@@ -42,7 +38,7 @@ EXPECTED_CI_SIBLING_CHECKOUTS = (
         "test",
         "rozmiarD/GovEngine",
         "ci-deps/govengine",
-        "0826accff407fdbc10df420803ff49cdd5818870",
+        "c9df37ad0245f31990652131df38326452c5a897",
     ),
     (
         "package-dry-run",
@@ -54,7 +50,7 @@ EXPECTED_CI_SIBLING_CHECKOUTS = (
         "package-dry-run",
         "rozmiarD/GovEngine",
         "ci-deps/govengine",
-        "0826accff407fdbc10df420803ff49cdd5818870",
+        "c9df37ad0245f31990652131df38326452c5a897",
     ),
 )
 
@@ -71,9 +67,7 @@ def validate_workflow_security() -> dict[str, int]:
             action_count += 1
             seen.add(action)
             if not FULL_SHA.fullmatch(reference):
-                raise AssertionError(
-                    f"workflow_action_not_pinned:{path.name}:{action}@{reference}"
-                )
+                raise AssertionError(f"workflow_action_not_pinned:{path.name}:{action}@{reference}")
             required = REQUIRED_PINS.get(action)
             if required is not None and reference != required:
                 raise AssertionError(
@@ -102,7 +96,7 @@ def validate_workflow_security() -> dict[str, int]:
         "fetch-depth: 0",
         "Checkout immutable RExecOP release source",
         "refs/tags/v${{ inputs.version }}",
-        "--release-commit \"${{ steps.release_source.outputs.commit }}\"",
+        '--release-commit "${{ steps.release_source.outputs.commit }}"',
         "Install release validation dependencies",
         "python -m pip install -e .govstack/sclite",
         "python -m pip install -e .govstack/govengine",
@@ -202,10 +196,7 @@ def _validate_ci_sibling_checkouts() -> int:
 def main(argv: list[str] | None = None) -> int:
     argparse.ArgumentParser().parse_args(argv)
     report = validate_workflow_security()
-    print(
-        "workflow_security_ok:"
-        f"workflows={report['workflows']}:actions={report['actions']}"
-    )
+    print(f"workflow_security_ok:workflows={report['workflows']}:actions={report['actions']}")
     return 0
 
 

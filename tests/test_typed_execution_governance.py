@@ -15,11 +15,13 @@ from rexecop.execution.executor import StepExecutor
 from rexecop.execution.govengine_governance import (
     TYPED_EXECUTION_GOVERNANCE_BUNDLE_SCHEMA,
     TYPED_EXECUTION_STACK_COMPATIBILITY_SCHEMA,
+    build_governed_typed_execution_precheck_request,
     build_typed_execution_governance_request,
     build_typed_execution_stack_compatibility_request,
     enforce_typed_execution_governance,
     evaluate_typed_execution_governance,
     evaluate_typed_execution_stack_compatibility,
+    require_governed_mutation_precheck,
     typed_execution_governance_overlay,
 )
 from rexecop.execution.typed_spec import compile_step_execution_spec
@@ -46,6 +48,26 @@ def _fixture_spec(*, mode: str = "dry_run") -> dict:
         step=step,
         profile=profile,
         connector_config=env["environment"]["connectors"]["fixture_source"],
+        mode=mode,
+    )
+
+
+def _mutation_spec(*, mode: str = "apply") -> dict:
+    env = yaml.safe_load(FIXTURE_ENV.read_text(encoding="utf-8"))
+    profile = load_profile(FIXTURE_PROFILE)
+    connector_config = dict(env["environment"]["connectors"]["fixture_source"])
+    connector_config["actions"] = {
+        "apply_fixture_change": {"mutating": True, "data": {"changed": True}}
+    }
+    return compile_step_execution_spec(
+        step={
+            "id": "apply_change",
+            "type": "connector",
+            "connector": "fixture_source",
+            "action": "apply_fixture_change",
+        },
+        profile=profile,
+        connector_config=connector_config,
         mode=mode,
     )
 
@@ -86,10 +108,7 @@ def test_governance_request_does_not_derive_requirements_from_backend() -> None:
 
     assert request["required_capability_descriptors"] == []
     assert result["status"] == "blocked"
-    assert (
-        "operation_capability_requirements_missing"
-        in result["compatibility"]["blockers"]
-    )
+    assert "operation_capability_requirements_missing" in result["compatibility"]["blockers"]
 
 
 def test_evaluate_typed_execution_governance_passes_for_readonly_fixture() -> None:
@@ -191,24 +210,7 @@ def test_blocked_network_boundary_mismatch() -> None:
 
 
 def test_blocked_mutation_requiring_approval() -> None:
-    env = yaml.safe_load(FIXTURE_ENV.read_text(encoding="utf-8"))
-    profile = load_profile(FIXTURE_PROFILE)
-    connector_config = dict(env["environment"]["connectors"]["fixture_source"])
-    connector_config["actions"] = {
-        "apply_fixture_change": {"mutating": True, "data": {"changed": True}}
-    }
-    step = {
-        "id": "apply_change",
-        "type": "connector",
-        "connector": "fixture_source",
-        "action": "apply_fixture_change",
-    }
-    spec = compile_step_execution_spec(
-        step=step,
-        profile=profile,
-        connector_config=connector_config,
-        mode="apply",
-    )
+    spec = _mutation_spec()
     result = evaluate_typed_execution_governance(
         spec=spec,
         operation_id="op-mutation",
@@ -218,6 +220,59 @@ def test_blocked_mutation_requiring_approval() -> None:
 
     assert result["status"] == "blocked"
     assert "mutation_requires_approval_evidence" in result["governance"]["blockers"]
+
+
+def test_governed_recovery_precheck_uses_only_explicit_apply_alias() -> None:
+    spec = _mutation_spec(mode="recovery")
+
+    request = build_governed_typed_execution_precheck_request(
+        spec=spec,
+        operation_id="op-recovery",
+        actual_operation_mode="recovery",
+    )
+
+    assert spec["capability_descriptor"]["mode"] == "recovery"
+    assert request["operation_mode"] == "apply"
+    assert request["capability_descriptor"]["mode"] == "apply"
+    assert request["step_execution_spec_digest"] == spec["digest"]
+    assert request["side_effect_class"] == "mutation"
+
+
+def test_governed_precheck_accepts_only_exact_approval_blockers() -> None:
+    spec = _mutation_spec()
+    shared_state: dict = {}
+
+    admission = enforce_typed_execution_governance(
+        spec=spec,
+        operation_id="op-governed-candidate",
+        mode="apply",
+        shared_state=shared_state,
+        governed_mutation=True,
+    )
+
+    require_governed_mutation_precheck(
+        admission,
+        actual_operation_mode="apply",
+    )
+    assert admission["allowed"] is False
+    assert admission["actual_operation_mode"] == "apply"
+    assert admission["typed_execution_operation_mode"] == "apply"
+    assert set(admission["blockers"]) <= {
+        "mutation_requires_approval_evidence",
+        "mutation_requires_approval_attestation",
+    }
+
+    with pytest.raises(
+        RExecOpValidationError,
+        match="non_approval_blocker",
+    ):
+        require_governed_mutation_precheck(
+            {
+                **admission,
+                "blockers": [*admission["blockers"], "network_boundary_mismatch"],
+            },
+            actual_operation_mode="apply",
+        )
 
 
 def test_workflow_runner_enforces_typed_execution_governance_before_backend_io() -> None:
@@ -341,9 +396,7 @@ def test_runtime_doctor_includes_typed_execution_stack_compatibility(tmp_path: P
     report = run_runtime_doctor(root)
 
     check = next(
-        item
-        for item in report["checks"]
-        if item["id"] == "typed_execution_stack_compatibility"
+        item for item in report["checks"] if item["id"] == "typed_execution_stack_compatibility"
     )
     assert check["status"] == "passed"
 

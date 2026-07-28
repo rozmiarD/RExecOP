@@ -16,7 +16,10 @@ from rexecop.execution.backend import StepExecutionResult
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
-from runtime_governance_support import governance_runtime_kwargs
+from runtime_governance_support import (
+    governance_runtime_kwargs,
+    governed_runtime_kwargs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
@@ -30,17 +33,18 @@ def _clear_mock_failures() -> Generator[None, None, None]:
     StaticFixtureRuntime.clear_failures()
 
 
-def _controller(tmp_path: Path) -> OperationController:
+def _controller(tmp_path: Path, *, governed: bool = False) -> OperationController:
+    runtime_kwargs = governed_runtime_kwargs() if governed else governance_runtime_kwargs()
     return OperationController(
         store=FileStore(tmp_path / ".rexecop"),
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **runtime_kwargs,
     )
 
 
 def test_auto_retry_transient_connector_error(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     StaticFixtureRuntime.set_failures(
         "fixture_source",
@@ -48,7 +52,7 @@ def test_auto_retry_transient_connector_error(
         count=1,
         error_class="transient_connector_error",
     )
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
@@ -70,7 +74,7 @@ def test_auto_retry_transient_connector_error(
 
 def test_policy_denied_not_retried(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     StaticFixtureRuntime.set_failures(
         "fixture_source",
@@ -79,7 +83,7 @@ def test_policy_denied_not_retried(
         error="mutating connector action refused in read-only mode",
         error_class="policy_denied",
     )
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
@@ -89,14 +93,19 @@ def test_policy_denied_not_retried(
     )
     failed = controller.start(operation.id)
     assert failed.state == OperationState.FAILED.value
+    assert failed.metadata["last_failure"]["error_class"] == "policy_denied"
     assert OperationState.RETRYING.value not in [item.to_state for item in failed.history]
+    attempts = controller.store.list_execution_attempts(operation.id)
+    assert len(attempts) == 1
+    assert attempts[0]["status"] == "failed"
+    assert attempts[0]["error_class"] == "policy_denied"
     with pytest.raises(Exception):
         controller.retry(operation.id)
 
 
 def test_manual_retry_after_failure(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     StaticFixtureRuntime.set_failures(
         "fixture_source",
@@ -104,7 +113,7 @@ def test_manual_retry_after_failure(
         count=3,
         error_class="transient_connector_error",
     )
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
@@ -122,7 +131,7 @@ def test_manual_retry_after_failure(
 def test_governed_mutation_receipt_failure_is_durable_indeterminate_without_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     connector_calls: list[str] = []
     original_invoke = StaticFixtureRuntime.invoke
@@ -134,7 +143,7 @@ def test_governed_mutation_receipt_failure_is_durable_indeterminate_without_retr
         connector_calls.append(request.action)
         return original_invoke(runtime, request)
 
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,

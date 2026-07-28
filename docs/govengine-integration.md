@@ -130,18 +130,37 @@ Evidence events: `govengine_decision_requested`, `govengine_decision_received`.
 
 ## Canonical attempt decision boundary
 
-The pre-I/O canonical path is configured with four host-owned inputs on
-`OperationController`: `AttemptGovernanceAuthority`, `VerifierPort`, `SigningPolicy`,
-and `TrustPolicy`. Partial configuration is rejected. For every connector attempt,
-RExecOp:
+The read-only compatibility path may still use the existing host-owned
+`AttemptGovernanceAuthority`, `VerifierPort`, `SigningPolicy`, and
+`TrustPolicy`. Mutating attempts require the additive
+`GovernedAttemptAuthority` and `ApprovalRevocationPort` pair in addition to the
+verifier/signing/trust inputs. Partial governed configuration is rejected.
 
-1. preallocates `attempt_id`;
-2. projects current runtime instance, lease epoch, hashed lease/fencing bindings,
-   execution and payload digests, requested-scope digest, and connector inventory epoch;
-3. asks the authority for a signed GovEngine `GovernanceDecision`;
-4. verifies the signed record and exact runtime bindings;
-5. atomically consumes both decision digest and nonce;
-6. issues `rexecop.runtime_attempt_permit.v0.1` and persists `attempt started` before IO.
+For every `apply` or `recovery` connector attempt, RExecOp:
+
+1. asks GovEngine to evaluate the unchanged typed-execution v0.1 request before
+   attempt allocation; only the exact approval-required blockers identify a
+   governed mutation candidate;
+2. checks the independent mutation posture, then preallocates `attempt_id`;
+3. projects current runtime instance, lease epoch, hashed lease/fencing
+   bindings, execution and payload digests, requested-scope digest, and
+   connector inventory epoch;
+4. asks the governed authority for the exact GovEngine `GovernanceRequest`,
+   typed-execution governed admission, signed `GovernanceDecision`, and signed
+   artifact;
+5. verifies the signature, composite admission, approval attestation, every
+   request/decision/runtime binding, expiry, and current revocation state;
+6. atomically consumes both decision digest and nonce, rebuilds current runtime
+   facts, and rejects drift;
+7. creates one `rexecop.runtime_attempt_permit.v0.1` bound to the decision and
+   composite admission, then persists `attempt started`;
+8. immediately rechecks lease/spec/permit/composite/expiry/current revocation
+   before connector I/O.
+
+The real operation, permit, admission, and receipt retain `recovery` when that
+is the requested mode. Only the nested unchanged typed-execution v0.1
+request/capability uses the explicit `apply` compatibility alias. Its spec,
+side-effect class, and other bindings remain unchanged.
 
 RExecOp never evaluates policy or signs the decision. The authority/signer/verifier and
 trust anchors remain host-owned. A mutating connector attempt without this complete
@@ -178,7 +197,8 @@ Mutating modes (`apply`, `recovery`) require:
 2. Positive GovEngine `allowed` decision recorded on the operation
 3. Operation in `approved` state (manual `rexecop approve` when `approval_required`)
 4. Connector-level check: `http_api` mutating actions also verify `mutating_allowed` at runtime
-5. A trusted signed canonical `GovernanceDecision`, atomically claimed for the exact attempt
+5. Exact approval-attested GovEngine composite admission plus its trusted signed
+   `GovernanceDecision`, current revocation check, and atomic claim for the exact attempt
 
 `lab_only` enables bounded development and test mechanics only. It does not weaken any
 governance check and is reported by `rexecop doctor` as a stable-readiness blocker.
@@ -196,8 +216,9 @@ operation plan. Post-execution receipt binding uses GovEngine validation helpers
 Admission metadata from `operation.metadata["govengine_admission"]` is bridged into SCLite
 `policy_decision` and scoped ticket approval fields. Policy enforcement plan, admission,
 pack, and verdict digest references are included in the SCLite execution contract and receipt.
-Governed step receipt bindings and conformance results are projected under
-`rexecop_runtime_binding.governance_bindings` without changing the frozen SCLite schema.
+RExecOp's own `ExecutionReceipt` stores the bounded governed-admission binding
+alongside step receipt conformance. The frozen SCLite artifact projection is not
+expanded with a new governed-admission field.
 SCLite computes and validates its own artifact descriptors; RExecOp does not claim SCLite
 canonicalization ownership.
 

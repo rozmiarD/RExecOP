@@ -82,6 +82,13 @@ REXECOP_RUNTIME_PROJECTIONS: tuple[dict[str, Any], ...] = (
         "supported_versions": ("v0.1",),
     },
     {
+        "surface_id": "governed_admission_binding",
+        "owner": "rexecop.adapters.govengine_port.runtime_authority",
+        "schema": "rexecop.governed_admission_binding.v0.1",
+        "supported_versions": ("v0.1",),
+        "optional": True,
+    },
+    {
         "surface_id": "execution_request",
         "owner": "rexecop.execution.model",
         "schema": "rexecop.execution_request.v0.2",
@@ -213,6 +220,13 @@ REXECOP_EXPECTED_GOVENGINE_CONTRACTS: tuple[dict[str, str], ...] = (
     {"surface_id": "automation_transition_explanation", "schema_version": "v0.1"},
 )
 
+REXECOP_OPTIONAL_GOVENGINE_CONTRACTS: tuple[dict[str, str], ...] = (
+    {
+        "surface_id": "typed_execution_governed_admission",
+        "schema_version": "v0.1",
+    },
+)
+
 _PROJECTION_INDEX = {item["surface_id"]: item for item in REXECOP_RUNTIME_PROJECTIONS}
 
 
@@ -313,6 +327,7 @@ def evaluate_govengine_contract_compatibility(
     report = evaluate_contract_compatibility(request)
     catalog = supported_contract_report()
     payload = report.as_dict()
+    optional_contracts = _optional_govengine_contract_status(catalog)
     return {
         "schema": STACK_CONTRACT_COMPATIBILITY_SCHEMA,
         "status": payload["status"],
@@ -324,6 +339,12 @@ def evaluate_govengine_contract_compatibility(
         "missing_contracts": payload["missing_contracts"],
         "blockers": payload["blockers"],
         "govengine_contract_catalog": catalog,
+        "optional_contracts": optional_contracts,
+        "optional_surface_status": (
+            "available"
+            if all(item["status"] == "supported" for item in optional_contracts)
+            else "unavailable"
+        ),
         "rexecop_runtime_projections": rexecop_runtime_projection_matrix(),
         "compatibility": payload,
         "non_claims": list(payload["non_claims"]),
@@ -349,12 +370,46 @@ def contract_versions_summary(
             item["surface_id"]: item["schema_version"]
             for item in REXECOP_EXPECTED_GOVENGINE_CONTRACTS
         },
+        "optional_govengine_contracts": {
+            item["surface_id"]: item["schema_version"]
+            for item in REXECOP_OPTIONAL_GOVENGINE_CONTRACTS
+        },
         "sclite_artifact_refs": {
             item["role"]: item["schema_version"] for item in supported_sclite_artifact_refs()
         },
         "status": govengine["status"],
         "blockers": list(govengine.get("blockers") or []),
     }
+
+
+def _optional_govengine_contract_status(
+    catalog: dict[str, Any],
+) -> list[dict[str, str]]:
+    entries = catalog.get("contracts")
+    index = (
+        {str(item.get("surface_id") or ""): item for item in entries if isinstance(item, dict)}
+        if isinstance(entries, list)
+        else {}
+    )
+    statuses: list[dict[str, str]] = []
+    for expected in REXECOP_OPTIONAL_GOVENGINE_CONTRACTS:
+        surface_id = expected["surface_id"]
+        version = expected["schema_version"]
+        actual = index.get(surface_id)
+        versions = (
+            tuple(str(item) for item in actual.get("supported_versions") or ())
+            if isinstance(actual, dict)
+            else ()
+        )
+        statuses.append(
+            {
+                "surface_id": surface_id,
+                "schema_version": version,
+                "status": "supported" if version in versions else "unavailable",
+            }
+        )
+    return statuses
+
 
 def evaluate_stack_contract_compatibility(
     *,

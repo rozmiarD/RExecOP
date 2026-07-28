@@ -142,7 +142,7 @@ def install_wheel_venv(
     if create.returncode != 0:
         raise RuntimeError(create.stderr.strip() or "venv_create_failed")
     venv_python = artifact._python(venv)
-    candidate_options = artifact._candidate_install_options(candidate_wheel_dirs)
+    candidate_options, candidates = artifact._candidate_install(candidate_wheel_dirs, tmp_dir)
     install = _run(
         [
             str(venv_python),
@@ -160,6 +160,18 @@ def install_wheel_venv(
     if install.returncode != 0:
         message = install.stderr.strip() or install.stdout.strip() or "wheel_install_failed"
         raise RuntimeError(message)
+    if candidates:
+        provenance = _run(
+            artifact._candidate_provenance_command(venv_python, candidates),
+            cwd=tmp_dir,
+        )
+        if provenance.returncode != 0:
+            message = (
+                provenance.stderr.strip()
+                or provenance.stdout.strip()
+                or "candidate_provenance_failed"
+            )
+            raise RuntimeError(message)
     pip_check = _run([str(venv_python), "-m", "pip", "check"], cwd=ROOT)
     if pip_check.returncode != 0:
         message = pip_check.stderr.strip() or pip_check.stdout.strip() or "pip_check_failed"

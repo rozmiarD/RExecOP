@@ -61,9 +61,7 @@ CLAIM_DOCS = (
     "OPERATOR_LAB_RUNBOOK.md",
 )
 
-FORBIDDEN_CLAIMS = (
-    "production-ready",
-)
+FORBIDDEN_CLAIMS = ("production-ready",)
 
 M3_M4_CLI_MARKERS = (
     "secrets doctor",
@@ -110,11 +108,7 @@ def _project_markdown_paths(*, include_archive: bool) -> list[Path]:
     return sorted(
         path
         for path in candidates
-        if path.is_file()
-        and (
-            include_archive
-            or "archive" not in path.relative_to(ROOT).parts
-        )
+        if path.is_file() and (include_archive or "archive" not in path.relative_to(ROOT).parts)
     )
 
 
@@ -157,21 +151,13 @@ def _validate_markdown_links(errors: list[str]) -> None:
             try:
                 target_path.relative_to(ROOT)
             except ValueError:
-                errors.append(
-                    f"{path.relative_to(ROOT)}:markdown_link_outside_repo:{target}"
-                )
+                errors.append(f"{path.relative_to(ROOT)}:markdown_link_outside_repo:{target}")
                 continue
             if not target_path.is_file():
-                errors.append(
-                    f"{path.relative_to(ROOT)}:markdown_link_missing:{target}"
-                )
+                errors.append(f"{path.relative_to(ROOT)}:markdown_link_missing:{target}")
                 continue
-            if anchor and anchor not in _github_anchors(
-                target_path.read_text(encoding="utf-8")
-            ):
-                errors.append(
-                    f"{path.relative_to(ROOT)}:markdown_anchor_missing:{target}"
-                )
+            if anchor and anchor not in _github_anchors(target_path.read_text(encoding="utf-8")):
+                errors.append(f"{path.relative_to(ROOT)}:markdown_anchor_missing:{target}")
 
 
 def _validate_document_semantics(errors: list[str]) -> None:
@@ -192,9 +178,7 @@ def _validate_document_semantics(errors: list[str]) -> None:
     ):
         for path in _current_markdown_paths():
             if forbidden in path.read_text(encoding="utf-8"):
-                errors.append(
-                    f"{path.relative_to(ROOT)}:stale_semantic_claim:{forbidden}"
-                )
+                errors.append(f"{path.relative_to(ROOT)}:stale_semantic_claim:{forbidden}")
     if (ROOT / "docs" / "evidence-model.md").exists():
         errors.append("docs/evidence-model.md:duplicate_surface_must_be_merged")
     readme = _read("README.md")
@@ -216,10 +200,7 @@ def _validate_document_semantics(errors: list[str]) -> None:
     }
     manifest = public_api_manifest()["cli"]
     for command in (*manifest["stable_commands"], *manifest["alpha_commands"]):
-        if not any(
-            row == command or row.startswith(f"{command} ")
-            for row in documented_cli_rows
-        ):
+        if not any(row == command or row.startswith(f"{command} ") for row in documented_cli_rows):
             errors.append(f"docs/cli-reference.md:command_missing:{command}")
 
     _validate_markdown_links(errors)
@@ -302,7 +283,7 @@ def collect_errors() -> list[str]:
     optional_dependencies = project.get("optional-dependencies") or {}
 
     if project["name"] != "rexecop":
-        errors.append(f'distribution_name_mismatch:{project["name"]}')
+        errors.append(f"distribution_name_mismatch:{project['name']}")
     if rexecop.__version__ != version:
         errors.append(f"package_version_mismatch:{rexecop.__version__}!={version}")
     if govengine_dep != EXPECTED_GOVENGINE:
@@ -381,6 +362,32 @@ def collect_errors() -> list[str]:
     )
     _require(errors, "docs/stack-contract-compatibility.md", "external source consumer")
     _require(errors, "docs/stack-contract-compatibility.md", "`mutation_ready` | false")
+    _require(
+        errors,
+        "docs/stack-contract-compatibility.md",
+        "typed_execution_governed_admission",
+    )
+    _require(
+        errors,
+        "docs/stack-contract-compatibility.md",
+        "c9df37ad0245f31990652131df38326452c5a897",
+    )
+    _require(
+        errors,
+        "docs/govengine-integration.md",
+        "Only the nested unchanged typed-execution v0.1",
+    )
+    _require(
+        errors,
+        "docs/execution-contract.md",
+        "rexecop.governed_admission_binding.v0.1",
+    )
+    _require(
+        errors,
+        "docs/known-limitations.md",
+        "may lack this optional surface; configured mutation fails closed",
+    )
+    _require(errors, "CHANGELOG.md", "do not enable `mutation_ready`")
     _require(errors, "docs/architecture.md", EXPECTED_GOVENGINE)
     _require(errors, "docs/architecture.md", "examples/first-run-demo")
     _require(errors, "docs/architecture.md", "runtime/")
@@ -485,7 +492,7 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         ".github/workflows/ci.yml",
-        "ref: 0826accff407fdbc10df420803ff49cdd5818870",
+        "ref: c9df37ad0245f31990652131df38326452c5a897",
     )
     _require(
         errors,

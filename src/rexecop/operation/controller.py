@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from govengine.approvals import ApprovalRevocationPort
 from govengine.signing import SigningPolicy, TrustPolicy, VerifierPort
 from sclite.integrity import artifact_descriptor
 
@@ -24,7 +25,9 @@ from rexecop.adapters.govengine_port.contracts import (
 )
 from rexecop.adapters.govengine_port.runtime_authority import (
     AttemptGovernanceAuthority,
+    GovernedAttemptAuthority,
     TrustedGovernanceDecisionConsumer,
+    TrustedGovernedAttemptConsumer,
 )
 from rexecop.adapters.sclite_port.contracts import SCLITE_ARTIFACT_AUTHORITY
 from rexecop.catalog.service import CatalogService
@@ -93,24 +96,38 @@ class OperationController:
         governance_decision_verifier: VerifierPort | None = None,
         governance_signing_policy: SigningPolicy | None = None,
         governance_trust_policy: TrustPolicy | None = None,
+        governed_attempt_authority: GovernedAttemptAuthority | None = None,
+        approval_revocation_port: ApprovalRevocationPort | None = None,
         capability_inventory_epoch: int = 0,
     ) -> None:
         self.store = store or create_store()
         self.structured_log = StructuredLogEmitter(self.store)
         self.evidence = ObservabilityEvidenceManager(self.store, self.structured_log)
         self.govengine_adapter = govengine_adapter or default_govengine_adapter()
-        governance_components = (
-            attempt_governance_authority,
+        trust_components = (
             governance_decision_verifier,
             governance_signing_policy,
             governance_trust_policy,
         )
-        if any(item is not None for item in governance_components) and not all(
-            item is not None for item in governance_components
+        authority_configured = (
+            attempt_governance_authority is not None or governed_attempt_authority is not None
+        )
+        if any(item is not None for item in trust_components) and not all(
+            item is not None for item in trust_components
         ):
-            raise RExecOpValidationError(
-                "canonical_governance_configuration_incomplete"
-            )
+            raise RExecOpValidationError("canonical_governance_configuration_incomplete")
+        if authority_configured and not all(item is not None for item in trust_components):
+            raise RExecOpValidationError("canonical_governance_configuration_incomplete")
+        if not authority_configured and any(item is not None for item in trust_components):
+            raise RExecOpValidationError("canonical_governance_configuration_incomplete")
+        governed_components = (
+            governed_attempt_authority,
+            approval_revocation_port,
+        )
+        if any(item is not None for item in governed_components) and not all(
+            item is not None for item in governed_components
+        ):
+            raise RExecOpValidationError("governed_attempt_configuration_incomplete")
         governance_decision_consumer = None
         if attempt_governance_authority is not None:
             assert governance_decision_verifier is not None
@@ -122,6 +139,20 @@ class OperationController:
                 verifier=governance_decision_verifier,
                 signing_policy=governance_signing_policy,
                 trust_policy=governance_trust_policy,
+            )
+        governed_attempt_consumer = None
+        if governed_attempt_authority is not None:
+            assert governance_decision_verifier is not None
+            assert governance_signing_policy is not None
+            assert governance_trust_policy is not None
+            assert approval_revocation_port is not None
+            governed_attempt_consumer = TrustedGovernedAttemptConsumer(
+                store=self.store,
+                authority=governed_attempt_authority,
+                verifier=governance_decision_verifier,
+                signing_policy=governance_signing_policy,
+                trust_policy=governance_trust_policy,
+                approval_revocation_port=approval_revocation_port,
             )
         from rexecop.adapters.sclite_port.emitter import SCLiteArtifactEmitter
         from rexecop.runtime_ops.coordinator import RuntimeCoordinator
@@ -138,6 +169,7 @@ class OperationController:
             export_receipt=self.export_receipt,
             auto_reaction_handler=self._maybe_plan_auto_reaction,
             governance_decision_consumer=governance_decision_consumer,
+            governed_attempt_consumer=governed_attempt_consumer,
             catalog_binding_validator=self._verify_catalog_binding,
             inventory_epoch=capability_inventory_epoch,
         )
@@ -751,9 +783,7 @@ class OperationController:
             mode=operation.mode,
             risk=plan.risk,
         )
-        plan.govengine_request_preview["policy_decision"] = policy_decision_from_verdict(
-            verdict
-        )
+        plan.govengine_request_preview["policy_decision"] = policy_decision_from_verdict(verdict)
         operation.metadata["policy_verdict"] = verdict.as_dict()
         enforcement = build_policy_enforcement_record(compiled_policy, verdict)
         operation.metadata["policy_enforcement"] = enforcement
@@ -782,21 +812,15 @@ class OperationController:
         requires_approval = child.state == OperationState.WAITING_FOR_APPROVAL.value
         continuation = ""
         if requires_approval:
-            continuation = (
-                f"approve rollback operation {child.id}, then start that operation"
-            )
+            continuation = f"approve rollback operation {child.id}, then start that operation"
         elif child.state == OperationState.APPROVED.value:
             continuation = f"start rollback operation {child.id}"
         elif failure_record.get("error_class") == "outcome_indeterminate":
-            continuation = (
-                f"reconcile rollback operation {child.id}; automatic retry is forbidden"
-            )
+            continuation = f"reconcile rollback operation {child.id}; automatic retry is forbidden"
         return {
             "rollback_operation_id": child.id,
             "parent_operation_id": str(
-                (child.metadata.get("derived_operation") or {}).get(
-                    "parent_operation_id"
-                )
+                (child.metadata.get("derived_operation") or {}).get("parent_operation_id")
             ),
             "mode": child.mode,
             "state": child.state,
@@ -821,9 +845,7 @@ class OperationController:
         self.runtime._require_queue_lifecycle()
         lease = self._execution_lease
         if lease is None:
-            raise RExecOpConcurrencyConflict(
-                "concurrency_conflict: execution lease missing"
-            )
+            raise RExecOpConcurrencyConflict("concurrency_conflict: execution lease missing")
         if start_is_idempotent(operation):
             claim_snapshot = self.runtime._claim_terminal_for_controller(
                 operation,
@@ -973,14 +995,10 @@ class OperationController:
                 if admission.status == "queued":
                     return self.get_operation(operation_id)
             result = self.orchestrator.advance(operation_id, max_steps=max_steps)
-            claim_snapshot = (
-                admission.claim_snapshot if admission is not None else None
-            )
+            claim_snapshot = admission.claim_snapshot if admission is not None else None
             lease = self._execution_lease
             if lease is None:
-                raise RExecOpConcurrencyConflict(
-                    "concurrency_conflict: execution lease missing"
-                )
+                raise RExecOpConcurrencyConflict("concurrency_conflict: execution lease missing")
             if start_is_idempotent(result):
                 self.runtime._release_target_only(result)
                 self._ensure_terminal_receipt_if_needed(operation_id)
@@ -1058,9 +1076,7 @@ class OperationController:
                 result = self.orchestrator.cancel(operation_id)
             lease = self._execution_lease
             if lease is None:
-                raise RExecOpConcurrencyConflict(
-                    "concurrency_conflict: execution lease missing"
-                )
+                raise RExecOpConcurrencyConflict("concurrency_conflict: execution lease missing")
             self.runtime.queue.remove_cancelled_from_lease(operation_id, lease)
             self.runtime._release_target_only(result)
             self._drain_queue()

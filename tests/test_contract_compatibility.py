@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import govengine
 from govengine import validate_supported_contract_version
 
 from rexecop.runtime.contract_compatibility import (
@@ -30,6 +31,36 @@ def test_evaluate_govengine_contract_compatibility_passes() -> None:
     assert result["status"] == "passed"
     assert result["matched_contracts"]
     assert result["govengine_contract_catalog"]["contracts"]
+    assert result["optional_surface_status"] == "available"
+    assert result["optional_contracts"] == [
+        {
+            "surface_id": "typed_execution_governed_admission",
+            "schema_version": "v0.1",
+            "status": "supported",
+        }
+    ]
+
+
+def test_missing_optional_governed_surface_does_not_claim_availability(
+    monkeypatch,
+) -> None:
+    catalog = govengine.supported_contract_report()
+    catalog["contracts"] = [
+        item
+        for item in catalog["contracts"]
+        if item["surface_id"] != "typed_execution_governed_admission"
+    ]
+    monkeypatch.setattr(
+        govengine,
+        "supported_contract_report",
+        lambda: catalog,
+    )
+
+    result = evaluate_govengine_contract_compatibility()
+
+    assert result["status"] == "passed"
+    assert result["optional_surface_status"] == "unavailable"
+    assert result["optional_contracts"][0]["status"] == "unavailable"
 
 
 def test_validate_supported_contract_version_blocks_unknown_major() -> None:
@@ -68,11 +99,7 @@ def test_runtime_doctor_includes_stack_contract_compatibility(tmp_path: Path) ->
 
     report = run_runtime_doctor(root)
 
-    check = next(
-        item
-        for item in report["checks"]
-        if item["id"] == "stack_contract_compatibility"
-    )
+    check = next(item for item in report["checks"] if item["id"] == "stack_contract_compatibility")
     assert check["status"] == "passed"
     assert report["schema"] == "rexecop.doctor_report.v0.1"
     assert report["contract_versions"]["status"] == "passed"

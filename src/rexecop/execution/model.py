@@ -70,9 +70,7 @@ class ExecutionPolicyBinding:
         item = cls(
             schema_version=str(raw.get("schema_version") or "").strip(),
             enforcement_plan_id=str(raw.get("enforcement_plan_id") or "").strip(),
-            enforcement_plan_digest=str(
-                raw.get("enforcement_plan_digest") or ""
-            ).strip(),
+            enforcement_plan_digest=str(raw.get("enforcement_plan_digest") or "").strip(),
             admission_id=str(raw.get("admission_id") or "").strip(),
             admission_digest=str(raw.get("admission_digest") or "").strip(),
             policy_pack_id=str(raw.get("policy_pack_id") or "").strip(),
@@ -311,9 +309,7 @@ def execution_receipt_from_results(
         for step_id, result in step_results.items()
     )
     digests_present = all(
-        bool(step.output_digest_refs)
-        for step in step_receipts
-        if step.step_id in executed_steps
+        bool(step.output_digest_refs) for step in step_receipts if step.step_id in executed_steps
     )
     if output_digest_required and not digests_present:
         raise RExecOpValidationError("required execution output digest missing")
@@ -321,14 +317,10 @@ def execution_receipt_from_results(
         executed_steps,
         typed_execution_specs,
     )
-    governance_bindings = {
-        step.step_id: {
-            "runtime_receipt_binding": dict(step.runtime_receipt_binding),
-            "receipt_conformance": dict(step.receipt_conformance),
-        }
-        for step in step_receipts
-        if step.runtime_receipt_binding and step.receipt_conformance
-    }
+    governance_bindings = _execution_governance_bindings(
+        step_receipts,
+        typed_execution_specs=typed_execution_specs,
+    )
     enforcement_status = "enforced" if request.policy_binding.present else "not_required"
     receipt = ExecutionReceipt(
         receipt_id=f"exec-receipt:{request.operation_id}",
@@ -402,6 +394,65 @@ def build_typed_execution_binding(
     return binding
 
 
+def _execution_governance_bindings(
+    step_receipts: tuple[ExecutionStepReceipt, ...],
+    *,
+    typed_execution_specs: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    bindings: dict[str, Any] = {}
+    for step in step_receipts:
+        if not step.runtime_receipt_binding or not step.receipt_conformance:
+            continue
+        item: dict[str, Any] = {
+            "runtime_receipt_binding": dict(step.runtime_receipt_binding),
+            "receipt_conformance": dict(step.receipt_conformance),
+        }
+        raw_spec = (
+            typed_execution_specs.get(step.step_id)
+            if isinstance(typed_execution_specs, Mapping)
+            else None
+        )
+        governed = (
+            raw_spec.get("governed_admission_binding") if isinstance(raw_spec, Mapping) else None
+        )
+        if governed is not None:
+            item["governed_admission_binding"] = _bounded_governed_binding(governed)
+        bindings[step.step_id] = item
+    return bindings
+
+
+def _bounded_governed_binding(value: object) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise RExecOpValidationError("invalid governed admission receipt binding")
+    expected_fields = {
+        "schema",
+        "actual_operation_mode",
+        "composite_admission_digest",
+        "governance_request_digest",
+        "governance_decision_digest",
+        "approval_attestation_digest",
+        "decision_expires_at",
+    }
+    if set(value) != expected_fields:
+        raise RExecOpValidationError("invalid governed admission receipt binding")
+    result = {key: str(value.get(key) or "") for key in sorted(expected_fields)}
+    if result["schema"] != "rexecop.governed_admission_binding.v0.1":
+        raise RExecOpValidationError("unsupported governed admission receipt binding")
+    if result["actual_operation_mode"] not in {"apply", "recovery"}:
+        raise RExecOpValidationError("invalid governed admission receipt mode")
+    for key in (
+        "composite_admission_digest",
+        "governance_request_digest",
+        "governance_decision_digest",
+        "approval_attestation_digest",
+    ):
+        if not _is_sha256_reference(result[key]):
+            raise RExecOpValidationError("invalid governed admission receipt digest")
+    if not result["decision_expires_at"]:
+        raise RExecOpValidationError("missing governed admission receipt expiry")
+    return result
+
+
 def _step_receipt(
     step_id: str,
     result: Mapping[str, Any],
@@ -452,11 +503,7 @@ def _step_receipt(
     return ExecutionStepReceipt(
         step_id=step_id,
         success=bool(result.get("success")),
-        error_class=str(
-            output_data.get("error_class")
-            or response_data.get("error_class")
-            or ""
-        ),
+        error_class=str(output_data.get("error_class") or response_data.get("error_class") or ""),
         output_digest_refs=digests,
         output_truncated=truncated,
         execution_spec_digest=execution_spec_digest,

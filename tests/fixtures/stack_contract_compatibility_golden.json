@@ -15,6 +15,9 @@
     "typed_execution_stack_compatibility",
     "governance_trace"
   ],
+  "optional_govengine_contracts": [
+    "typed_execution_governed_admission"
+  ],
   "required_runtime_projections": [
     "action_configure",
     "doctor_report",
@@ -25,6 +28,9 @@
     "stack_contract_compatibility",
     "step_execution_spec",
     "truth_path_projection"
+  ],
+  "optional_runtime_projections": [
+    "governed_admission_binding"
   ],
   "sclite_artifact_versions": {
     "automation_chain": "v0.1",

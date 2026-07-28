@@ -17,7 +17,10 @@ from rexecop.errors import (
 )
 from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.execution.backend import StepExecutionContext, StepExecutionResult
-from rexecop.execution.govengine_governance import enforce_typed_execution_governance
+from rexecop.execution.govengine_governance import (
+    enforce_typed_execution_governance,
+    require_governed_mutation_precheck,
+)
 from rexecop.execution.internal_registry import InternalHandler, load_internal_handlers
 from rexecop.execution.model import validated_max_output_bytes
 from rexecop.execution.typed_spec import bind_step_execution_spec, compile_step_execution_spec
@@ -63,6 +66,7 @@ class StepExecutor:
         attempt_finish_handler: AttemptFinishHandler | None = None,
         attempt_receipt_handler: AttemptReceiptHandler | None = None,
         internal_handlers: Mapping[str, InternalHandler] | None = None,
+        governed_attempt_enabled: bool = False,
     ) -> None:
         self.connector_dispatcher = connector_dispatcher or ConnectorDispatcher()
         self.evidence_handler = evidence_handler
@@ -71,6 +75,7 @@ class StepExecutor:
         self.attempt_finish_handler = attempt_finish_handler
         self.attempt_receipt_handler = attempt_receipt_handler
         self._internal_handlers = load_internal_handlers(extra=internal_handlers)
+        self.governed_attempt_enabled = governed_attempt_enabled
 
     def execute(self, context: StepExecutionContext) -> StepExecutionResult:
         step_id = str(context.step.get("id") or "")
@@ -172,13 +177,23 @@ class StepExecutor:
                 None,
             )
         if spec is not None:
+            governed_mutation = self.governed_attempt_enabled and context.mode in {
+                "apply",
+                "recovery",
+            }
             admission = enforce_typed_execution_governance(
                 spec=spec,
                 operation_id=context.operation_id,
                 mode=context.mode,
                 shared_state=context.shared_state,
+                governed_mutation=governed_mutation,
             )
-            if not admission["allowed"]:
+            if governed_mutation:
+                require_governed_mutation_precheck(
+                    admission,
+                    actual_operation_mode=context.mode,
+                )
+            elif not admission["allowed"]:
                 return (
                     StepExecutionResult(
                         step_id=step_id,
@@ -209,9 +224,7 @@ class StepExecutor:
             except Exception as exc:  # noqa: BLE001 - fail closed before connector I/O
                 if isinstance(exc, RExecOpError):
                     reason_code = str(getattr(exc, "reason_code", "runtime_error"))
-                    message = str(
-                        getattr(exc, "public_message", "runtime operation failed")
-                    )
+                    message = str(getattr(exc, "public_message", "runtime operation failed"))
                 else:
                     reason_code = "internal_error"
                     message = "pre-I/O execution validation failed"
@@ -326,9 +339,7 @@ class StepExecutor:
         controls = context.shared_state.get("execution_controls")
         raw_controls = controls if isinstance(controls, Mapping) else {}
         max_output_bytes = validated_max_output_bytes(
-            raw_controls["max_output_bytes"]
-            if "max_output_bytes" in raw_controls
-            else 65536
+            raw_controls["max_output_bytes"] if "max_output_bytes" in raw_controls else 65536
         )
         if _is_output_limit_candidate(result):
             context.shared_state.clear()
@@ -499,10 +510,7 @@ def _bounded_output_limit_evidence(
     if type(output) is not dict:
         return None
     output_error_class = _exact_dict_value(output, "error_class")
-    if (
-        type(output_error_class) is not str
-        or output_error_class != "output_limit_exceeded"
-    ):
+    if type(output_error_class) is not str or output_error_class != "output_limit_exceeded":
         return None
     raw_data = _exact_dict_value(output, "data")
     if type(raw_data) is not dict:
@@ -517,11 +525,7 @@ def _bounded_output_limit_evidence(
     raw_digests = _exact_dict_value(raw_data, "output_digests")
     raw_sizes = _exact_dict_value(raw_data, "output_sizes")
     raw_truncated = _exact_dict_value(raw_data, "output_truncated")
-    if not (
-        type(raw_digests) is dict
-        and type(raw_sizes) is dict
-        and type(raw_truncated) is dict
-    ):
+    if not (type(raw_digests) is dict and type(raw_sizes) is dict and type(raw_truncated) is dict):
         return None
     stdout_digest = _exact_dict_value(raw_digests, "stdout")
     stderr_digest = _exact_dict_value(raw_digests, "stderr")
@@ -532,16 +536,10 @@ def _bounded_output_limit_evidence(
         or not _is_sha256_digest(stderr_digest)
     ):
         return None
-    stdout_bytes = _exact_nonnegative_int(
-        _exact_dict_value(raw_sizes, "stdout_bytes")
-    )
-    stderr_bytes = _exact_nonnegative_int(
-        _exact_dict_value(raw_sizes, "stderr_bytes")
-    )
+    stdout_bytes = _exact_nonnegative_int(_exact_dict_value(raw_sizes, "stdout_bytes"))
+    stderr_bytes = _exact_nonnegative_int(_exact_dict_value(raw_sizes, "stderr_bytes"))
     total_bytes = _exact_nonnegative_int(_exact_dict_value(raw_sizes, "total_bytes"))
-    output_limit = _exact_positive_int(
-        _exact_dict_value(raw_data, "max_output_bytes")
-    )
+    output_limit = _exact_positive_int(_exact_dict_value(raw_data, "max_output_bytes"))
     stdout_truncated = _exact_dict_value(raw_truncated, "stdout")
     stderr_truncated = _exact_dict_value(raw_truncated, "stderr")
     if (
@@ -563,9 +561,7 @@ def _bounded_output_limit_evidence(
         return None
     if stderr_bytes > output_limit and stderr_truncated is not True:
         return None
-    if (stdout_truncated and stdout_bytes == 0) or (
-        stderr_truncated and stderr_bytes == 0
-    ):
+    if (stdout_truncated and stdout_bytes == 0) or (stderr_truncated and stderr_bytes == 0):
         return None
     evidence: dict[str, Any] = {
         "error_class": "output_limit_exceeded",
@@ -598,8 +594,7 @@ def _is_connector_output_limit_candidate(response: Any) -> bool:
     output_limit_exceeded = _exact_dict_value(response.data, "output_limit_exceeded")
     error_class = _exact_dict_value(response.data, "error_class")
     return output_limit_exceeded is True or (
-        type(error_class) is str
-        and error_class == "output_limit_exceeded"
+        type(error_class) is str and error_class == "output_limit_exceeded"
     )
 
 
@@ -682,8 +677,10 @@ def _canonical_output_bytes(output: Mapping[str, Any]) -> bytes:
 def _is_sha256_digest(value: str) -> bool:
     prefix = "sha256:"
     payload = value.removeprefix(prefix)
-    return value.startswith(prefix) and len(payload) == 64 and all(
-        char in "0123456789abcdef" for char in payload
+    return (
+        value.startswith(prefix)
+        and len(payload) == 64
+        and all(char in "0123456789abcdef" for char in payload)
     )
 
 

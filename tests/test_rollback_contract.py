@@ -26,8 +26,9 @@ from rexecop.operation.state import OperationState
 from rexecop.runtime_ops.rollback import rollback_failure_authority_digest
 from rexecop.storage.file_store import FileStore
 from runtime_governance_support import (
-    TestAttemptGovernanceAuthority,
-    governance_runtime_kwargs,
+    TestApprovalRevocations,
+    TestGovernedAttemptAuthority,
+    governed_runtime_kwargs,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -50,13 +51,8 @@ class _RecordingGovEngineAdapter:
         )
 
 
-class _RecordingAttemptAuthority(TestAttemptGovernanceAuthority):
-    def __init__(self) -> None:
-        self.requests: list[Any] = []
-
-    def authorize_attempt(self, facts):  # type: ignore[no-untyped-def]
-        self.requests.append(facts)
-        return super().authorize_attempt(facts)
+class _RecordingAttemptAuthority(TestGovernedAttemptAuthority):
+    pass
 
 
 @pytest.fixture(autouse=True)
@@ -75,9 +71,12 @@ def _controller(
     kwargs: dict[str, Any] = {}
     authority = None
     if signed_attempts:
-        authority = _RecordingAttemptAuthority()
-        kwargs = governance_runtime_kwargs()
-        kwargs["attempt_governance_authority"] = authority
+        revocations = TestApprovalRevocations()
+        authority = _RecordingAttemptAuthority(revocations=revocations)
+        kwargs = governed_runtime_kwargs(
+            revocations=revocations,
+            authority=authority,
+        )
     return (
         OperationController(
             store=FileStore(tmp_path / ".rexecop"),
@@ -246,7 +245,7 @@ def _drift_catalog_environment(environment: Path) -> None:
 
 def test_rollback_uses_distinct_durable_authority_and_is_idempotent(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _RecordingGovEngineAdapter(
@@ -276,9 +275,10 @@ def test_rollback_uses_distinct_durable_authority_and_is_idempotent(
     assert child_plan.mode == "recovery"
     assert [step["id"] for step in child_plan.planned_steps] == ["rollback_change"]
     assert child_plan.required_connectors == ["fixture_source"]
-    assert controller.get_operation(parent_id).metadata["rollback"][
-        "rollback_operation_id"
-    ] == child_id
+    assert (
+        controller.get_operation(parent_id).metadata["rollback"]["rollback_operation_id"]
+        == child_id
+    )
     assert [request.operation_id for request in adapter.requests] == [parent_id, child_id]
     assert adapter.requests[1].preview["parent_operation_id"] == parent_id
     assert adapter.requests[1].preview["rollback_mode"] == "recovery"
@@ -296,21 +296,18 @@ def test_rollback_uses_distinct_durable_authority_and_is_idempotent(
     forward_attempt = _attempt_records(controller, parent_id)[0]
     rollback_attempt = _attempt_records(controller, child_id)[0]
     assert forward_attempt["attempt_id"] != rollback_attempt["attempt_id"]
-    assert forward_attempt["execution_permit_ref"] != rollback_attempt[
-        "execution_permit_ref"
-    ]
+    assert forward_attempt["execution_permit_ref"] != rollback_attempt["execution_permit_ref"]
     forward_permit = controller.store.load_execution_permit(parent_id, "apply_change")
     rollback_permit = controller.store.load_execution_permit(child_id, "rollback_change")
-    assert forward_permit["governance_binding_mode"] == "signed_decision"
-    assert rollback_permit["governance_binding_mode"] == "signed_decision"
+    assert forward_permit["governance_binding_mode"] == "governed_attempt"
+    assert rollback_permit["governance_binding_mode"] == "governed_attempt"
     assert rollback_permit["mode"] == "recovery"
-    assert rollback_permit["plan_digest"] == "sha256:" + canonical_digest(
-        child_plan.as_dict()
-    )
+    assert rollback_permit["plan_digest"] == "sha256:" + canonical_digest(child_plan.as_dict())
     for field in ("decision_digest", "authorization_id", "nonce_digest"):
-        assert forward_permit["governance_decision"][field] != rollback_permit[
-            "governance_decision"
-        ][field]
+        assert (
+            forward_permit["governance_decision"][field]
+            != rollback_permit["governance_decision"][field]
+        )
     claim_records = [
         json.loads(path.read_text(encoding="utf-8"))
         for path in sorted((controller.store.root / "governance_claims").glob("*.json"))
@@ -322,24 +319,29 @@ def test_rollback_uses_distinct_durable_authority_and_is_idempotent(
         == rollback_permit["governance_decision"]["decision_digest"]
     )
     assert rollback_decision_claim["attempt_id"] == rollback_facts.attempt_id
-    assert rollback_decision_claim["nonce_digest"] == "sha256:" + sha256(
-        f"test-nonce:{rollback_facts.attempt_id}".encode()
-    ).hexdigest()
+    assert (
+        rollback_decision_claim["nonce_digest"]
+        == "sha256:"
+        + sha256(f"test-governed-nonce:{rollback_facts.attempt_id}".encode()).hexdigest()
+    )
     forward_decision_claim = next(
         record
         for record in claim_records
-        if record.get("decision_digest")
-        == forward_permit["governance_decision"]["decision_digest"]
+        if record.get("decision_digest") == forward_permit["governance_decision"]["decision_digest"]
     )
-    assert forward_decision_claim["nonce_digest"] != rollback_decision_claim[
-        "nonce_digest"
-    ]
+    assert forward_decision_claim["nonce_digest"] != rollback_decision_claim["nonce_digest"]
     rollback_result = child.metadata["step_results"]["rollback_change"]
     assert rollback_result["receipt_conformance"]["conformant"] is True
     assert rollback_result["runtime_receipt_binding"]["attempt_id"] == rollback_facts.attempt_id
     child_receipt = child.metadata["shared_state"]["execution_receipt"]
     assert child_receipt["executed_steps"] == ["rollback_change"]
     assert len(child_receipt["step_receipts"]) == 1
+    rollback_binding = child_receipt["governance_bindings"]["rollback_change"][
+        "governed_admission_binding"
+    ]
+    assert rollback_binding["actual_operation_mode"] == "recovery"
+    assert rollback_binding == rollback_permit["governed_admission_binding"]
+    assert authority.actual_modes == ["apply", "recovery"]
     assert calls == [
         ("apply", "apply_fixture_change"),
         ("recovery", "apply_fixture_change"),
@@ -355,7 +357,7 @@ def test_rollback_uses_distinct_durable_authority_and_is_idempotent(
 
 def test_pending_rollback_has_independent_approval_and_stale_parent_blocks_io(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _RecordingGovEngineAdapter(
@@ -425,7 +427,7 @@ def test_pending_rollback_has_independent_approval_and_stale_parent_blocks_io(
 
 def test_step_id_collision_never_inherits_parent_runtime_results(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _RecordingGovEngineAdapter(
@@ -442,9 +444,7 @@ def test_step_id_collision_never_inherits_parent_runtime_results(
     )
     parent_plan = controller.store.load_plan(parent.id)
     failing_step = next(
-        step
-        for step in parent_plan.planned_steps
-        if step["id"] == "post_change_checkpoint"
+        step for step in parent_plan.planned_steps if step["id"] == "post_change_checkpoint"
     )
     failing_step["action"] = "bounded_unregistered_parent_action"
     parent_plan.workflow["rollback"] = {
@@ -532,10 +532,9 @@ def test_step_id_collision_never_inherits_parent_runtime_results(
     assert "internal_results" not in child_state
     assert "continued_failures" not in child_state
     post_receipt = json.loads(
-        (
-            controller.store.operation_sclite_dir(child_id)
-            / "05_execution_receipt.json"
-        ).read_text(encoding="utf-8")
+        (controller.store.operation_sclite_dir(child_id) / "05_execution_receipt.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert post_receipt["execution"]["executed_command_count"] == 1
     assert post_receipt["execution"]["network_execution_performed"] is True
@@ -543,7 +542,7 @@ def test_step_id_collision_never_inherits_parent_runtime_results(
 
 def test_capacity_exhausted_drifted_connector_rollback_advance_is_side_effect_free(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     catalog, environment = _catalog_bound_fixture(tmp_path)
@@ -573,9 +572,7 @@ def test_capacity_exhausted_drifted_connector_rollback_advance_is_side_effect_fr
     )
     blocker.state = OperationState.RUNNING.value
     controller.store.save_operation(blocker)
-    assert controller.runtime.count_active_operations(
-        exclude_operation_id=child_id
-    ) == 1
+    assert controller.runtime.count_active_operations(exclude_operation_id=child_id) == 1
     _drift_catalog_environment(environment)
     child_before = controller.get_operation(child_id)
     shared_before = deepcopy(child_before.metadata["shared_state"])
@@ -605,7 +602,7 @@ def test_capacity_exhausted_drifted_connector_rollback_advance_is_side_effect_fr
 
 def test_already_queued_rollback_catalog_drift_reconciles_claim_without_admission(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     catalog, environment = _catalog_bound_fixture(tmp_path)
@@ -661,7 +658,7 @@ def test_already_queued_rollback_catalog_drift_reconciles_claim_without_admissio
 
 def test_already_queued_rollback_stale_parent_reconciles_claim_without_admission(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _RecordingGovEngineAdapter(
@@ -718,7 +715,7 @@ def test_already_queued_rollback_stale_parent_reconciles_claim_without_admission
 
 def test_catalog_drift_before_internal_rollback_advance_blocks_marker_and_evidence(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     catalog, environment = _catalog_bound_fixture(tmp_path)
@@ -772,7 +769,7 @@ def test_catalog_drift_before_internal_rollback_advance_blocks_marker_and_eviden
 
 def test_paused_rollback_resume_catalog_drift_is_side_effect_free(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     catalog, environment = _catalog_bound_fixture(tmp_path)
@@ -835,7 +832,7 @@ def test_paused_rollback_resume_catalog_drift_is_side_effect_free(
 
 def test_catalog_drift_in_rollback_pre_io_window_fails_attempt_without_io(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     catalog, environment = _catalog_bound_fixture(tmp_path)
@@ -887,9 +884,9 @@ def test_catalog_drift_in_rollback_pre_io_window_fails_attempt_without_io(
     assert authority.requests[1].operation_id == child_id
 
 
-def test_rollback_fails_closed_without_signed_attempt_authority(
+def test_rollback_fails_closed_without_governed_attempt_authority(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     adapter = _RecordingGovEngineAdapter(
         GovEngineDecisionType.ALLOWED,
@@ -900,21 +897,22 @@ def test_rollback_fails_closed_without_signed_attempt_authority(
 
     with pytest.raises(
         RExecOpValidationError,
-        match="canonical signed governance authority",
+        match="governed approval authority",
     ):
         controller.rollback(parent_id)
 
     child_id = f"{parent_id}-rollback"
     assert controller.get_operation(child_id).state == OperationState.APPROVED.value
-    assert controller.get_operation(parent_id).metadata["rollback"][
-        "rollback_operation_id"
-    ] == child_id
+    assert (
+        controller.get_operation(parent_id).metadata["rollback"]["rollback_operation_id"]
+        == child_id
+    )
     assert not (controller.store.root / "attempts" / child_id).exists()
 
 
 def test_rollback_pre_io_failure_never_invokes_connector(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _RecordingGovEngineAdapter(
@@ -948,7 +946,7 @@ def test_rollback_pre_io_failure_never_invokes_connector(
 
 def test_rollback_receipt_ambiguity_is_not_retried_or_reinvoked(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     adapter = _RecordingGovEngineAdapter(

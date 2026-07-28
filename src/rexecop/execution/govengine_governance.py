@@ -182,6 +182,42 @@ def build_typed_execution_governance_request(
     }
 
 
+def build_governed_typed_execution_precheck_request(
+    *,
+    spec: Mapping[str, Any],
+    operation_id: str,
+    actual_operation_mode: str,
+    shared_state: Mapping[str, Any] | None = None,
+    evidence_requirements: Mapping[str, Any] | None = None,
+    allowed_network_egress: list[str] | None = None,
+) -> dict[str, Any]:
+    """Build the unchanged typed-v0.1 mutation posture used by the composite."""
+
+    mode = str(actual_operation_mode or "").strip()
+    if mode not in {"apply", "recovery"}:
+        raise RExecOpValidationError("typed execution governed precheck requires apply or recovery")
+    request = build_typed_execution_governance_request(
+        spec=spec,
+        operation_id=operation_id,
+        mode="apply",
+        shared_state=shared_state,
+        evidence_requirements=evidence_requirements,
+        allowed_network_egress=allowed_network_egress,
+    )
+    capability = spec.get("capability_descriptor")
+    if not isinstance(capability, Mapping):
+        raise RExecOpValidationError("typed execution governance missing capability descriptor")
+    capability_projection = _runtime_capability_projection(
+        capability,
+        mode_override="apply",
+    )
+    request["capability_descriptor"] = capability_projection
+    request["capability_descriptor_digest"] = runtime_capability_descriptor_digest(
+        capability_projection
+    )
+    return request
+
+
 def evaluate_typed_execution_governance(
     *,
     spec: Mapping[str, Any],
@@ -222,15 +258,27 @@ def enforce_typed_execution_governance(
     shared_state: dict[str, Any],
     evidence_requirements: Mapping[str, Any] | None = None,
     allowed_network_egress: list[str] | None = None,
+    governed_mutation: bool = False,
 ) -> dict[str, Any]:
     """Fail-closed typed execution admission before connector backend IO."""
-    request = build_typed_execution_governance_request(
-        spec=spec,
-        operation_id=operation_id,
-        mode=mode,
-        shared_state=shared_state,
-        evidence_requirements=evidence_requirements,
-        allowed_network_egress=allowed_network_egress,
+    request = (
+        build_governed_typed_execution_precheck_request(
+            spec=spec,
+            operation_id=operation_id,
+            actual_operation_mode=mode,
+            shared_state=shared_state,
+            evidence_requirements=evidence_requirements,
+            allowed_network_egress=allowed_network_egress,
+        )
+        if governed_mutation
+        else build_typed_execution_governance_request(
+            spec=spec,
+            operation_id=operation_id,
+            mode=mode,
+            shared_state=shared_state,
+            evidence_requirements=evidence_requirements,
+            allowed_network_egress=allowed_network_egress,
+        )
     )
     admission = admit_typed_execution(request)
     payload = admission.as_dict()
@@ -246,6 +294,8 @@ def enforce_typed_execution_governance(
         "signal": dict(payload.get("signal") or {}),
         "admission_digest": typed_execution_admission_digest(admission),
         "request_digest": str(payload.get("subject_ref") or ""),
+        "actual_operation_mode": mode,
+        "typed_execution_operation_mode": request["operation_mode"],
     }
     specs = shared_state.get("typed_execution_specs")
     if isinstance(specs, dict):
@@ -256,6 +306,36 @@ def enforce_typed_execution_governance(
     return admissions[step_id]
 
 
+def require_governed_mutation_precheck(
+    admission: Mapping[str, Any],
+    *,
+    actual_operation_mode: str,
+) -> None:
+    """Accept only the exact intentional typed-v0.1 approval blockers."""
+
+    mode = str(actual_operation_mode or "").strip()
+    if mode not in {"apply", "recovery"}:
+        raise RExecOpValidationError("typed_execution_governed_precheck_mode_mismatch")
+    try:
+        from govengine.typed_execution_governed_admission import (
+            TYPED_EXECUTION_MUTATION_APPROVAL_BLOCKERS,
+        )
+    except (ImportError, AttributeError) as exc:
+        raise RExecOpValidationError(
+            "typed_execution_governed_admission_surface_unavailable"
+        ) from exc
+    if admission.get("allowed") is not False:
+        raise RExecOpValidationError("typed_execution_governed_precheck_unexpectedly_allowed")
+    blockers_raw = admission.get("blockers")
+    if not isinstance(blockers_raw, list):
+        raise RExecOpValidationError("typed_execution_governed_precheck_blockers_invalid")
+    blockers = tuple(dict.fromkeys(str(item) for item in blockers_raw if item))
+    if not blockers or any(
+        blocker not in TYPED_EXECUTION_MUTATION_APPROVAL_BLOCKERS for blocker in blockers
+    ):
+        raise RExecOpValidationError("typed_execution_governed_precheck_has_non_approval_blocker")
+
+
 def _governance_overlay(shared_state: Mapping[str, Any] | None) -> dict[str, Any]:
     if not isinstance(shared_state, Mapping):
         return {}
@@ -263,7 +343,11 @@ def _governance_overlay(shared_state: Mapping[str, Any] | None) -> dict[str, Any
     return dict(overlay) if isinstance(overlay, Mapping) else {}
 
 
-def _runtime_capability_projection(descriptor: Mapping[str, Any]) -> dict[str, Any]:
+def _runtime_capability_projection(
+    descriptor: Mapping[str, Any],
+    *,
+    mode_override: str = "",
+) -> dict[str, Any]:
     network_boundary = descriptor.get("network_boundary")
     secret_refs = descriptor.get("secret_ref_requirements")
     declared = descriptor.get("declared_capability_descriptors")
@@ -280,7 +364,7 @@ def _runtime_capability_projection(descriptor: Mapping[str, Any]) -> dict[str, A
         else [],
         "declared_capability_descriptors": list(declared) if isinstance(declared, list) else [],
         "certification_tier": str(descriptor.get("certification_tier") or "").strip(),
-        "mode": str(descriptor.get("mode") or "").strip(),
+        "mode": mode_override or str(descriptor.get("mode") or "").strip(),
     }
 
 

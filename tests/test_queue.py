@@ -15,18 +15,28 @@ from rexecop.operation.model import Operation
 from rexecop.operation.state import OperationState
 from rexecop.runtime_ops.queue import QUEUE_CLAIM_RECOVERY_BLOCKED, RunNowQueue
 from rexecop.storage.file_store import FileStore
-from runtime_governance_support import governance_runtime_kwargs
+from runtime_governance_support import (
+    governance_runtime_kwargs,
+    governed_runtime_kwargs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
-def _controller(tmp_path: Path) -> OperationController:
+def _controller(tmp_path: Path, *, governed: bool = False) -> OperationController:
+    runtime_kwargs = (
+        governed_runtime_kwargs(
+            target_namespaces=("fixture-target", "fixture-target-2"),
+        )
+        if governed
+        else governance_runtime_kwargs()
+    )
     return OperationController(
         store=FileStore(tmp_path / ".rexecop"),
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **runtime_kwargs,
     )
 
 
@@ -102,9 +112,9 @@ def test_queue_respects_max_concurrent_operations(
 
 def test_process_queue_starts_next_operation(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     first = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
@@ -129,9 +139,9 @@ def test_process_queue_starts_next_operation(
 def test_repeated_capacity_defer_then_release_executes_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     invocations: list[str] = []
     invoke = StaticFixtureRuntime.invoke
 
@@ -303,9 +313,9 @@ def test_public_admission_fails_closed_without_mutation_on_fenced_or_invalid_que
 def test_approved_partial_advance_completes_claim_after_progress_and_running_reuses_lock(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
@@ -390,7 +400,7 @@ def test_approved_partial_advance_completes_claim_after_progress_and_running_reu
 def test_blocked_approved_advance_exact_defers_once_without_connector_io(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     controller = _controller(tmp_path)
     blocker = controller.plan(
@@ -436,9 +446,9 @@ def test_blocked_approved_advance_exact_defers_once_without_connector_io(
 def test_terminal_approved_advance_orders_release_receipt_completion_then_drain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,

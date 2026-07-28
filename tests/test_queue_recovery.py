@@ -29,7 +29,10 @@ from rexecop.runtime_ops.recovery import run_startup_recovery
 from rexecop.storage.file_store import FileStore
 from rexecop.storage.memory_store import InMemoryStore
 from rexecop.storage.sqlite_store import SqliteStore
-from runtime_governance_support import governance_runtime_kwargs
+from runtime_governance_support import (
+    governance_runtime_kwargs,
+    governed_runtime_kwargs,
+)
 
 pytestmark = pytest.mark.m9_runtime
 
@@ -1018,13 +1021,13 @@ def test_startup_orders_operation_and_attempt_recovery_before_claim_reconciliati
 def test_post_claim_pre_transition_crash_replays_exactly_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
         store=store,
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **governed_runtime_kwargs(),
     )
     operation = controller.plan(
         profile_path=PROFILE,
@@ -1068,7 +1071,7 @@ def test_claim_deferral_crash_windows_preserve_recoverable_queue_state(
     window: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
@@ -1140,7 +1143,7 @@ def test_rollback_preflight_failure_atomically_removes_only_exact_claim(
     unrelated_status: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
@@ -1402,7 +1405,7 @@ def test_atomic_claim_cleanup_conflicts_and_topology_blocks_are_byte_identical(
 def test_attempt_bearing_ambiguity_stops_before_connector_io(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
@@ -2087,13 +2090,13 @@ def test_remove_cancelled_rejects_unfinished_attempt_byte_identically(
 def test_drain_delegates_exact_claim_completion_to_start_transaction(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
         store=store,
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **governed_runtime_kwargs(),
     )
     operation = controller.plan(
         profile_path=PROFILE,
@@ -2160,13 +2163,13 @@ def test_drain_delegates_exact_claim_completion_to_start_transaction(
 def test_terminal_start_repairs_receipt_and_completes_queue_without_execution_checks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
         store=store,
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **governed_runtime_kwargs(),
     )
     operation = controller.plan(
         profile_path=PROFILE,
@@ -2267,7 +2270,7 @@ def _cancel_ready_operation(controller: OperationController) -> Operation:
 def test_cancel_orders_durable_state_queue_cleanup_target_release_then_drain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
@@ -2342,7 +2345,7 @@ def test_repeated_cancel_repairs_declared_crash_window_and_is_idempotent(
     crash_window: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
@@ -2432,7 +2435,7 @@ def test_cancel_unfinished_attempt_blocks_before_target_release_or_drain(
     attempt_status: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
@@ -2489,7 +2492,7 @@ def test_cancel_unfinished_attempt_blocks_before_target_release_or_drain(
 def test_approved_advance_with_existing_attempt_fails_closed_byte_identically(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
@@ -2535,13 +2538,13 @@ def test_approved_advance_with_existing_attempt_fails_closed_byte_identically(
 def test_terminal_direct_start_completes_exact_claim_before_trailing_drain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
         store=store,
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **governed_runtime_kwargs(),
     )
     operation = controller.plan(
         profile_path=PROFILE,
@@ -2616,13 +2619,13 @@ def test_terminal_direct_start_completes_exact_claim_before_trailing_drain(
 def test_hard_terminal_receipt_failure_preserves_claim_until_recovery_cleanup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     store = FileStore(tmp_path / ".rexecop")
     controller = OperationController(
         store=store,
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **governed_runtime_kwargs(),
     )
     operation = controller.plan(
         profile_path=PROFILE,

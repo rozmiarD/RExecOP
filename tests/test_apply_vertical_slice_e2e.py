@@ -10,18 +10,27 @@ from rexecop.errors import RExecOpValidationError
 from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.storage.file_store import FileStore
-from runtime_governance_support import governance_runtime_kwargs
+from runtime_governance_support import (
+    governance_runtime_kwargs,
+    governed_runtime_kwargs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
-def _controller(tmp_path: Path, decision: GovEngineDecisionType) -> OperationController:
+def _controller(
+    tmp_path: Path,
+    decision: GovEngineDecisionType,
+    *,
+    governed: bool = False,
+) -> OperationController:
+    runtime_kwargs = governed_runtime_kwargs() if governed else governance_runtime_kwargs()
     return OperationController(
         store=FileStore(tmp_path / ".rexecop"),
         govengine_adapter=StaticGovEngineAdapter(decision),
-        **governance_runtime_kwargs(),
+        **runtime_kwargs,
     )
 
 
@@ -102,9 +111,13 @@ def test_legacy_manual_approval_is_not_bound_attestation(
 
 def test_before_and_after_state_in_evidence(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path, GovEngineDecisionType.ALLOWED)
+    controller = _controller(
+        tmp_path,
+        GovEngineDecisionType.ALLOWED,
+        governed=True,
+    )
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,

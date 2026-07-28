@@ -14,18 +14,22 @@ from rexecop.operation.controller import OperationController
 from rexecop.operation.state import OperationState
 from rexecop.runtime_ops.queue import QUEUE_CLAIM_RECOVERY_BLOCKED, RunNowQueue
 from rexecop.storage.file_store import FileStore
-from runtime_governance_support import governance_runtime_kwargs
+from runtime_governance_support import (
+    governance_runtime_kwargs,
+    governed_runtime_kwargs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE = REPO_ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 ENVIRONMENT = REPO_ROOT / "examples/environments/runtime-fixture.example.yaml"
 
 
-def _controller(tmp_path: Path) -> OperationController:
+def _controller(tmp_path: Path, *, governed: bool = False) -> OperationController:
+    runtime_kwargs = governed_runtime_kwargs() if governed else governance_runtime_kwargs()
     return OperationController(
         store=FileStore(tmp_path / ".rexecop"),
         govengine_adapter=StaticGovEngineAdapter(GovEngineDecisionType.ALLOWED),
-        **governance_runtime_kwargs(),
+        **runtime_kwargs,
     )
 
 
@@ -61,9 +65,9 @@ def test_target_lock_blocks_second_apply_on_same_target(
 
 def test_target_lock_released_after_completion(
     tmp_path: Path,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
@@ -85,9 +89,9 @@ def test_target_lock_released_after_completion(
 def test_repeated_target_lock_defer_then_release_executes_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     invocations: list[str] = []
     invoke = StaticFixtureRuntime.invoke
 
@@ -152,9 +156,9 @@ def test_repeated_target_lock_defer_then_release_executes_once(
 def test_direct_start_final_target_lock_race_defers_then_executes_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
-    controller = _controller(tmp_path)
+    controller = _controller(tmp_path, governed=True)
     operation = controller.plan(
         profile_path=PROFILE,
         environment_path=ENVIRONMENT,
@@ -227,7 +231,7 @@ def test_post_acquire_persistence_error_propagates_without_target_lock_defer(
     error_kind: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     controller = _controller(tmp_path)
     operation = controller.plan(

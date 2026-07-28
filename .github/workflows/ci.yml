@@ -36,7 +36,7 @@ jobs:
         with:
           repository: rozmiarD/GovEngine
           path: ci-deps/govengine
-          ref: 0826accff407fdbc10df420803ff49cdd5818870
+          ref: c9df37ad0245f31990652131df38326452c5a897
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -120,7 +120,7 @@ jobs:
         with:
           repository: rozmiarD/GovEngine
           path: ci-deps/govengine
-          ref: 0826accff407fdbc10df420803ff49cdd5818870
+          ref: c9df37ad0245f31990652131df38326452c5a897
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1

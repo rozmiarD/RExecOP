@@ -16,6 +16,11 @@ source candidates and milestone-level development notes are preserved in the
   accepts a new local directory and reports explicit onboarding non-claims;
   it does not initialize a runtime root, execute connectors, make governance
   decisions, emit evidence, or overwrite existing materializations.
+- Additive host-configured governed-attempt consumption for `apply` and
+  `recovery`: exact GovEngine typed-execution composite admission, approval
+  attestation/current revocation, signed decision, atomic attempt claim, and a
+  bounded permit/receipt binding. Recovery retains its real mode everywhere
+  except the explicit nested typed-execution v0.1 `apply` compatibility alias.
 
 ### Changed
 
@@ -38,6 +43,9 @@ source candidates and milestone-level development notes are preserved in the
   version in both publish and repair workflows.
 - Runtime permits, leases, fencing and attempt bindings are revalidated after
   durable attempt creation and immediately before connector I/O.
+- CI's immutable GovEngine source checkout is advanced to
+  `c9df37ad0245f31990652131df38326452c5a897` for the optional governed-admission
+  source surface; package versions and dependency pins are unchanged.
 
 ### Fixed
 
@@ -121,6 +129,10 @@ source candidates and milestone-level development notes are preserved in the
 - The private controller lifecycle does not change the public `RuntimeStore`
   protocol, queue schemas/results, recovery-report schema or custom-adapter
   contract.
+- Governed-attempt mechanics do not enable `mutation_ready`, add a production
+  approval/revocation provider, certify live infrastructure, guarantee external
+  exactly-once effects, publish a release, or claim that public
+  `govengine==1.0.0rc1` already contains the optional source surface.
 
 ## [1.0.0rc1] - 2026-07-25
 

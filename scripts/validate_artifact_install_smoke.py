@@ -14,8 +14,20 @@ import tarfile
 import tempfile
 import time
 import tomllib
+import zipfile
 from collections.abc import Callable, Sequence
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
+from typing import NamedTuple
+
+from packaging.utils import (
+    InvalidName,
+    InvalidWheelFilename,
+    canonicalize_name,
+    parse_wheel_filename,
+)
+from packaging.version import InvalidVersion, Version
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -90,6 +102,75 @@ _FIRST_RUN_SHA256 = {
         "20ba5114e9a452990ec5b74cc76f3b8c0a3282d5a702bba2ca12ce62a39d0a17"
     ),
 }
+
+_CANDIDATE_PROVENANCE_CHECK = r"""\
+import importlib.metadata
+import json
+import re
+import sys
+
+
+def normalize(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+expected = json.loads(sys.argv[1])
+installed = list(importlib.metadata.distributions())
+for candidate in expected:
+    matches = [
+        distribution
+        for distribution in installed
+        if normalize(str(distribution.metadata.get("Name", ""))) == candidate["name"]
+    ]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"candidate_provenance_invalid:installed_count:{candidate['name']}:{len(matches)}"
+        )
+    distribution = matches[0]
+    if distribution.version != candidate["version"]:
+        raise SystemExit(
+            "candidate_provenance_invalid:version:"
+            f"{candidate['name']}:{distribution.version}:{candidate['version']}"
+        )
+    raw_direct_url = distribution.read_text("direct_url.json")
+    if raw_direct_url is None:
+        raise SystemExit(f"candidate_provenance_invalid:direct_url_missing:{candidate['name']}")
+    try:
+        direct_url = json.loads(raw_direct_url)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise SystemExit(
+            f"candidate_provenance_invalid:direct_url_malformed:{candidate['name']}:{exc}"
+        ) from exc
+    if direct_url.get("url") != candidate["uri"]:
+        raise SystemExit(
+            "candidate_provenance_invalid:source:"
+            f"{candidate['name']}:{direct_url.get('url')}:{candidate['uri']}"
+        )
+    archive_info = direct_url.get("archive_info")
+    if not isinstance(archive_info, dict):
+        raise SystemExit(f"candidate_provenance_invalid:archive_info:{candidate['name']}")
+    hashes = archive_info.get("hashes")
+    observed_hash = hashes.get("sha256") if isinstance(hashes, dict) else None
+    if observed_hash is None:
+        legacy_hash = archive_info.get("hash")
+        prefix = "sha256="
+        if isinstance(legacy_hash, str) and legacy_hash.startswith(prefix):
+            observed_hash = legacy_hash[len(prefix):]
+    if observed_hash != candidate["sha256"]:
+        raise SystemExit(
+            "candidate_provenance_invalid:sha256:"
+            f"{candidate['name']}:{observed_hash}:{candidate['sha256']}"
+        )
+print(f"candidate_provenance_ok:count={len(expected)}")
+"""
+
+
+class CandidateWheel(NamedTuple):
+    normalized_name: str
+    version: str
+    path: Path
+    uri: str
+    sha256: str
 
 
 def _python(venv: Path) -> Path:
@@ -262,14 +343,146 @@ def _resolve_wheel(dist_dir: Path) -> Path:
     return _select_artifact(dist_dir, "*.whl", "wheel")
 
 
-def _candidate_install_options(candidate_wheel_dirs: Sequence[Path]) -> list[str]:
-    options: list[str] = []
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _candidate_wheel(path: Path) -> CandidateWheel:
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise RuntimeError(f"candidate_wheel_unreadable:{path}:{exc}") from exc
+    try:
+        with zipfile.ZipFile(resolved) as archive:
+            bad_member = archive.testzip()
+            if bad_member is not None:
+                raise RuntimeError(f"candidate_wheel_corrupt:{resolved}:{bad_member}")
+            members = archive.namelist()
+            if any(
+                member.startswith("/") or ".." in Path(member).parts
+                for member in members
+            ):
+                raise RuntimeError(f"candidate_wheel_unsafe_member:{resolved}")
+            dist_info_dirs = {
+                member.split("/", 1)[0]
+                for member in members
+                if "/" in member and member.split("/", 1)[0].endswith(".dist-info")
+            }
+            if len(dist_info_dirs) != 1:
+                raise RuntimeError(
+                    f"candidate_wheel_dist_info_count:{resolved}:{len(dist_info_dirs)}"
+                )
+            dist_info = next(iter(dist_info_dirs))
+            metadata_member = f"{dist_info}/METADATA"
+            if members.count(metadata_member) != 1:
+                raise RuntimeError(f"candidate_wheel_metadata_count:{resolved}")
+            metadata_bytes = archive.read(metadata_member)
+    except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
+        raise RuntimeError(f"candidate_wheel_invalid_zip:{resolved}:{exc}") from exc
+
+    metadata = BytesParser(policy=policy.compat32).parsebytes(metadata_bytes)
+    names = metadata.get_all("Name", [])
+    versions = metadata.get_all("Version", [])
+    if len(names) != 1 or len(versions) != 1:
+        raise RuntimeError(f"candidate_wheel_metadata_identity:{resolved}")
+    raw_name = str(names[0]).strip()
+    raw_version = str(versions[0]).strip()
+    try:
+        normalized_name = str(canonicalize_name(raw_name, validate=True))
+        parsed_version = Version(raw_version)
+    except (InvalidName, InvalidVersion) as exc:
+        raise RuntimeError(f"candidate_wheel_metadata_invalid:{resolved}:{exc}") from exc
+    dist_info_identity = dist_info.removesuffix(".dist-info")
+    if "-" not in dist_info_identity:
+        raise RuntimeError(f"candidate_wheel_dist_info_identity:{resolved}:{dist_info}")
+    dist_info_name, dist_info_version = dist_info_identity.rsplit("-", 1)
+    try:
+        normalized_dist_info_name = str(canonicalize_name(dist_info_name, validate=True))
+        parsed_dist_info_version = Version(dist_info_version)
+    except (InvalidName, InvalidVersion) as exc:
+        raise RuntimeError(
+            f"candidate_wheel_dist_info_identity:{resolved}:{dist_info}"
+        ) from exc
+    if normalized_dist_info_name != normalized_name or parsed_dist_info_version != parsed_version:
+        raise RuntimeError(f"candidate_wheel_identity_mismatch:{resolved}:{dist_info}")
+    try:
+        wheel_name, wheel_version, _build, _tags = parse_wheel_filename(resolved.name)
+    except InvalidWheelFilename as exc:
+        raise RuntimeError(f"candidate_wheel_filename_invalid:{resolved}:{exc}") from exc
+    if str(wheel_name) != normalized_name or wheel_version != parsed_version:
+        raise RuntimeError(f"candidate_wheel_filename_mismatch:{resolved}:{dist_info}")
+    if normalized_name == "rexecop":
+        raise RuntimeError(f"candidate_wheel_rexecop_forbidden:{resolved}")
+    digest = _sha256_file(resolved)
+    return CandidateWheel(
+        normalized_name=normalized_name,
+        version=raw_version,
+        path=resolved,
+        uri=resolved.as_uri(),
+        sha256=digest,
+    )
+
+
+def _candidate_wheels(candidate_wheel_dirs: Sequence[Path]) -> tuple[CandidateWheel, ...]:
+    candidates: list[CandidateWheel] = []
+    seen_names: set[str] = set()
     for wheel_dir in candidate_wheel_dirs:
         resolved = wheel_dir.resolve()
         if not resolved.is_dir():
             raise RuntimeError(f"candidate_wheel_dir_missing:{resolved}")
-        options.extend(["--find-links", str(resolved)])
-    return options
+        wheel_paths = sorted(path for path in resolved.glob("*.whl") if path.is_file())
+        if not wheel_paths:
+            raise RuntimeError(f"candidate_wheel_dir_empty:{resolved}")
+        for wheel_path in wheel_paths:
+            candidate = _candidate_wheel(wheel_path)
+            if candidate.normalized_name in seen_names:
+                raise RuntimeError(f"candidate_wheel_duplicate_name:{candidate.normalized_name}")
+            seen_names.add(candidate.normalized_name)
+            candidates.append(candidate)
+    return tuple(sorted(candidates, key=lambda item: item.normalized_name))
+
+
+def _candidate_install(
+    candidate_wheel_dirs: Sequence[Path],
+    workspace: Path,
+) -> tuple[list[str], tuple[CandidateWheel, ...]]:
+    if not candidate_wheel_dirs:
+        return [], ()
+    candidates = _candidate_wheels(candidate_wheel_dirs)
+    constraint = workspace / "candidate-constraints.txt"
+    lines = [
+        f"{candidate.normalized_name} @ {candidate.uri}#sha256={candidate.sha256}"
+        for candidate in candidates
+    ]
+    constraint.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return ["--constraint", str(constraint)], candidates
+
+
+def _candidate_provenance_command(
+    venv_python: str | Path,
+    candidates: Sequence[CandidateWheel],
+) -> list[str]:
+    expected: list[dict[str, str]] = []
+    for candidate in candidates:
+        observed_digest = _sha256_file(candidate.path)
+        if observed_digest != candidate.sha256:
+            raise RuntimeError(
+                "candidate_wheel_digest_changed:"
+                f"{candidate.normalized_name}:{observed_digest}:{candidate.sha256}"
+            )
+        expected.append(
+            {
+                "name": candidate.normalized_name,
+                "version": candidate.version,
+                "uri": candidate.uri,
+                "sha256": candidate.sha256,
+            }
+        )
+    return [str(venv_python), "-c", _CANDIDATE_PROVENANCE_CHECK, json.dumps(expected)]
 
 
 def _rexecop(venv: Path) -> Path:
@@ -283,12 +496,17 @@ def _run_installed_workflow(
     workspace: Path,
     python: str,
     version: str,
-    candidate_options: list[str],
+    candidate_wheel_dirs: Sequence[Path],
     stage: Callable[..., subprocess.CompletedProcess[str]],
 ) -> int:
     venv = workspace / "venv"
     empty_cwd = workspace / "empty-cwd"
     empty_cwd.mkdir()
+    try:
+        candidate_options, candidates = _candidate_install(candidate_wheel_dirs, workspace)
+    except RuntimeError as exc:
+        print(f"artifact_install_smoke_failed:{exc}", file=sys.stderr)
+        return 1
     create = stage([python, "-m", "venv", str(venv)], cwd=ROOT, timeout=_VENV_TIMEOUT_SECONDS)
     if create.returncode != 0:
         print(create.stderr, file=sys.stderr)
@@ -314,6 +532,21 @@ def _run_installed_workflow(
         print(install.stdout)
         print(install.stderr, file=sys.stderr)
         return install.returncode
+    if candidates:
+        try:
+            provenance_command = _candidate_provenance_command(venv_python, candidates)
+        except RuntimeError as exc:
+            print(f"artifact_install_smoke_failed:{exc}", file=sys.stderr)
+            return 1
+        provenance = stage(
+            provenance_command,
+            cwd=empty_cwd,
+            timeout=_SURFACE_TIMEOUT_SECONDS,
+        )
+        if provenance.returncode != 0:
+            print(provenance.stdout)
+            print(provenance.stderr, file=sys.stderr)
+            return provenance.returncode
     pip_check = stage(
         [venv_python, "-m", "pip", "check"],
         cwd=ROOT,
@@ -636,11 +869,6 @@ def main() -> int:
                 print(build.stdout)
                 print(build.stderr, file=sys.stderr)
                 return build.returncode
-        try:
-            candidate_options = _candidate_install_options(args.candidate_wheel_dir)
-        except RuntimeError as exc:
-            print(f"artifact_install_smoke_failed:{exc}", file=sys.stderr)
-            return 1
         wheel, sdist = _resolve_artifacts(dist_dir)
         for artifact_kind, artifact in (("wheel", wheel), ("sdist", sdist)):
             workspace = tmp_root / artifact_kind
@@ -651,7 +879,7 @@ def main() -> int:
                 workspace=workspace,
                 python=python,
                 version=version,
-                candidate_options=candidate_options,
+                candidate_wheel_dirs=args.candidate_wheel_dir,
                 stage=stage,
             )
             if workflow_result != 0:

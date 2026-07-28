@@ -80,7 +80,11 @@ outside the profile workflow.
 - `governance_bindings`: per-step `RuntimeReceiptBinding v1` plus GovEngine
   `ReceiptConformanceResult v1` for signed-decision attempts; binds decision,
   immutable runtime permit, attempt, lease/fencing, inventory and output
-  postconditions without embedding the signed decision or authorization nonce
+  postconditions without embedding the signed decision or authorization nonce.
+  A governed mutation additionally projects
+  `rexecop.governed_admission_binding.v0.1`: actual operation mode, composite
+  admission/request/decision/approval digests, and decision expiry. The permit
+  and receipt carry the same bounded binding.
 - HTTP step bindings carry normalized scheme, effective port, address class and
   origin-binding digest. Per-step receipts compare the planned and observed
   destination binding and include the GovEngine admission/request digests; raw
@@ -160,9 +164,12 @@ Rollback uses the same request, attempt, permit and receipt machinery as forward
 separate rollback operation/plan persists the exact declared rollback mode and steps, its failed
 parent id, parent-plan digest, rollback-plan digest, and a stable failure-authority digest. The
 plan-level GovEngine request is new and includes that exact rollback scope. Every rollback
-connector attempt obtains and consumes its own signed decision/authorization nonce; it is bound to
-the rollback operation, attempt, execution spec, permit and active lease, not to the parent's
-decision or approval.
+connector attempt obtains and consumes its own approval-attested composite admission
+and signed decision/authorization nonce; it is bound to the rollback operation,
+attempt, execution spec, permit and active lease, not to the parent's decision
+or approval. The operation, permit, governed admission, and receipt keep
+`recovery`; only the nested unchanged typed-execution v0.1 compatibility
+request uses `apply`.
 
 Before start and again immediately before connector I/O, the runtime recomputes the parent failure
 authority from the parent id, `failed` state, bounded `last_failure`, terminal forward execution

@@ -28,13 +28,18 @@ def test_stack_contract_golden_matches_runtime_matrix() -> None:
     assert report["compatibility_policy"] == golden["compatibility_policy"]
     assert not validate_sclite_artifact_pins()
 
-    projection_ids = {
-        item["surface_id"] for item in report["runtime_projections"]["projections"]
-    }
+    projection_ids = {item["surface_id"] for item in report["runtime_projections"]["projections"]}
     assert set(golden["required_runtime_projections"]).issubset(projection_ids)
 
     matched = set(report["govengine_contracts"]["matched_contracts"])
     assert set(golden["required_govengine_contracts"]).issubset(matched)
+    optional_contracts = {
+        item["surface_id"]
+        for item in report["govengine_contracts"]["optional_contracts"]
+        if item["status"] == "supported"
+    }
+    assert set(golden["optional_govengine_contracts"]).issubset(optional_contracts)
+    assert set(golden["optional_runtime_projections"]).issubset(projection_ids)
 
     sclite_versions = {
         item["role"]: item["schema_version"] for item in report["sclite_artifact_refs"]

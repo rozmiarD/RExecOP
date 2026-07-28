@@ -15,6 +15,7 @@ TESTS = (
     "tests/test_m95_execution_permit.py",
     "tests/test_m9_attempts.py",
     "tests/test_m95_runtime_ports.py",
+    "tests/test_rollback_contract.py::test_rollback_uses_distinct_durable_authority_and_is_idempotent",
     "tests/test_trigger_events.py::test_trigger_event_plans_operation_and_records_decision_evidence",
     "tests/test_watchdog_runtime.py::test_watchdog_records_worker_heartbeat",
     "tests/test_reaction_interpreter.py::test_automation_adapter_is_planning_only_and_carries_no_execution_authority",
@@ -34,6 +35,8 @@ def main() -> int:
         "g3_runtime_governance_gate_ok:attempt_preallocation=OK:"
         "trusted_decision=OK:runtime_binding=OK:decision_claim_port=OK:"
         "atomic_claim=OK:"
+        "governed_approval=OK:current_revocation=OK:"
+        "recovery_alias=OK:fresh_rollback_authority=OK:"
         "runtime_attempt_permit=OK:pre_io_attempt_journal=OK:"
         "receipt_conformance=OK:sclite_receipt_projection=OK:"
         "legacy_fallbacks_removed=OK:post_io_output_digest=OK:"

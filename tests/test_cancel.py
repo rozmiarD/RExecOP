@@ -92,7 +92,7 @@ def test_public_cancel_cleans_each_advertised_source_state_without_connector_io(
     source_state: OperationState,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     decision = (
         GovEngineDecisionType.APPROVAL_REQUIRED
@@ -205,7 +205,7 @@ def test_public_cancel_rejects_representative_unsupported_nonterminal_state(
 def test_repeated_public_cancel_is_idempotent_cleanup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    allow_mutation_without_governance_for_runtime_test: None,
+    allow_lab_mutation_runtime_test: None,
 ) -> None:
     controller = _controller(tmp_path, GovEngineDecisionType.ALLOWED)
     operation = _prepare_source_state(controller, OperationState.RUNNING)
