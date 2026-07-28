@@ -165,6 +165,19 @@ class WorkerLeaseManager:
             if self.is_stale(existing, now=now):
                 raise RExecOpLeaseLost("execution lease expired")
 
+    @contextmanager
+    def guard(self, lease: Mapping[str, Any]) -> Iterator[None]:
+        """Hold exact worker ownership while a queue transaction is committed."""
+        with self._locked():
+            existing = self._require_owner(
+                str(lease.get("owner_token") or ""),
+                int(lease.get("lease_epoch") or 0),
+                str(lease.get("process_instance_id") or ""),
+            )
+            if self.is_stale(existing):
+                raise RExecOpLeaseLost("execution lease expired")
+            yield
+
     def _require_owner(
         self, owner_token: str, lease_epoch: int, process_instance_id: str
     ) -> dict[str, Any]:

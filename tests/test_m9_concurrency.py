@@ -53,12 +53,8 @@ def test_stale_operation_revision_fails_with_stable_conflict(tmp_path: Path, bac
     assert store.load_operation(operation.id).metadata["writer"] == "first"
 
 
-def _claim_queue(root: str, result: Any) -> None:
-    claim = RunNowQueue(FileStore(Path(root))).claim(
-        owner_token=multiprocessing.current_process().name,
-        lease_epoch=1,
-        process_instance_id=multiprocessing.current_process().name,
-    )
+def _claim_queue(root: str, lease: dict[str, Any], result: Any) -> None:
+    claim = RunNowQueue(FileStore(Path(root))).claim_from_lease(lease)
     result.put(None if claim is None else claim["operation_id"])
 
 
@@ -217,11 +213,15 @@ def _exercise_projection_failure(root: str, barrier: Any, result: Any) -> None:
 
 def test_queue_claim_is_atomic_across_processes(tmp_path: Path) -> None:
     root = tmp_path / ".rexecop"
-    queue = RunNowQueue(FileStore(root))
+    store = FileStore(root)
+    queue = RunNowQueue(store)
     queue.enqueue("op-first")
+    lease = store.acquire_execution_lease(worker_id="queue-concurrency-test")
     context = multiprocessing.get_context("spawn")
     result = context.Queue()
-    processes = [context.Process(target=_claim_queue, args=(str(root), result)) for _ in range(2)]
+    processes = [
+        context.Process(target=_claim_queue, args=(str(root), lease, result)) for _ in range(2)
+    ]
     for process in processes:
         process.start()
     _join_owned_processes(processes)

@@ -73,6 +73,75 @@ Configured per environment under `safety`:
 Queued operations stay in `approved` with `metadata.queue.status = pending` until the runtime
 coordinator admits them after a slot frees.
 
+Direct start, an `approved` `advance`, and FIFO drain consume pending work only
+through the controller's private claim-specific path. Public coordinator
+admission does not consume or carry a claim: when compatible bare pending state
+exists, it returns `queued` without changing queue bytes, operation metadata or
+target locks. Fenced or invalid queue state fails before those mutations.
+
+Queue claims carry the complete current worker-lease identity. If a worker
+dies immediately after claiming but before any lifecycle transition or attempt
+record, a later strictly newer lease may requeue the still-`approved` operation
+exactly once. Recovery does not replay active, transitioned, attempted,
+indeterminate, missing, malformed, or inconsistent work. Those cases either
+follow startup interruption/attempt recovery to terminal claim completion or
+stop with the bounded `queue_claim_recovery_blocked` error before connector IO.
+
+The exact claim tuple is operation id, owner token, process instance id, lease
+epoch and queue attempt. Capacity or target-lock admission deferral verifies
+that tuple under the worker-lease and queue locks, records one `requeued`
+transition and preserves one pending entry. A repeated disposition for the
+same tuple is a no-op; a delayed defer or completion from an earlier queue
+attempt is fenced. If side-effect-free assessment admits an operation but the
+final target-lock acquisition returns false, the controller exact-defers that
+claim as `target_locked`. Exceptions raised by final acquisition or subsequent
+persistence propagate without being relabelled or deferred. Operation queue
+metadata is projected only after the queue transaction, so this is not a
+cross-file ACID or backend exactly-once claim.
+
+After a direct start or approved `advance` produces a durable terminal operation
+and attempt result, the controller releases only that operation's target lock,
+ensures the terminal receipt, exact-completes the selected claim, and only then
+drains trailing work. A hard receipt failure leaves the exact claim `claimed`
+and suppresses the drain. Existing strictly newer-lease recovery can close an
+expired terminal claim; repeated terminal start then repairs the receipt without
+connector replay. Terminal cleanup bypasses execution posture, maintenance,
+catalog and rollback-execution checks and performs no connector IO.
+
+An approved `advance` that durably completes only part of the workflow
+exact-completes its admission claim after that progress, retains its target lock,
+and produces neither a terminal receipt nor a trailing drain. A later `running`
+`advance` continues without creating another queue claim.
+
+Cancellation cleanup begins only after the lifecycle has validly and durably
+entered `cancelled`. The controller then removes compatible queue state through
+the private lease-fenced path, releases the target and drains trailing work.
+Repeating cleanup repairs interruption after the state transition or after queue
+removal. An unfinished `pending` or `started` attempt blocks before queue change,
+target release or drain. This ordering does not expand the canonical lifecycle
+source states accepted by `cancel`; in particular, it is not a claim that
+`approved` or `paused` cancellation is supported.
+
+Public queue mutators, including public runtime release, retain compatibility
+for empty, bare and completed state. Release validates and removes compatible
+queue state before releasing the target. A `claimed` or `requeued` fence, or an
+invalid topology, fails without changing queue bytes or releasing the target.
+
+The private transition records bounded process identities, not owner-token
+fields. If either bounded prior or current process identity is exactly equal to
+either raw prior or current owner token, it is replaced by a deterministic,
+bounded marker unequal to both tokens. Non-equal process identities remain
+exact. This is an exact-value redaction rule; it does not claim protection from
+arbitrary private-runtime-root manipulation or unrelated substring similarity.
+
+Queue lifecycle operations use one private capability bound to the exact
+built-in `FileStore`, `InMemoryStore` or `SqliteStore` instance. Custom storage
+adapters and subclasses do not inherit that claim: they fail with the stable
+`queue_claim_lifecycle_unsupported` error before queue mutation, public
+queue-port calls or filesystem queue creation. Supporting such a store requires
+an explicit implementation decision; RExecOp does not mix a logical adapter
+claim with a filesystem disposition fallback.
+
 ## Rollback operations
 
 `rollback` does not run the failed operation's rollback block in place. It creates a separate,
@@ -100,6 +169,13 @@ authority preflight before maintenance, admission or queue mutation. Resume repe
 first transition/evidence event, and execution repeats it before permit allocation and immediately
 before rollback connector I/O. Catalog, profile or environment drift therefore stops the child
 without a connector call.
+
+If that existing rollback-authority preflight fails after FIFO has selected a
+derived rollback child, the controller exact-completes the selected snapshot,
+removes the completed claim and operation queue metadata, and re-raises the
+original validation error. This is queue cleanup only: it performs no connector
+IO and adds no rollback execution, automatic retry or indeterminate-outcome
+resolution behavior.
 
 Immediately before rollback start and connector I/O, RExecOp verifies that the parent is still
 `failed` and that its failure/terminal receipt and parent plan still match the persisted failure
@@ -140,8 +216,13 @@ approve, re-evaluate policy reasoning, or expose connector configuration.
 `FileStore` is the default backend under the selected runtime root. Select the root with
 global `--root`, `REXECOP_ROOT`, named `--instance`, `REXECOP_INSTANCE`, or fallback
 `./.rexecop`. Set `REXECOP_STORAGE=sqlite` or pass `--storage sqlite` for
-SQLite-backed operations, plans, and evidence (`<root>/rexecop.db`).
+SQLite-backed operations, plans, and evidence (`<root>/rexecop.db`); its
+single-host queue, lease and durable attempt-journal auxiliaries remain under
+the selected runtime root and are inventoried through the same logical store
+port.
 `storage/port.py` defines `OperationStoragePort` and `RuntimeStore` for optional backends.
+The public `RuntimeStore` protocol does not promise the private built-in queue
+claim lifecycle described above.
 
 Operation metadata persists `profile_root` and sanitized `environment_connectors` for runtime
 connector routing (`CompositeConnectorRuntime`).

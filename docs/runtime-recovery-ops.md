@@ -45,6 +45,7 @@ rexecop --root /operator/rexecop-runtime runtime recover --json
 - releases stale advisory target locks;
 - marks interrupted active operations `failed` with a recovery transition;
 - converts connector attempts left `started` into deterministic `indeterminate` records;
+- reconciles expired queue claims only after those operation and attempt checks;
 - repairs or blocks on terminal operations missing receipt artifacts;
 - reconciles pending terminal SCLite projections without re-running connector IO.
 
@@ -56,6 +57,73 @@ logical replay and key drift; by themselves they do **not** prevent duplicate ba
 invocation. Connector attempts are persisted before IO. A process loss after IO but before
 the durable result becomes `outcome_indeterminate`; side-effectful work is never retried
 automatically and requires explicit reconciliation.
+
+Expired queue claims have one automatic requeue case. It does not replay an
+attempt: the current fresh worker lease has a strictly newer epoch, its lease
+lock remains held through the queue transaction, the operation is still exactly
+`approved`,
+and its logical runtime store contains no execution-attempt record. Recovery
+records a bounded private `last_transition` projection and requeues that operation
+once. Any attempt record, active or other non-terminal state, missing or
+malformed record, invalid expiry, stale or mismatched lease, or inconsistent
+queue topology fails closed as `queue_claim_recovery_blocked`. Startup first
+marks active operations interrupted and converts `started` attempts, then
+terminally closes their abandoned claim without connector replay. A stale
+worker cannot complete a recovered or subsequently claimed item.
+The private `last_transition` value has one closed, size-bounded schema;
+unknown fields, owner-token fields, invalid types or unrecognized values block
+before dequeue. The owner token exists only in the top-level claim. It remains
+part of the exact fencing tuple with operation id, process instance id, lease
+epoch and queue attempt, but neither its key nor value is copied into the
+redacted transition. If a bounded prior or current process identity exactly
+equals either raw prior or current owner token, the transition stores a
+deterministic bounded marker that differs from both tokens; non-equal process
+identities remain exact. This rule covers exact value aliasing only. It is not a
+claim against arbitrary private-runtime-root manipulation or unrelated
+substring similarity.
+
+Claim, admission defer, completion and recovery resolve the same private queue
+lifecycle bound to the exact built-in `FileStore`, `InMemoryStore` or
+`SqliteStore` object. Custom adapters and subclasses are not implicitly
+compatible: without explicit built-in support they fail with
+`queue_claim_lifecycle_unsupported` before queue mutation, a public queue-port
+call or filesystem queue creation. This is an explicit non-claim for external
+storage adapters, not a fallback contract. Transactions acquire the worker
+lease lock before the run-now queue lock whenever a claim disposition or
+recovery needs both; logical operation and attempt facts are then read under
+that lock set. Operation metadata and target-lock writes occur after the lock
+set is released. This ordering does not make queue state and those other files
+one cross-file ACID transaction.
+
+Direct start, approved `advance` and FIFO drain use the controller's private
+claim-specific path. Public admission leaves compatible bare pending state
+queued and byte-identical. Once selected, capacity or final target contention
+exact-defers the snapshot with one pending entry; stale completion or defer is
+fenced. Public queue mutation and public release validate compatible state
+before target release, so fenced or invalid state changes neither queue bytes
+nor target ownership.
+
+After a durable terminal operation and attempt result, the order is target-only
+release, terminal receipt, exact claim completion and trailing drain. A hard
+receipt failure leaves the snapshot `claimed` and suppresses drain. Existing
+strictly newer-lease claim recovery closes an expired terminal claim, and a
+repeated terminal start repairs the missing receipt without connector replay.
+Terminal cleanup does not execute the connector. A partial approved `advance`
+exact-completes only its admission claim after durable progress, retains the
+target, and emits no terminal receipt or drain; later `running` advance creates
+no replacement claim.
+
+Cancellation cleanup starts only after a valid durable `cancelled` transition:
+lease-fenced queue removal, target release, then drain. Repeated cleanup repairs
+either interruption boundary, while unfinished `pending` or `started` attempts
+block before queue mutation, target release or drain. This does not assert that
+`approved` or `paused` are valid cancellation source states.
+
+When the existing authority preflight for a FIFO-selected derived rollback
+candidate fails, the controller exact-completes and removes that claim and its
+queue metadata before re-raising the same validation error. The cleanup performs
+no connector IO and adds no rollback execution, retry, replay or automatic
+pending/indeterminate resolution semantics.
 
 Before connector IO, RExecOp preallocates `attempt_id`, then writes and
 verifies `rexecop.runtime_attempt_permit.v0.1`. The permit binds the current operation
@@ -74,6 +142,10 @@ the signed-decision authority port; that label is not a governance authenticity 
 Recovery never clears governance claims, so an indeterminate attempt cannot reuse its
 old decision. The runtime permit remains a RExecOp freshness/binding record, not a
 GovEngine policy decision or canonical SCLite artifact.
+
+This is single-host queue reconciliation, not backend exactly-once delivery,
+claim renewal, distributed scheduling, automatic retry/rollback, or automatic
+resolution of pending, attempted, or indeterminate work.
 
 ## Runtime-store reconstruction status
 

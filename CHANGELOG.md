@@ -29,6 +29,42 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Fixed
 
+- Made admission defer atomic within the exact lease-fenced queue transaction
+  and eliminated mixed-backend claim/disposition lifecycle paths by routing all
+  built-in queue operations through one store-bound private capability;
+  unsupported custom adapters and subclasses now stop before queue mutation or
+  filesystem fallback.
+- Exact-defer a claimed operation as `target_locked` when final target-lock
+  acquisition loses a post-assessment race; later acquisition or persistence
+  exceptions now propagate without being relabelled as ordinary contention.
+- Redact bounded process identities from private queue transitions when their
+  exact value aliases either the prior or current owner token, without storing
+  token hashes or adding transition fields.
+- Reconciled expired single-host queue claims under one lock and complete fresh
+  lease fencing: only a still-approved operation with zero logical-store
+  attempts is requeued, while transitioned, attempted, indeterminate, missing,
+  malformed or inconsistent cases stop before connector IO with a bounded
+  recovery record and stable redacted error.
+- Bound direct start, approved `advance` and FIFO drain to the controller's
+  private claim-specific path. Compatible bare pending state remains queued and
+  byte-identical through public admission; capacity and target contention
+  exact-defer the selected claim instead of discarding or replaying it.
+- Ordered terminal claim ownership after the durable operation and attempt
+  result as target-only release, terminal receipt, exact claim completion and
+  trailing drain. A hard receipt failure leaves the claim fenced and suppresses
+  drain; existing newer-lease recovery plus repeated terminal cleanup repairs
+  it without invoking the connector again. Partial approved `advance` instead
+  completes only its admission claim, retains the target lock and emits no
+  terminal receipt or trailing drain.
+- Ordered cancellation cleanup after a valid durable `cancelled` transition as
+  lease-fenced queue removal, target release and trailing drain; this does not
+  expand the lifecycle states from which cancellation is valid. Public queue
+  mutation and release now validate compatible state before target release,
+  while fenced or invalid state fails without changing queue bytes or target.
+- Cleaned up a derived rollback FIFO claim when the existing rollback-authority
+  preflight fails: the exact claim is completed and removed with queue metadata
+  before the original validation error is re-raised, without connector IO or
+  any new rollback execution or retry behavior.
 - Replaced permissive YAML ingestion with one bounded, alias-free,
   duplicate-key-safe parser across environment, profile, catalog, action,
   reaction, trigger and secrets boundaries; non-finite values now also fail
@@ -62,6 +98,16 @@ source candidates and milestone-level development notes are preserved in the
   not part of the RExecOp evidence inventory.
 - Made source-bound review records fail closed on invalid versions, legacy
   schemas and any release-commit delta beyond the review record itself.
+
+### Non-claims
+
+- Queue reconciliation does not provide backend exactly-once execution, a
+  distributed queue, cross-file ACID, claim renewal or power-loss durability.
+- Expired-claim requeue does not repeat an attempt, trigger retry or rollback,
+  or resolve pending, attempted or indeterminate work automatically.
+- The private controller lifecycle does not change the public `RuntimeStore`
+  protocol, queue schemas/results, recovery-report schema or custom-adapter
+  contract.
 
 ## [1.0.0rc1] - 2026-07-25
 

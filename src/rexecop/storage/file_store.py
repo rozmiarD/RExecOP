@@ -220,39 +220,31 @@ class FileStore:
 
         WorkerLeaseManager(self.root).validate(lease)
 
-    def _queue(self) -> Any:
+    def _queue_claim_lifecycle(self) -> Any:
         from rexecop.runtime_ops.queue import RunNowQueue
 
         return RunNowQueue(self)
 
     def queue_list_pending(self) -> list[str]:
-        return self._queue().list_pending()
+        return self._queue_claim_lifecycle().list_pending()
 
     def queue_position(self, operation_id: str) -> int | None:
-        return self._queue().position(operation_id)
+        return self._queue_claim_lifecycle().position(operation_id)
 
     def queue_enqueue(self, operation_id: str) -> int:
-        return self._queue().enqueue(operation_id)
+        return self._queue_claim_lifecycle().enqueue(operation_id)
 
     def queue_remove(self, operation_id: str) -> None:
-        self._queue().remove(operation_id)
+        self._queue_claim_lifecycle().remove(operation_id)
 
     def queue_discard_pending(self, operation_id: str) -> None:
-        self._queue().discard_pending(operation_id)
+        self._queue_claim_lifecycle().discard_pending(operation_id)
 
     def queue_claim(self, lease: dict[str, Any]) -> dict[str, Any] | None:
-        return self._queue().claim(
-            owner_token=str(lease["owner_token"]),
-            lease_epoch=int(lease["lease_epoch"]),
-            process_instance_id=str(lease["process_instance_id"]),
-        )
+        return self._queue_claim_lifecycle().claim_from_lease(lease)
 
     def queue_complete_claim(self, operation_id: str, lease: dict[str, Any]) -> None:
-        self._queue().complete_claim(
-            operation_id,
-            owner_token=str(lease["owner_token"]),
-            lease_epoch=int(lease["lease_epoch"]),
-        )
+        self._queue_claim_lifecycle().complete_claim_from_lease(operation_id, lease)
 
     def start_execution_attempt(self, **binding: Any) -> dict[str, Any]:
         from rexecop.runtime_ops.attempts import AttemptJournal
@@ -303,6 +295,17 @@ class FileStore:
         from rexecop.runtime_ops.attempts import AttemptJournal
 
         return AttemptJournal(self.root).has_indeterminate_side_effect(operation_id)
+
+    def list_execution_attempts(self, operation_id: str) -> list[dict[str, Any]]:
+        from rexecop.runtime_ops.attempts import AttemptJournal
+
+        return AttemptJournal(self.root).list(operation_id)
+
+    def _queue_claim_facts(
+        self,
+        operation_id: str,
+    ) -> tuple[Operation, list[dict[str, Any]]]:
+        return self.load_operation(operation_id), self.list_execution_attempts(operation_id)
 
     def list_pending_projection_operations(self) -> list[Operation]:
         return [

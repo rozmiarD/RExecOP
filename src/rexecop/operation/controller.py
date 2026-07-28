@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -66,6 +66,7 @@ from rexecop.runtime_ops.idempotency import (
     start_idempotency_key,
 )
 from rexecop.runtime_ops.projection import mark_projection_pending
+from rexecop.runtime_ops.queue import QUEUE_CLAIM_RECOVERY_BLOCKED
 from rexecop.runtime_ops.recovery import ensure_terminal_receipt, start_is_idempotent
 from rexecop.storage.atomic import atomic_write_text
 from rexecop.storage.factory import create_store
@@ -809,20 +810,62 @@ class OperationController:
             "continuation": continuation,
         }
 
-    def _start_operation(self, operation_id: str, *, drain_queue: bool) -> Operation:
+    def _start_operation(
+        self,
+        operation_id: str,
+        *,
+        drain_queue: bool,
+        queue_selection: Mapping[str, Any] | None = None,
+    ) -> Operation:
         operation = self.get_operation(operation_id)
+        self.runtime._require_queue_lifecycle()
+        lease = self._execution_lease
+        if lease is None:
+            raise RExecOpConcurrencyConflict(
+                "concurrency_conflict: execution lease missing"
+            )
         if start_is_idempotent(operation):
-            return operation
+            claim_snapshot = self.runtime._claim_terminal_for_controller(
+                operation,
+                lease,
+                selection=queue_selection,
+            )
+            self.runtime._release_target_only(operation)
+            self._ensure_terminal_receipt_if_needed(operation_id)
+            if claim_snapshot is not None:
+                self.runtime.queue.complete_claim_from_lease(
+                    operation_id,
+                    lease,
+                    claim_snapshot=claim_snapshot,
+                )
+            if drain_queue:
+                self._drain_queue()
+            return self.get_operation(operation_id)
         plan = self.orchestrator.preflight_rollback_authority(operation)
         require_mutation_execution_enabled(operation.mode)
         self._verify_catalog_binding(operation, plan)
-        if operation.state == OperationState.APPROVED.value and is_mutating_mode(operation.mode):
-            self.runtime.check_maintenance_window(operation)
-            if self.runtime.admit_for_execution(operation) == "queued":
+        admission = None
+        if operation.state == OperationState.APPROVED.value:
+            if is_mutating_mode(operation.mode):
+                self.runtime.check_maintenance_window(operation)
+            admission = self.runtime._admit_for_controller(
+                operation,
+                lease,
+                selection=queue_selection,
+            )
+            if admission.status == "queued":
                 return self.get_operation(operation_id)
+        elif queue_selection is not None:
+            raise RExecOpValidationError(QUEUE_CLAIM_RECOVERY_BLOCKED) from None
         result = self.orchestrator.start(operation_id)
-        self._release_runtime_if_terminal(result)
+        self._release_runtime_if_terminal(result, target_only=True)
         self._ensure_terminal_receipt_if_needed(operation_id)
+        if admission is not None and admission.claim_snapshot is not None:
+            self.runtime.queue.complete_claim_from_lease(
+                operation_id,
+                lease,
+                claim_snapshot=admission.claim_snapshot,
+            )
         if drain_queue:
             self._drain_queue()
         return self.get_operation(operation_id)
@@ -852,14 +895,22 @@ class OperationController:
                 "catalog binding drift detected; create a new operation plan"
             )
 
-    def _release_runtime_if_terminal(self, operation: Operation) -> None:
+    def _release_runtime_if_terminal(
+        self,
+        operation: Operation,
+        *,
+        target_only: bool = False,
+    ) -> None:
         if operation.state in {
             OperationState.COMPLETED.value,
             OperationState.FAILED.value,
             OperationState.CANCELLED.value,
             OperationState.ESCALATED.value,
         }:
-            self.runtime.release_operation(operation)
+            if target_only:
+                self.runtime._release_target_only(operation)
+            else:
+                self.runtime.release_operation(operation)
 
     def _ensure_terminal_receipt_if_needed(self, operation_id: str) -> None:
         ensure_terminal_receipt(self, operation_id)
@@ -874,25 +925,34 @@ class OperationController:
             if claim is None:
                 break
             next_id = str(claim["operation_id"])
+            selection = self.runtime._selection_from_existing_claim(
+                next_id,
+                lease,
+                claim,
+            )
             candidate = self.get_operation(next_id)
-            if candidate.state != OperationState.APPROVED.value:
-                self.runtime.queue.complete_claim_from_lease(next_id, lease)
-                continue
-            try:
-                self.orchestrator.preflight_rollback_authority(candidate)
-            except RExecOpValidationError:
-                derived = candidate.metadata.get("derived_operation")
-                if isinstance(derived, dict) and derived.get("kind") == "rollback":
-                    self.runtime.queue.complete_claim_from_lease(next_id, lease)
-                    self.runtime.queue.remove(next_id)
+            derived = candidate.metadata.get("derived_operation")
+            if isinstance(derived, dict) and derived.get("kind") == "rollback":
+                try:
+                    self.orchestrator.preflight_rollback_authority(candidate)
+                except RExecOpValidationError:
+                    self.runtime.queue._complete_and_remove_claim_from_lease(
+                        next_id,
+                        lease,
+                        claim_snapshot=selection["claim"],
+                    )
                     candidate.metadata.pop("queue", None)
                     self.store.save_operation(candidate)
-                raise
-            if self.runtime.admit_for_execution(candidate) != "admitted":
+                    raise
+            self._start_operation(
+                next_id,
+                drain_queue=False,
+                queue_selection=selection,
+            )
+            if self.runtime.queue.position(next_id) is not None:
                 break
-            self._start_operation(next_id, drain_queue=False)
-            self.runtime.queue.complete_claim_from_lease(next_id, lease)
-            started.append(next_id)
+            if selection["purpose"] == "execution":
+                started.append(next_id)
         return started
 
     def advance(self, operation_id: str, *, max_steps: int = 1) -> Operation:
@@ -900,15 +960,43 @@ class OperationController:
             operation = self.get_operation(operation_id)
             self.orchestrator.preflight_rollback_authority(operation)
             require_mutation_execution_enabled(operation.mode)
-            if operation.state == OperationState.APPROVED.value and is_mutating_mode(
-                operation.mode
-            ):
-                self.runtime.check_maintenance_window(operation)
-                if self.runtime.admit_for_execution(operation) == "queued":
+            admission = None
+            if operation.state == OperationState.APPROVED.value:
+                if is_mutating_mode(operation.mode):
+                    self.runtime.check_maintenance_window(operation)
+                lease = self._execution_lease
+                if lease is None:
+                    raise RExecOpConcurrencyConflict(
+                        "concurrency_conflict: execution lease missing"
+                    )
+                admission = self.runtime._admit_for_controller(operation, lease)
+                if admission.status == "queued":
                     return self.get_operation(operation_id)
             result = self.orchestrator.advance(operation_id, max_steps=max_steps)
-            self._release_runtime_if_terminal(result)
-            self._ensure_terminal_receipt_if_needed(operation_id)
+            claim_snapshot = (
+                admission.claim_snapshot if admission is not None else None
+            )
+            lease = self._execution_lease
+            if lease is None:
+                raise RExecOpConcurrencyConflict(
+                    "concurrency_conflict: execution lease missing"
+                )
+            if start_is_idempotent(result):
+                self.runtime._release_target_only(result)
+                self._ensure_terminal_receipt_if_needed(operation_id)
+                if claim_snapshot is not None:
+                    self.runtime.queue.complete_claim_from_lease(
+                        operation_id,
+                        lease,
+                        claim_snapshot=claim_snapshot,
+                    )
+                self._drain_queue()
+            elif claim_snapshot is not None:
+                self.runtime.queue.complete_claim_from_lease(
+                    operation_id,
+                    lease,
+                    claim_snapshot=claim_snapshot,
+                )
             return self.get_operation(operation_id)
 
     def approve(self, operation_id: str, *, approved_by: str = "operator") -> Operation:
@@ -964,11 +1052,19 @@ class OperationController:
     def cancel(self, operation_id: str) -> Operation:
         with self.execution_lease():
             operation = self.get_operation(operation_id)
-            result = self.orchestrator.cancel(operation_id)
-            self.runtime.release_operation(operation)
-            self.runtime.queue.remove(operation_id)
+            if operation.state == OperationState.CANCELLED.value:
+                result = operation
+            else:
+                result = self.orchestrator.cancel(operation_id)
+            lease = self._execution_lease
+            if lease is None:
+                raise RExecOpConcurrencyConflict(
+                    "concurrency_conflict: execution lease missing"
+                )
+            self.runtime.queue.remove_cancelled_from_lease(operation_id, lease)
+            self.runtime._release_target_only(result)
             self._drain_queue()
-            return result
+            return self.get_operation(operation_id)
 
     def retry(self, operation_id: str) -> Operation:
         with self.execution_lease():

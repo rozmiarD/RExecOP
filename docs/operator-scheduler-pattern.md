@@ -50,6 +50,54 @@ The worker starts only operations eligible under the persisted state and
 current runtime controls. The default `stable_read_only` posture continues to
 block mutating execution.
 
+At startup the worker reconciles abandoned queue claims while holding the
+worker-lease lock and then the queue lock for the complete transaction.
+Only an expired prior-epoch claim for an exactly `approved` operation with zero
+logical-store attempt records is automatically requeued. That queue repair does
+not repeat connector execution. Every attempt-bearing, active,
+indeterminate, missing, malformed, stale-lease or inconsistent case is kept
+from dequeue and connector IO with `queue_claim_recovery_blocked`; active and
+`started` work first follows the ordinary interruption recovery path. This does
+not grant new GovEngine authority or provide distributed exactly-once delivery.
+
+Enqueue, claim, admission defer, completion and recovery all resolve the same
+private lifecycle bound to the exact built-in store. Where all three are
+needed, the lock order is worker lease, then run-now queue, then read-only
+logical operation and attempt facts.
+Admission defer and expired-claim recovery therefore cannot claim in one
+backend and disposition in another. Operation metadata and target-lock changes
+remain outside that lock set; there is no cross-file ACID guarantee. Custom
+storage adapters and built-in subclasses without explicit support stop with
+`queue_claim_lifecycle_unsupported` before queue mutation or filesystem
+fallback.
+
+The controller owns claim-specific consumption for direct start, approved
+`advance` and FIFO drain. Public admission leaves compatible bare pending state
+queued and byte-identical; it does not claim or discard that entry. Once the
+controller owns an exact snapshot, capacity or target contention exact-defers
+that snapshot with one pending entry. Stale dispositions are fenced.
+
+For a durable terminal result, the controller orders target-only release,
+terminal receipt, exact claim completion and trailing drain. A hard receipt
+failure leaves the claim fenced and suppresses drain; strictly newer-lease
+recovery and a repeated terminal cleanup repair the receipt without connector
+replay. A partial approved `advance` instead completes only its admission claim,
+retains the target and performs no terminal receipt or drain.
+
+After a valid durable `cancelled` transition, cleanup removes queue state under
+the current lease, releases the target and drains. Repeating it repairs either
+an interruption before queue cleanup or one before target release. This does not
+claim that `cancel` accepts `approved` or `paused` as source states. A derived
+rollback candidate whose existing authority preflight fails has its FIFO claim
+and queue metadata cleaned before the original error is returned; that cleanup
+does not execute, retry or automatically resolve rollback work.
+
+Public queue mutation and public release validate compatible state before
+target release. Fenced or invalid state leaves both queue bytes and target lock
+unchanged. These mechanics remain single-host: they do not provide a
+distributed queue, cross-file ACID, backend exactly-once execution, claim
+renewal or power-loss durability.
+
 ## Trigger input
 
 A wrapper may submit a bounded JSON request:
@@ -191,6 +239,11 @@ the runtime root and host-owned secret provider.
 ## Operational notes
 
 - FileStore queue and lock mechanics are single-host.
+- The private claim lifecycle is implemented only for exact built-in File,
+  Memory and SQLite stores; it is not a public custom-adapter contract.
+- Expired-claim reconciliation is fenced by a fresh, strictly newer complete
+  worker lease, requeues rather than replays eligible work, and does not renew
+  claims or infer retry policy.
 - Queue state lives under `<root>/queue/`; locks under `<root>/locks/`.
 - Watchdog records live under `<root>/watchdog/`; dead letters under
   `<root>/dead_letter/`.

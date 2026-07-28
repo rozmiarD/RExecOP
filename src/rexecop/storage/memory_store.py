@@ -17,14 +17,12 @@ class InMemoryStore:
         self._plans: dict[str, OperationPlan] = {}
         self._evidence: dict[str, list[dict[str, Any]]] = {}
         self._structured_logs: list[dict[str, Any]] = []
+        self._attempts: dict[tuple[str, str], dict[str, Any]] = {}
         self._file_store = FileStore()
+        self.root = self._file_store.root
 
     def ensure_layout(self) -> None:
         return None
-
-    @property
-    def root(self) -> Any:
-        return self._file_store.root
 
     def save_operation(self, operation: Operation) -> None:
         current = self._operations.get(operation.id)
@@ -113,28 +111,42 @@ class InMemoryStore:
         self._file_store.validate_execution_lease(lease)
 
     def queue_list_pending(self) -> list[str]:
-        return self._file_store.queue_list_pending()
+        return self._queue_claim_lifecycle().list_pending()
 
     def queue_position(self, operation_id: str) -> int | None:
-        return self._file_store.queue_position(operation_id)
+        return self._queue_claim_lifecycle().position(operation_id)
 
     def queue_enqueue(self, operation_id: str) -> int:
-        return self._file_store.queue_enqueue(operation_id)
+        return self._queue_claim_lifecycle().enqueue(operation_id)
 
     def queue_remove(self, operation_id: str) -> None:
-        self._file_store.queue_remove(operation_id)
+        self._queue_claim_lifecycle().remove(operation_id)
 
     def queue_discard_pending(self, operation_id: str) -> None:
-        self._file_store.queue_discard_pending(operation_id)
+        self._queue_claim_lifecycle().discard_pending(operation_id)
 
     def queue_claim(self, lease: dict[str, Any]) -> dict[str, Any] | None:
-        return self._file_store.queue_claim(lease)
+        return self._queue_claim_lifecycle().claim_from_lease(lease)
 
     def queue_complete_claim(self, operation_id: str, lease: dict[str, Any]) -> None:
-        self._file_store.queue_complete_claim(operation_id, lease)
+        self._queue_claim_lifecycle().complete_claim_from_lease(operation_id, lease)
+
+    def _queue_claim_lifecycle(self) -> Any:
+        from rexecop.runtime_ops.queue import RunNowQueue
+
+        return RunNowQueue(self)
 
     def start_execution_attempt(self, **binding: Any) -> dict[str, Any]:
-        return self._file_store.start_execution_attempt(**binding)
+        from rexecop.runtime_ops.attempts import build_pending_attempt, mark_attempt_started
+
+        pending = build_pending_attempt(**binding)
+        key = (str(pending["operation_id"]), str(pending["attempt_id"]))
+        if key in self._attempts:
+            raise RExecOpValidationError("execution attempt already exists")
+        self._attempts[key] = dict(pending)
+        started = mark_attempt_started(pending)
+        self._attempts[key] = dict(started)
+        return started
 
     def allocate_execution_attempt_id(self) -> str:
         return self._file_store.allocate_execution_attempt_id()
@@ -147,12 +159,17 @@ class InMemoryStore:
         result_digest: str = "",
         error_class: str = "",
     ) -> dict[str, Any]:
-        return self._file_store.finish_execution_attempt(
-            attempt,
-            status=status,
-            result_digest=result_digest,
-            error_class=error_class,
+        from rexecop.runtime_ops.attempts import finish_attempt_record
+
+        key = self._attempt_key(attempt)
+        current = self._attempts.get(key)
+        if current is None:
+            raise RExecOpValidationError("execution attempt not found")
+        finished = finish_attempt_record(
+            current, status=status, result_digest=result_digest, error_class=error_class
         )
+        self._attempts[key] = dict(finished)
+        return finished
 
     def finish_indeterminate_if_started(
         self,
@@ -160,16 +177,56 @@ class InMemoryStore:
         *,
         result_digest: str = "",
     ) -> dict[str, Any]:
-        return self._file_store.finish_indeterminate_if_started(
-            attempt,
+        from rexecop.runtime_ops.attempts import finish_attempt_indeterminate_if_started
+
+        key = self._attempt_key(attempt)
+        current = self._attempts.get(key)
+        if current is None:
+            raise RExecOpValidationError("execution attempt not found")
+        finished = finish_attempt_indeterminate_if_started(
+            current,
             result_digest=result_digest,
         )
+        self._attempts[key] = dict(finished)
+        return finished
 
     def recover_started_attempts(self) -> list[str]:
-        return self._file_store.recover_started_attempts()
+        from rexecop.runtime_ops.attempts import finish_attempt_indeterminate_if_started
+
+        changed: list[str] = []
+        for key in sorted(self._attempts):
+            current = self._attempts[key]
+            if current.get("status") != "started":
+                continue
+            finished = finish_attempt_indeterminate_if_started(current)
+            self._attempts[key] = dict(finished)
+            changed.append(str(finished["attempt_id"]))
+        return changed
 
     def has_indeterminate_side_effect(self, operation_id: str) -> bool:
-        return self._file_store.has_indeterminate_side_effect(operation_id)
+        return any(
+            key[0] == operation_id
+            and attempt.get("status") == "indeterminate"
+            and attempt.get("side_effectful") is True
+            for key, attempt in self._attempts.items()
+        )
+
+    def list_execution_attempts(self, operation_id: str) -> list[dict[str, Any]]:
+        return [
+            dict(attempt)
+            for key, attempt in sorted(self._attempts.items())
+            if key[0] == operation_id
+        ]
+
+    @staticmethod
+    def _attempt_key(attempt: dict[str, Any]) -> tuple[str, str]:
+        return str(attempt["operation_id"]), str(attempt["attempt_id"])
+
+    def _queue_claim_facts(
+        self,
+        operation_id: str,
+    ) -> tuple[Operation, list[dict[str, Any]]]:
+        return self.load_operation(operation_id), self.list_execution_attempts(operation_id)
 
     def list_pending_projection_operations(self) -> list[Operation]:
         return [

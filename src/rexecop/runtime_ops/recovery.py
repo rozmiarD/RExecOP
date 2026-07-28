@@ -10,6 +10,7 @@ from rexecop.operation.state import OperationState, validate_transition
 from rexecop.runtime_ops.coordinator import ACTIVE_RUNTIME_STATES
 from rexecop.runtime_ops.lease import DEFAULT_LEASE_TTL_SECONDS
 from rexecop.runtime_ops.projection import reconcile_pending_projections
+from rexecop.runtime_ops.queue import StoreRunNowQueue
 from rexecop.runtime_ops.target_lock import TargetLockManager
 from rexecop.storage.port import RuntimeStore
 
@@ -50,6 +51,17 @@ def run_startup_recovery(
     released_locks = _release_stale_locks(locks)
     interrupted = _interrupt_active_operations(ctrl, observed_at=observed_at)
     indeterminate_attempts = store.recover_started_attempts()
+    try:
+        queue_recovered = StoreRunNowQueue(
+            store
+        ).recover_expired_claims_from_lease(
+            owned_lease,
+            observed_at=observed_at,
+        )
+    except RExecOpValidationError:
+        if lease_record is None:
+            store.release_execution_lease(owned_lease)
+        raise
     receipt_repairs: list[dict[str, Any]] = []
     receipt_blockers: list[dict[str, Any]] = []
     if repair_receipts:
@@ -75,6 +87,7 @@ def run_startup_recovery(
                 or released_locks
                 or interrupted
                 or indeterminate_attempts
+                or queue_recovered
                 or receipt_repairs
                 or receipt_blockers
                 or projection_reconciliation["projected"]
@@ -253,7 +266,7 @@ def _mark_interrupted(
                 reason="interrupted_by_restart",
             )
     operation = controller.get_operation(operation.id)
-    controller.runtime.release_operation(operation)
+    controller.runtime._release_target_only(operation)
     operation = controller.get_operation(operation.id)
     recovery = dict(operation.metadata.get("recovery") or {})
     recovery.update(

@@ -139,25 +139,30 @@ class SqliteStore:
         self._files.validate_execution_lease(lease)
 
     def queue_list_pending(self) -> list[str]:
-        return self._files.queue_list_pending()
+        return self._queue_claim_lifecycle().list_pending()
 
     def queue_position(self, operation_id: str) -> int | None:
-        return self._files.queue_position(operation_id)
+        return self._queue_claim_lifecycle().position(operation_id)
 
     def queue_enqueue(self, operation_id: str) -> int:
-        return self._files.queue_enqueue(operation_id)
+        return self._queue_claim_lifecycle().enqueue(operation_id)
 
     def queue_remove(self, operation_id: str) -> None:
-        self._files.queue_remove(operation_id)
+        self._queue_claim_lifecycle().remove(operation_id)
 
     def queue_discard_pending(self, operation_id: str) -> None:
-        self._files.queue_discard_pending(operation_id)
+        self._queue_claim_lifecycle().discard_pending(operation_id)
 
     def queue_claim(self, lease: dict[str, Any]) -> dict[str, Any] | None:
-        return self._files.queue_claim(lease)
+        return self._queue_claim_lifecycle().claim_from_lease(lease)
 
     def queue_complete_claim(self, operation_id: str, lease: dict[str, Any]) -> None:
-        self._files.queue_complete_claim(operation_id, lease)
+        self._queue_claim_lifecycle().complete_claim_from_lease(operation_id, lease)
+
+    def _queue_claim_lifecycle(self) -> Any:
+        from rexecop.runtime_ops.queue import RunNowQueue
+
+        return RunNowQueue(self)
 
     def start_execution_attempt(self, **binding: Any) -> dict[str, Any]:
         return self._files.start_execution_attempt(**binding)
@@ -196,6 +201,15 @@ class SqliteStore:
 
     def has_indeterminate_side_effect(self, operation_id: str) -> bool:
         return self._files.has_indeterminate_side_effect(operation_id)
+
+    def list_execution_attempts(self, operation_id: str) -> list[dict[str, Any]]:
+        return self._files.list_execution_attempts(operation_id)
+
+    def _queue_claim_facts(
+        self,
+        operation_id: str,
+    ) -> tuple[Operation, list[dict[str, Any]]]:
+        return self.load_operation(operation_id), self.list_execution_attempts(operation_id)
 
     def list_pending_projection_operations(self) -> list[Operation]:
         return [
