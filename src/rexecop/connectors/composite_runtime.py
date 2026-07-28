@@ -17,6 +17,7 @@ from rexecop.connectors.local_shell import LocalShellReadonlyRuntime
 from rexecop.connectors.mock_runtime import MockConnectorRuntime
 from rexecop.connectors.ssh_readonly import SshReadonlyRuntime
 from rexecop.connectors.static_fixture import StaticFixtureRuntime
+from rexecop.errors import RExecOpValidationError
 from rexecop.evidence.redaction import redact_payload, redact_text
 from rexecop.policy.connector import connector_policy_gate
 from rexecop.runtime.mutation_posture import require_mutation_execution_enabled
@@ -92,6 +93,9 @@ class CompositeConnectorRuntime:
         for name, config in self.connectors.items():
             if not isinstance(config, dict):
                 continue
+            backend_name = str(config.get("backend") or config.get("mode") or "mock")
+            if backend_name in list_registered_connector_backends():
+                continue
             self._backend_for(name, config)
 
     def _backend_for(self, name: str, config: dict[str, Any]) -> ConnectorRuntime:
@@ -120,6 +124,8 @@ class CompositeConnectorRuntime:
                 config=config,
                 mutating_allowed=self.mutating_allowed,
             )
+        elif backend_name == "mock":
+            runtime = self._mock
         elif backend_name in list_registered_connector_backends():
             plugin_runtime = load_connector_backend_for_connector(
                 backend_name,
@@ -129,11 +135,19 @@ class CompositeConnectorRuntime:
                 mutating_allowed=self.mutating_allowed,
                 secret_resolver=self.secret_resolver,
             )
-            runtime = plugin_runtime if plugin_runtime is not None else self._mock
+            if plugin_runtime is None:
+                raise RExecOpValidationError(
+                    f"plugin backend factory unavailable: {backend_name}"
+                )
+            runtime = plugin_runtime
         else:
             fixture_name = str(config.get("fixture") or "").strip()
             fixture_runtime = load_connector_backend(fixture_name) if fixture_name else None
-            runtime = fixture_runtime if fixture_runtime is not None else self._mock
+            if fixture_runtime is None:
+                raise RExecOpValidationError(
+                    f"connector backend unavailable: {backend_name}"
+                )
+            runtime = fixture_runtime
         self._backends[name] = runtime
         return runtime
 

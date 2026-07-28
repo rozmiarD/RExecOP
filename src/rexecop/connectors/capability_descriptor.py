@@ -14,6 +14,11 @@ from rexecop.secrets.doctor import collect_secret_ref_bindings
 BACKEND_CAPABILITY_DESCRIPTOR_SCHEMA = "rexecop.backend_capability_descriptor.v0.1"
 BACKEND_CAPABILITY_SCHEMA_VERSION = "v0.1"
 
+PLUGIN_EXECUTION_POSTURES: dict[str, tuple[str, str]] = {
+    "fixture_only": ("fixture_only", "no_network"),
+    "operator_wrapper": ("live_backend", "local_subprocess"),
+}
+
 _RAW_SHELL_BACKENDS = frozenset(
     {
         "shell",
@@ -44,11 +49,17 @@ def compile_connector_capability_descriptor(
     backend_class: str,
     connector_config: Mapping[str, Any],
     mode: str,
+    profile_execution_postures: Any = None,
 ) -> dict[str, Any]:
     """Compile digest-bound backend capability posture for one connector binding."""
     backend = str(backend_class or "").strip()
     assert_backend_is_declared(backend)
     class_descriptor = describe_connector_backend(backend)
+    plugin_posture = _compile_plugin_execution_posture(
+        class_descriptor.certification_tier,
+        profile_execution_postures=profile_execution_postures,
+        connector_config=connector_config,
+    )
     secret_ref_requirements = _secret_ref_requirements(
         backend,
         connector,
@@ -61,11 +72,26 @@ def compile_connector_capability_descriptor(
         "projection_kind": "runtime_projection",
         "connector": connector,
         "backend_class": backend,
-        "identity_class": class_descriptor.identity_class,
-        "egress_class": class_descriptor.egress_class,
+        "identity_class": (
+            "plugin_declared" if plugin_posture is not None else class_descriptor.identity_class
+        ),
+        "egress_class": (
+            plugin_posture[1] if plugin_posture is not None else class_descriptor.egress_class
+        ),
         "read_only_backend": class_descriptor.read_only_backend,
-        "live_backend_posture": _live_backend_posture(backend, connector_config),
-        "network_boundary": _network_boundary(backend, connector_config),
+        "live_backend_posture": (
+            plugin_posture[0]
+            if plugin_posture is not None
+            else _live_backend_posture(backend, connector_config)
+        ),
+        "network_boundary": (
+            {
+                "egress": plugin_posture[1],
+                "host_declared": False,
+            }
+            if plugin_posture is not None
+            else _network_boundary(backend, connector_config)
+        ),
         "secret_ref_requirements": secret_ref_requirements,
         "declared_capability_descriptors": list(class_descriptor.capability_descriptors),
         "certification_tier": class_descriptor.certification_tier,
@@ -79,6 +105,81 @@ def compile_connector_capability_descriptor(
     assert_backend_capability_allowed(descriptor, mode=mode)
     descriptor["digest"] = backend_capability_descriptor_digest(descriptor)
     return descriptor
+
+
+def _compile_plugin_execution_posture(
+    certification_tier: str,
+    *,
+    profile_execution_postures: Any,
+    connector_config: Mapping[str, Any],
+) -> tuple[str, str] | None:
+    if certification_tier != "plugin":
+        if profile_execution_postures is not None or connector_config.get(
+            "execution_posture"
+        ) is not None:
+            raise RExecOpValidationError(
+                "plugin execution posture is only valid for plugin backends"
+            )
+        return None
+    if not isinstance(profile_execution_postures, Mapping):
+        raise RExecOpValidationError(
+            "plugin profile execution_postures declaration is required"
+        )
+    selected = str(connector_config.get("execution_posture") or "").strip()
+    if not selected:
+        raise RExecOpValidationError(
+            "plugin environment execution_posture selection is required"
+        )
+    expected = PLUGIN_EXECUTION_POSTURES.get(selected)
+    if expected is None:
+        raise RExecOpValidationError(
+            f"unsupported plugin execution posture: {selected}"
+        )
+    declaration = profile_execution_postures.get(selected)
+    if not isinstance(declaration, Mapping):
+        raise RExecOpValidationError(
+            f"plugin execution posture is not declared by profile: {selected}"
+        )
+    unknown = sorted(
+        str(key)
+        for key in declaration
+        if key not in {"live_backend_posture", "allowed_network_egress"}
+    )
+    if unknown:
+        raise RExecOpValidationError(
+            "plugin execution posture contains unsupported fields: " + ", ".join(unknown)
+        )
+    actual = (
+        str(declaration.get("live_backend_posture") or "").strip(),
+        str(declaration.get("allowed_network_egress") or "").strip(),
+    )
+    if actual != expected:
+        raise RExecOpValidationError(
+            f"plugin execution posture declaration contradicts {selected}"
+        )
+    fixture_only = connector_config.get("fixture_only")
+    wrapper_command = connector_config.get("wrapper_command")
+    wrapper_present = (
+        bool(wrapper_command.strip())
+        if isinstance(wrapper_command, str)
+        else isinstance(wrapper_command, list)
+        and bool(wrapper_command)
+        and all(isinstance(item, str) and bool(item.strip()) for item in wrapper_command)
+    )
+    if selected == "fixture_only":
+        if fixture_only is not True:
+            raise RExecOpValidationError(
+                "fixture_only plugin posture requires fixture_only true"
+            )
+        if "wrapper_command" in connector_config:
+            raise RExecOpValidationError(
+                "fixture_only plugin posture forbids wrapper_command"
+            )
+    elif fixture_only is not False or not wrapper_present:
+        raise RExecOpValidationError(
+            "operator_wrapper plugin posture requires fixture_only false and wrapper_command"
+        )
+    return expected
 
 
 def backend_capability_descriptor_digest(descriptor: Mapping[str, Any]) -> str:

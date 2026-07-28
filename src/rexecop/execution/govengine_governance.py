@@ -296,6 +296,9 @@ def enforce_typed_execution_governance(
         "request_digest": str(payload.get("subject_ref") or ""),
         "actual_operation_mode": mode,
         "typed_execution_operation_mode": request["operation_mode"],
+        "required_governed_admission_version": _required_governed_admission_version(
+            request
+        ),
     }
     specs = shared_state.get("typed_execution_specs")
     if isinstance(specs, dict):
@@ -311,7 +314,7 @@ def require_governed_mutation_precheck(
     *,
     actual_operation_mode: str,
 ) -> None:
-    """Accept only the exact intentional typed-v0.1 approval blockers."""
+    """Accept only the exact intentional blockers for the selected surface."""
 
     mode = str(actual_operation_mode or "").strip()
     if mode not in {"apply", "recovery"}:
@@ -330,10 +333,61 @@ def require_governed_mutation_precheck(
     if not isinstance(blockers_raw, list):
         raise RExecOpValidationError("typed_execution_governed_precheck_blockers_invalid")
     blockers = tuple(dict.fromkeys(str(item) for item in blockers_raw if item))
-    if not blockers or any(
-        blocker not in TYPED_EXECUTION_MUTATION_APPROVAL_BLOCKERS for blocker in blockers
+    expected = set(TYPED_EXECUTION_MUTATION_APPROVAL_BLOCKERS)
+    required_version = str(
+        admission.get("required_governed_admission_version") or "v0.1"
+    )
+    if required_version == "v0.2":
+        try:
+            from govengine.typed_execution_governed_admission import (
+                TYPED_EXECUTION_GOVERNED_ADMISSION_V02_SCHEMA_VERSION,
+            )
+        except (ImportError, AttributeError) as exc:
+            raise RExecOpValidationError(
+                "typed_execution_governed_admission_v02_surface_unavailable"
+            ) from exc
+        if TYPED_EXECUTION_GOVERNED_ADMISSION_V02_SCHEMA_VERSION != "v0.2":
+            raise RExecOpValidationError(
+                "typed_execution_governed_admission_v02_surface_incompatible"
+            )
+        expected.add("unsupported_backend_class")
+    elif required_version != "v0.1":
+        raise RExecOpValidationError(
+            "typed_execution_governed_admission_surface_incompatible"
+        )
+    approval_blockers = [
+        blocker for blocker in blockers if blocker in TYPED_EXECUTION_MUTATION_APPROVAL_BLOCKERS
+    ]
+    expected_blockers = set(approval_blockers)
+    if required_version == "v0.2":
+        expected_blockers.add("unsupported_backend_class")
+    if (
+        len(approval_blockers) != 1
+        or set(blockers) != expected_blockers
+        or any(blocker not in expected for blocker in blockers)
     ):
         raise RExecOpValidationError("typed_execution_governed_precheck_has_non_approval_blocker")
+
+
+def _required_governed_admission_version(request: Mapping[str, Any]) -> str:
+    descriptor = request.get("capability_descriptor")
+    if not isinstance(descriptor, Mapping):
+        return "v0.1"
+    if str(descriptor.get("certification_tier") or "").strip() != "plugin":
+        return "v0.1"
+    posture = str(descriptor.get("live_backend_posture") or "").strip()
+    egress = str(descriptor.get("egress_class") or "").strip()
+    boundary = descriptor.get("network_boundary")
+    if (
+        str(descriptor.get("identity_class") or "").strip() != "plugin_declared"
+        or not isinstance(boundary, Mapping)
+        or str(boundary.get("egress") or "").strip() != egress
+        or (posture, egress)
+        not in {("fixture_only", "no_network"), ("live_backend", "local_subprocess")}
+        or request.get("allowed_network_egress") != [egress]
+    ):
+        raise RExecOpValidationError("typed_execution_plugin_posture_invalid")
+    return "v0.2"
 
 
 def _governance_overlay(shared_state: Mapping[str, Any] | None) -> dict[str, Any]:

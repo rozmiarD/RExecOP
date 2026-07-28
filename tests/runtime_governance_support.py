@@ -11,6 +11,7 @@ from govengine.approvals import (
     approval_attestation_digest,
 )
 from govengine.capabilities import (
+    CapabilityInventoryBinding,
     OperationCapabilityRequirements,
     capability_inventory_binding_digest,
     operation_capability_requirements_digest,
@@ -48,6 +49,7 @@ from govengine.typed_execution_governance import (
 )
 from govengine.typed_execution_governed_admission import (
     evaluate_typed_execution_governed_admission,
+    evaluate_typed_execution_governed_admission_v02,
 )
 
 from rexecop.adapters.govengine_port.runtime_authority import (
@@ -189,9 +191,13 @@ class TestGovernedAttemptAuthority:
         *,
         revocations: TestApprovalRevocations,
         target_namespaces: tuple[str, ...] = ("fixture-target",),
+        plugin_backend_controls: tuple[str, ...] = ("fixture_plugin",),
+        plugin_egress_controls: tuple[str, ...] = ("no_network",),
     ) -> None:
         self.revocations = revocations
         self.target_namespaces = target_namespaces
+        self.plugin_backend_controls = plugin_backend_controls
+        self.plugin_egress_controls = plugin_egress_controls
         self.requests: list[RuntimeAttemptGovernanceFacts] = []
         self.actual_modes: list[str] = []
 
@@ -211,7 +217,12 @@ class TestGovernedAttemptAuthority:
             actual_operation_mode=actual_operation_mode,
             now=now,
         )
-        admission, decision = evaluate_typed_execution_governed_admission(
+        evaluator = (
+            evaluate_typed_execution_governed_admission_v02
+            if typed_execution_request.capability_descriptor.certification_tier == "plugin"
+            else evaluate_typed_execution_governed_admission
+        )
+        admission, decision = evaluator(
             typed_execution_request,
             governance_request,
             actual_operation_mode=actual_operation_mode,
@@ -253,6 +264,28 @@ class TestGovernedAttemptAuthority:
         actual_operation_mode: str,
         now: datetime,
     ) -> GovernanceRequest:
+        constraints: list[dict[str, Any]] = [
+            {
+                "constraint_id": "bounded-output",
+                "kind": "output_limit",
+                "value": 4096,
+            }
+        ]
+        if typed_execution_request.capability_descriptor.certification_tier == "plugin":
+            constraints.extend(
+                [
+                    {
+                        "constraint_id": "plugin-backend",
+                        "kind": "allowed_backend_classes",
+                        "value": list(self.plugin_backend_controls),
+                    },
+                    {
+                        "constraint_id": "plugin-egress",
+                        "kind": "allowed_network_egress",
+                        "value": list(self.plugin_egress_controls),
+                    },
+                ]
+            )
         compiled = PolicyCompiler().compile(
             {
                 "policy_id": "test-runtime-mutation",
@@ -278,13 +311,7 @@ class TestGovernedAttemptAuthority:
                         ],
                         "reason_code": "mutation_requires_approval",
                         "obligations": [{"obligation_id": "receipt", "kind": "receipt"}],
-                        "constraints": [
-                            {
-                                "constraint_id": "bounded-output",
-                                "kind": "output_limit",
-                                "value": 4096,
-                            }
-                        ],
+                        "constraints": constraints,
                     }
                 ],
             }
@@ -326,6 +353,21 @@ class TestGovernedAttemptAuthority:
             runtime_instance_id=facts.runtime_instance_id,
             inventory_epoch=facts.inventory_epoch,
         )
+        if typed_execution_request.capability_descriptor.certification_tier == "plugin":
+            inventory_payload = inventory.as_dict()
+            inventory_payload["backend_classes"] = sorted(
+                {
+                    *inventory.backend_classes,
+                    typed_execution_request.backend_class,
+                }
+            )
+            inventory_payload["capabilities"] = sorted(
+                {
+                    *inventory.capabilities,
+                    *typed_execution_request.capability_descriptor.declared_capability_descriptors,
+                }
+            )
+            inventory = CapabilityInventoryBinding.from_mapping(inventory_payload)
         if facts.capability_inventory_digest != capability_inventory_binding_digest(inventory):
             raise AssertionError("test authority capability inventory drift")
         scope_policy = ScopePolicyBinding.from_mapping(

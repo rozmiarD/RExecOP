@@ -22,6 +22,7 @@ from rexecop.errors import RExecOpGovernanceDecisionError
 if TYPE_CHECKING:
     from govengine.typed_execution_governed_admission import (
         TypedExecutionGovernedAdmission,
+        TypedExecutionGovernedAdmissionV02,
     )
 
 GOVERNED_ATTEMPT_BINDING_SCHEMA = "rexecop.governed_admission_binding.v0.1"
@@ -167,7 +168,7 @@ class SignedGovernedAttemptBundle:
     """Exact GovEngine owner records returned by one governed-attempt authority."""
 
     governance_request: GovernanceRequest
-    governed_admission: TypedExecutionGovernedAdmission
+    governed_admission: TypedExecutionGovernedAdmission | TypedExecutionGovernedAdmissionV02
     decision: GovernanceDecision
     signed_artifact: SignedArtifact
 
@@ -187,7 +188,7 @@ class GovernedAttemptAuthority(Protocol):
 @dataclass(frozen=True)
 class ClaimedGovernedAttempt:
     governance_request: GovernanceRequest
-    governed_admission: TypedExecutionGovernedAdmission
+    governed_admission: TypedExecutionGovernedAdmission | TypedExecutionGovernedAdmissionV02
     decision: GovernanceDecision
     signed_artifact: SignedArtifact
     typed_execution_request: TypedExecutionGovernanceRequest
@@ -261,7 +262,11 @@ class TrustedGovernedAttemptConsumer:
         (
             _surface_version,
             validate_governed_admission,
-        ) = _governed_admission_surface()
+        ) = _governed_admission_surface(claim.typed_execution_request)
+        if claim.governed_admission.schema_version != _surface_version:
+            raise RExecOpGovernanceDecisionError(
+                "governed_attempt_surface_version_mismatch"
+            )
         checked_at = now or datetime.now(UTC)
         try:
             decision = require_trusted_governance_decision(
@@ -385,7 +390,14 @@ def governed_attempt_binding(claim: ClaimedGovernedAttempt) -> dict[str, Any]:
     }
 
 
-def _governed_admission_surface() -> tuple[str, Any]:
+def _governed_admission_surface(
+    typed_execution_request: TypedExecutionGovernanceRequest | None = None,
+) -> tuple[str, Any]:
+    required_version = (
+        _required_governed_admission_version(typed_execution_request)
+        if typed_execution_request is not None
+        else "v0.1"
+    )
     try:
         from govengine.typed_execution_governed_admission import (
             TYPED_EXECUTION_GOVERNED_ADMISSION_SCHEMA_VERSION,
@@ -395,10 +407,49 @@ def _governed_admission_surface() -> tuple[str, Any]:
         raise RExecOpGovernanceDecisionError("governed_attempt_surface_unavailable") from exc
     if TYPED_EXECUTION_GOVERNED_ADMISSION_SCHEMA_VERSION != "v0.1":
         raise RExecOpGovernanceDecisionError("governed_attempt_surface_incompatible")
+    if required_version == "v0.2":
+        try:
+            from govengine.typed_execution_governed_admission import (
+                TYPED_EXECUTION_GOVERNED_ADMISSION_V02_SCHEMA_VERSION,
+                validate_typed_execution_governed_admission_v02,
+            )
+        except (ImportError, AttributeError) as exc:
+            raise RExecOpGovernanceDecisionError(
+                "governed_attempt_v02_surface_unavailable"
+            ) from exc
+        if TYPED_EXECUTION_GOVERNED_ADMISSION_V02_SCHEMA_VERSION != "v0.2":
+            raise RExecOpGovernanceDecisionError(
+                "governed_attempt_v02_surface_incompatible"
+            )
+        return (
+            TYPED_EXECUTION_GOVERNED_ADMISSION_V02_SCHEMA_VERSION,
+            validate_typed_execution_governed_admission_v02,
+        )
     return (
         TYPED_EXECUTION_GOVERNED_ADMISSION_SCHEMA_VERSION,
         validate_typed_execution_governed_admission,
     )
+
+
+def _required_governed_admission_version(
+    typed_execution_request: TypedExecutionGovernanceRequest,
+) -> str:
+    descriptor = typed_execution_request.capability_descriptor
+    if descriptor.certification_tier != "plugin":
+        return "v0.1"
+    posture_pair = (descriptor.live_backend_posture, descriptor.egress_class)
+    if (
+        descriptor.identity_class != "plugin_declared"
+        or descriptor.network_boundary.get("egress") != descriptor.egress_class
+        or posture_pair
+        not in {("fixture_only", "no_network"), ("live_backend", "local_subprocess")}
+        or typed_execution_request.allowed_network_egress
+        != (descriptor.egress_class,)
+    ):
+        raise RExecOpGovernanceDecisionError(
+            "governed_attempt_plugin_posture_invalid"
+        )
+    return "v0.2"
 
 
 def _binding_equal(actual: Any, expected: Any) -> bool:

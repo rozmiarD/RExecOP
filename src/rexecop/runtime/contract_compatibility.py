@@ -225,6 +225,10 @@ REXECOP_OPTIONAL_GOVENGINE_CONTRACTS: tuple[dict[str, str], ...] = (
         "surface_id": "typed_execution_governed_admission",
         "schema_version": "v0.1",
     },
+    {
+        "surface_id": "typed_execution_governed_admission",
+        "schema_version": "v0.2",
+    },
 )
 
 _PROJECTION_INDEX = {item["surface_id"]: item for item in REXECOP_RUNTIME_PROJECTIONS}

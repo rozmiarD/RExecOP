@@ -37,7 +37,12 @@ def test_evaluate_govengine_contract_compatibility_passes() -> None:
             "surface_id": "typed_execution_governed_admission",
             "schema_version": "v0.1",
             "status": "supported",
-        }
+        },
+        {
+            "surface_id": "typed_execution_governed_admission",
+            "schema_version": "v0.2",
+            "status": "supported",
+        },
     ]
 
 
@@ -60,7 +65,9 @@ def test_missing_optional_governed_surface_does_not_claim_availability(
 
     assert result["status"] == "passed"
     assert result["optional_surface_status"] == "unavailable"
-    assert result["optional_contracts"][0]["status"] == "unavailable"
+    assert {item["status"] for item in result["optional_contracts"]} == {
+        "unavailable"
+    }
 
 
 def test_validate_supported_contract_version_blocks_unknown_major() -> None:

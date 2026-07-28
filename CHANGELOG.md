@@ -21,6 +21,11 @@ source candidates and milestone-level development notes are preserved in the
   attestation/current revocation, signed decision, atomic attempt claim, and a
   bounded permit/receipt binding. Recovery retains its real mode everywhere
   except the explicit nested typed-execution v0.1 `apply` compatibility alias.
+- Explicit profile/environment plugin posture pairs bind `fixture_only` to
+  `no_network` and `operator_wrapper` to `local_subprocess`. Policy-bound
+  plugins select the optional GovEngine governed-admission v0.2 validator;
+  built-ins retain v0.1, and plugin factories remain unloaded until the
+  immediate governed pre-I/O boundary.
 
 ### Changed
 
@@ -44,7 +49,7 @@ source candidates and milestone-level development notes are preserved in the
 - Runtime permits, leases, fencing and attempt bindings are revalidated after
   durable attempt creation and immediately before connector I/O.
 - CI's immutable GovEngine source checkout is advanced to
-  `c9df37ad0245f31990652131df38326452c5a897` for the optional governed-admission
+  `9a78650a0e39524dcbf07d98f5fb71f89093fc66` for the optional governed-admission
   source surface; package versions and dependency pins are unchanged.
 
 ### Fixed

@@ -75,6 +75,7 @@ def compile_step_execution_spec(
         backend_class=backend,
         connector_config=connector_config,
         mode=mode,
+        profile_execution_postures=contract.get("execution_postures"),
     )
     if backend == "http_api":
         payload = _compile_http_action_execution_spec(
@@ -131,7 +132,11 @@ def compile_step_execution_spec(
             backend=backend,
             action=action,
         ),
-        "network_policy_binding": _network_policy_binding(contract, backend=backend),
+        "network_policy_binding": _network_policy_binding(
+            contract,
+            backend=backend,
+            capability_descriptor=capability_descriptor,
+        ),
         "non_claims": list(_RUNTIME_PROJECTION_NON_CLAIMS),
     }
     spec["digest"] = step_execution_spec_digest(spec)
@@ -175,6 +180,7 @@ def _network_policy_binding(
     connector_contract: Mapping[str, Any],
     *,
     backend: str,
+    capability_descriptor: Mapping[str, Any],
 ) -> dict[str, Any]:
     raw: Any = None
     by_backend = connector_contract.get("network_policy_binding_by_backend")
@@ -183,6 +189,12 @@ def _network_policy_binding(
     if raw is None:
         raw = connector_contract.get("network_policy_binding")
     if raw is None:
+        if str(capability_descriptor.get("certification_tier") or "") == "plugin":
+            return {
+                "allowed_network_egress": [
+                    str(capability_descriptor.get("egress_class") or "")
+                ]
+            }
         return {}
     if not isinstance(raw, Mapping):
         raise RExecOpValidationError("connector network_policy_binding must be a mapping")
@@ -230,6 +242,12 @@ def _network_policy_binding(
                 "must be a non-empty string"
             )
         normalized["required_origin_binding_digest"] = origin_digest.strip()
+    if str(capability_descriptor.get("certification_tier") or "") == "plugin":
+        expected_egress = str(capability_descriptor.get("egress_class") or "")
+        if normalized != {"allowed_network_egress": [expected_egress]}:
+            raise RExecOpValidationError(
+                "plugin network_policy_binding contradicts selected execution posture"
+            )
     return normalized
 
 

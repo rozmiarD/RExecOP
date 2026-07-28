@@ -40,7 +40,7 @@ def _runtime_with_recording_backend() -> tuple[
     _RecordingBackend,
 ]:
     runtime = build_connector_runtime(
-        connectors={"live": {"enabled": True, "backend": "recording"}},
+        connectors={"live": {"enabled": True, "backend": "mock"}},
         profile_root=None,
         mutating_allowed=True,
     )

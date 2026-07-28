@@ -38,7 +38,7 @@ EXPECTED_CI_SIBLING_CHECKOUTS = (
         "test",
         "rozmiarD/GovEngine",
         "ci-deps/govengine",
-        "c9df37ad0245f31990652131df38326452c5a897",
+        "9a78650a0e39524dcbf07d98f5fb71f89093fc66",
     ),
     (
         "package-dry-run",
@@ -50,7 +50,7 @@ EXPECTED_CI_SIBLING_CHECKOUTS = (
         "package-dry-run",
         "rozmiarD/GovEngine",
         "ci-deps/govengine",
-        "c9df37ad0245f31990652131df38326452c5a897",
+        "9a78650a0e39524dcbf07d98f5fb71f89093fc66",
     ),
 )
 

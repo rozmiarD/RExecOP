@@ -139,8 +139,9 @@ verifier/signing/trust inputs. Partial governed configuration is rejected.
 For every `apply` or `recovery` connector attempt, RExecOp:
 
 1. asks GovEngine to evaluate the unchanged typed-execution v0.1 request before
-   attempt allocation; only the exact approval-required blockers identify a
-   governed mutation candidate;
+   attempt allocation; built-ins defer exactly one approval blocker, while an
+   explicitly selected plugin posture may additionally defer only
+   `unsupported_backend_class` for the GovEngine v0.2 path;
 2. checks the independent mutation posture, then preallocates `attempt_id`;
 3. projects current runtime instance, lease epoch, hashed lease/fencing
    bindings, execution and payload digests, requested-scope digest, and
@@ -156,6 +157,13 @@ For every `apply` or `recovery` connector attempt, RExecOp:
    composite admission, then persists `attempt started`;
 8. immediately rechecks lease/spec/permit/composite/expiry/current revocation
    before connector I/O.
+
+The consumer selects `typed_execution_governed_admission` v0.2 only from the
+validated plugin descriptor shape and requires the actual GovEngine v0.2
+validator both before atomic claim and at the immediate pre-I/O check. Built-in
+backends retain v0.1. Missing, older, mismatched, denied, expired, or tampered
+v0.2 authority fails before plugin factory loading. GovEngine remains the sole
+policy/admission owner; the RExecOp posture projection is not authority.
 
 The real operation, permit, admission, and receipt retain `recovery` when that
 is the requested mode. Only the nested unchanged typed-execution v0.1

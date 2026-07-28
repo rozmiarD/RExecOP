@@ -31,13 +31,67 @@ from rexecop.execution.typed_spec import (
     step_execution_spec_digest,
     validate_typed_execution_schema_version,
 )
-from rexecop.profile.loader import load_profile
+from rexecop.profile.loader import LoadedProfile, load_profile
 from rexecop.workflow.runner import WorkflowRunner
 
 ROOT = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.security_regression
 FIXTURE_PROFILE = ROOT / "examples/profiles/runtime-fixture/profile.yaml"
 FIXTURE_ENV = ROOT / "examples/environments/runtime-fixture.example.yaml"
+
+
+class _PluginEntryPoint:
+    name = "fixture_plugin"
+
+    def load(self):  # type: ignore[no-untyped-def]
+        return lambda **_kwargs: object()
+
+
+def _plugin_entry_points(**_kwargs: object) -> list[_PluginEntryPoint]:
+    return [_PluginEntryPoint()]
+
+
+def _plugin_profile(
+    tmp_path: Path,
+    *,
+    execution_postures: object,
+    network_policy_binding: object | None = None,
+) -> LoadedProfile:
+    root = tmp_path / "plugin-profile"
+    (root / "connectors").mkdir(parents=True)
+    connector: dict[str, object] = {
+        "name": "plugin_source",
+        "required_capability_descriptors": ["connector.plugin.fixture_plugin"],
+        "execution_postures": execution_postures,
+    }
+    if network_policy_binding is not None:
+        connector["network_policy_binding"] = network_policy_binding
+    (root / "connectors" / "plugin_source.yaml").write_text(
+        yaml.safe_dump({"connector": connector}),
+        encoding="utf-8",
+    )
+    return LoadedProfile(root=root, contract={}, name="plugin-profile", version="0.1.0")
+
+
+def _plugin_step() -> dict[str, str]:
+    return {
+        "id": "apply_plugin",
+        "type": "connector",
+        "connector": "plugin_source",
+        "action": "apply_change",
+    }
+
+
+PLUGIN_POSTURES = {
+    "fixture_only": {
+        "live_backend_posture": "fixture_only",
+        "allowed_network_egress": "no_network",
+    },
+    "operator_wrapper": {
+        "live_backend_posture": "live_backend",
+        "allowed_network_egress": "local_subprocess",
+    },
+}
 
 
 def test_connector_backend_descriptor_includes_security_posture() -> None:
@@ -119,6 +173,195 @@ def test_compile_static_fixture_step_execution_spec() -> None:
     assert spec["capability_descriptor"]["live_backend_posture"] == "fixture_only"
     assert spec["capability_descriptor"]["egress_class"] == "no_network"
     assert "not a SCLite truth artifact" in spec["non_claims"][0]
+
+
+@patch(
+    "rexecop.connectors.fixture_loader.entry_points",
+    side_effect=_plugin_entry_points,
+)
+def test_plugin_postures_are_explicit_digest_bound_projections(
+    _entry_points_mock,
+    tmp_path: Path,
+) -> None:
+    profile = _plugin_profile(tmp_path, execution_postures=PLUGIN_POSTURES)
+    fixture = compile_step_execution_spec(
+        step=_plugin_step(),
+        profile=profile,
+        connector_config={
+            "enabled": True,
+            "backend": "fixture_plugin",
+            "execution_posture": "fixture_only",
+            "fixture_only": True,
+        },
+        mode="apply",
+    )
+    wrapper = compile_step_execution_spec(
+        step=_plugin_step(),
+        profile=profile,
+        connector_config={
+            "enabled": True,
+            "backend": "fixture_plugin",
+            "execution_posture": "operator_wrapper",
+            "fixture_only": False,
+            "wrapper_command": ["operator-wrapper", "--bounded"],
+        },
+        mode="apply",
+    )
+
+    assert fixture["capability_descriptor"]["identity_class"] == "plugin_declared"
+    assert fixture["capability_descriptor"]["secret_ref_requirements"] == []
+    assert (
+        fixture["capability_descriptor"]["live_backend_posture"],
+        fixture["capability_descriptor"]["egress_class"],
+    ) == ("fixture_only", "no_network")
+    assert fixture["network_policy_binding"] == {
+        "allowed_network_egress": ["no_network"]
+    }
+    assert (
+        wrapper["capability_descriptor"]["live_backend_posture"],
+        wrapper["capability_descriptor"]["egress_class"],
+    ) == ("live_backend", "local_subprocess")
+    assert wrapper["network_policy_binding"] == {
+        "allowed_network_egress": ["local_subprocess"]
+    }
+    assert fixture["digest"] != wrapper["digest"]
+    assert fixture["capability_descriptor"]["digest"] != wrapper["capability_descriptor"][
+        "digest"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("declarations", "config", "reason"),
+    [
+        (None, {"execution_posture": "fixture_only", "fixture_only": True}, "declaration"),
+        (PLUGIN_POSTURES, {"fixture_only": True}, "selection"),
+        (
+            PLUGIN_POSTURES,
+            {"execution_posture": "unknown", "fixture_only": True},
+            "unsupported plugin execution posture",
+        ),
+        (
+            {"operator_wrapper": PLUGIN_POSTURES["operator_wrapper"]},
+            {"execution_posture": "fixture_only", "fixture_only": True},
+            "not declared",
+        ),
+        (
+            {
+                "fixture_only": {
+                    "live_backend_posture": "live_backend",
+                    "allowed_network_egress": "no_network",
+                }
+            },
+            {"execution_posture": "fixture_only", "fixture_only": True},
+            "contradicts",
+        ),
+        (
+            PLUGIN_POSTURES,
+            {"execution_posture": "fixture_only", "fixture_only": False},
+            "requires fixture_only true",
+        ),
+        (
+            PLUGIN_POSTURES,
+            {
+                "execution_posture": "fixture_only",
+                "fixture_only": True,
+                "wrapper_command": ["wrapper"],
+            },
+            "forbids wrapper_command",
+        ),
+        (
+            PLUGIN_POSTURES,
+            {
+                "execution_posture": "fixture_only",
+                "fixture_only": True,
+                "wrapper_command": [],
+            },
+            "forbids wrapper_command",
+        ),
+        (
+            PLUGIN_POSTURES,
+            {
+                "execution_posture": "fixture_only",
+                "fixture_only": True,
+                "wrapper_command": "",
+            },
+            "forbids wrapper_command",
+        ),
+        (
+            PLUGIN_POSTURES,
+            {
+                "execution_posture": "fixture_only",
+                "fixture_only": True,
+                "wrapper_command": None,
+            },
+            "forbids wrapper_command",
+        ),
+        (
+            PLUGIN_POSTURES,
+            {"execution_posture": "operator_wrapper", "fixture_only": False},
+            "requires fixture_only false and wrapper_command",
+        ),
+        (
+            PLUGIN_POSTURES,
+            {
+                "execution_posture": "operator_wrapper",
+                "fixture_only": True,
+                "wrapper_command": ["wrapper"],
+            },
+            "requires fixture_only false and wrapper_command",
+        ),
+    ],
+)
+@patch(
+    "rexecop.connectors.fixture_loader.entry_points",
+    side_effect=_plugin_entry_points,
+)
+def test_plugin_posture_missing_unknown_or_contradictory_fails_closed(
+    _entry_points_mock,
+    tmp_path: Path,
+    declarations: object,
+    config: dict[str, object],
+    reason: str,
+) -> None:
+    profile = _plugin_profile(tmp_path, execution_postures=declarations)
+    with pytest.raises(RExecOpValidationError, match=reason):
+        compile_step_execution_spec(
+            step=_plugin_step(),
+            profile=profile,
+            connector_config={
+                "enabled": True,
+                "backend": "fixture_plugin",
+                **config,
+            },
+            mode="apply",
+        )
+
+
+@patch(
+    "rexecop.connectors.fixture_loader.entry_points",
+    side_effect=_plugin_entry_points,
+)
+def test_plugin_profile_network_binding_cannot_contradict_selected_posture(
+    _entry_points_mock,
+    tmp_path: Path,
+) -> None:
+    profile = _plugin_profile(
+        tmp_path,
+        execution_postures=PLUGIN_POSTURES,
+        network_policy_binding={"allowed_network_egress": ["local_subprocess"]},
+    )
+    with pytest.raises(RExecOpValidationError, match="contradicts selected execution posture"):
+        compile_step_execution_spec(
+            step=_plugin_step(),
+            profile=profile,
+            connector_config={
+                "enabled": True,
+                "backend": "fixture_plugin",
+                "execution_posture": "fixture_only",
+                "fixture_only": True,
+            },
+            mode="apply",
+        )
 
 
 def test_compile_http_action_execution_spec_from_fixture(tmp_path: Path) -> None:

@@ -251,6 +251,22 @@ They execute as trusted in-process code under the versioned factory contract; RE
 not claim process isolation or sandboxing. Compatibility reports bound plugin exceptions and
 never include raw plugin exception text.
 
+Mutating plugin projections require two explicit inputs. The profile connector
+declares `execution_postures` and the environment selects `execution_posture`.
+Only these neutral pairs compile: `fixture_only` maps to
+`fixture_only`/`no_network`, while `operator_wrapper` maps to
+`live_backend`/`local_subprocess`. The former requires `fixture_only: true` and
+forbids `wrapper_command`; the latter requires `fixture_only: false` and a
+nonempty `wrapper_command`. Missing, unknown, or contradictory declarations
+fail closed; RExecOp never infers the selection from those configuration
+predicates. The selected singleton egress is bound into the capability and
+step-spec digests.
+
+Plugin factories are loaded only at connector invocation, after the governed
+attempt pre-I/O check in the normal lifecycle. A missing or invalid factory has
+no mock fallback. This projection does not certify plugin code, entry-point
+provenance, wrapper correctness, or process/network isolation.
+
 ## Boundary
 
 Infrastructure products are **profile/operator configuration targets** of generic connectors,

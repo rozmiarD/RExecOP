@@ -370,13 +370,15 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         "docs/stack-contract-compatibility.md",
-        "c9df37ad0245f31990652131df38326452c5a897",
+        "9a78650a0e39524dcbf07d98f5fb71f89093fc66",
     )
     _require(
         errors,
         "docs/govengine-integration.md",
         "Only the nested unchanged typed-execution v0.1",
     )
+    _require(errors, "docs/govengine-integration.md", "actual GovEngine v0.2")
+    _require(errors, "docs/connector-contract.md", "operator_wrapper")
     _require(
         errors,
         "docs/execution-contract.md",
@@ -385,7 +387,7 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         "docs/known-limitations.md",
-        "may lack this optional surface; configured mutation fails closed",
+        "may lack optional v0.2; configured plugin mutation fails closed",
     )
     _require(errors, "CHANGELOG.md", "do not enable `mutation_ready`")
     _require(errors, "docs/architecture.md", EXPECTED_GOVENGINE)
@@ -492,7 +494,7 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         ".github/workflows/ci.yml",
-        "ref: c9df37ad0245f31990652131df38326452c5a897",
+        "ref: 9a78650a0e39524dcbf07d98f5fb71f89093fc66",
     )
     _require(
         errors,

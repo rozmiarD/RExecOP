@@ -24,7 +24,10 @@ from rexecop.execution.govengine_governance import (
     require_governed_mutation_precheck,
     typed_execution_governance_overlay,
 )
-from rexecop.execution.typed_spec import compile_step_execution_spec
+from rexecop.execution.typed_spec import (
+    compile_step_execution_spec,
+    step_execution_spec_digest,
+)
 from rexecop.profile.loader import load_profile
 from rexecop.runtime.doctor import run_runtime_doctor
 from rexecop.workflow.runner import WorkflowRunner
@@ -70,6 +73,31 @@ def _mutation_spec(*, mode: str = "apply") -> dict:
         connector_config=connector_config,
         mode=mode,
     )
+
+
+def _plugin_mutation_spec() -> dict:
+    spec = _mutation_spec()
+    capability = {
+        **spec["capability_descriptor"],
+        "backend_class": "fixture_plugin",
+        "identity_class": "plugin_declared",
+        "egress_class": "no_network",
+        "live_backend_posture": "fixture_only",
+        "network_boundary": {"egress": "no_network", "host_declared": False},
+        "secret_ref_requirements": [],
+        "declared_capability_descriptors": ["connector.plugin.fixture_plugin"],
+        "certification_tier": "plugin",
+    }
+    capability.pop("digest", None)
+    spec = {
+        **spec,
+        "backend_class": "fixture_plugin",
+        "capability_descriptor": capability,
+        "required_capability_descriptors": ["connector.plugin.fixture_plugin"],
+        "network_policy_binding": {"allowed_network_egress": ["no_network"]},
+    }
+    spec["digest"] = step_execution_spec_digest(spec)
+    return spec
 
 
 def test_build_typed_execution_governance_request_from_fixture_spec() -> None:
@@ -270,6 +298,41 @@ def test_governed_precheck_accepts_only_exact_approval_blockers() -> None:
             {
                 **admission,
                 "blockers": [*admission["blockers"], "network_boundary_mismatch"],
+            },
+            actual_operation_mode="apply",
+        )
+
+
+def test_plugin_governed_precheck_defers_only_v02_candidate_blockers() -> None:
+    admission = enforce_typed_execution_governance(
+        spec=_plugin_mutation_spec(),
+        operation_id="op-governed-plugin-candidate",
+        mode="apply",
+        shared_state={},
+        governed_mutation=True,
+    )
+
+    require_governed_mutation_precheck(admission, actual_operation_mode="apply")
+    assert admission["required_governed_admission_version"] == "v0.2"
+    assert set(admission["blockers"]) == {
+        "unsupported_backend_class",
+        "mutation_requires_approval_evidence",
+    }
+
+    with pytest.raises(RExecOpValidationError, match="non_approval_blocker"):
+        require_governed_mutation_precheck(
+            {
+                **admission,
+                "blockers": [*admission["blockers"], "network_policy_binding_missing"],
+            },
+            actual_operation_mode="apply",
+        )
+
+    with pytest.raises(RExecOpValidationError, match="non_approval_blocker"):
+        require_governed_mutation_precheck(
+            {
+                **admission,
+                "blockers": ["unsupported_backend_class"],
             },
             actual_operation_mode="apply",
         )
