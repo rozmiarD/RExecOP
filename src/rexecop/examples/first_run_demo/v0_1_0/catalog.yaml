@@ -1,0 +1,14 @@
+target_catalog:
+  version: "0.1"
+  targets:
+    - id: fixture-target
+      target_kind: fixture
+      profile_ref: ./profile/profile.yaml
+      environment_ref: ./environment.yaml
+      environment_target: fixture-target
+      capabilities:
+        - fixture_readonly
+      connector_refs:
+        - fixture
+      classification:
+        criticality: low

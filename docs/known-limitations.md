@@ -36,7 +36,7 @@ This document states what the candidate does **not** provide so expectations sta
 | Staging proven, production is operator-owned | CI uses HTTP stub; live infra requires operator runbook and secrets hygiene |
 | `local_shell_readonly` only | No general shell apply backend in core |
 | `ssh_readonly` is temporary | PolicyEngine gate when `policy_pack` set; allowlisted argv + read-only modes remain in connector |
-| Static fixture is offline-only | `examples/first-run-demo/` and `examples/profiles/runtime-fixture/` use `static_fixture` for no-I/O onboarding and lifecycle regression |
+| Static fixture is offline-only | `examples/first-run-demo/` has a byte-exact packaged `v0.1.0` copy materialized only to a new local directory; it and `examples/profiles/runtime-fixture/` use `static_fixture` for no-I/O onboarding and lifecycle regression. Materialization has no network/distributed atomicity, power-loss durability, or hostile shared-directory race guarantee |
 | Operator journey smoke is fixture-bound | `validate_operator_journeys.py` proves CLI chains on public fixtures; staging/Tecrax endpoints require separate lab runs ([OPERATOR_LAB_RUNBOOK.md](../OPERATOR_LAB_RUNBOOK.md)) |
 | Fixture failure env is lab-only | `REXECOP_STATIC_FIXTURE_FAILURES` injects transient `static_fixture` errors for retry drills in tests/smoke — not for production connectors |
 
@@ -100,7 +100,7 @@ the complete release candidate.
 - GovEngine `PolicyEngine` when `environment.policy_pack` is configured (operation admission/control projection + connector invoke)
 - Host-owned worker, queue drain, and JSON `trigger` ingress
 - Runtime readiness CLI: explicit `--root`, named `--instance`, `init`, `doctor`, `env lint`, `profile lint`
-- Public-safe `examples/first-run-demo/` onboarding path with `scripts/validate_first_run_smoke.py`
+- Public-safe packaged `examples materialize` first-run onboarding path with `scripts/validate_first_run_smoke.py`
 - Operator journey smoke with `scripts/validate_operator_journeys.py`
   (read-only execution, failure/triage, governance controls and audit CLI on fixtures)
 - `rexecop governance controls` — operator-facing GovEngine typed-execution control catalog projection (non-authoritative)

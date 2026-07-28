@@ -209,23 +209,27 @@ release-verification guidance.
 
 ## Read-only quick start
 
-The bundled first-run fixture plans a no-I/O operation:
+The bundled first-run fixture plans a no-I/O operation. Materialize it into a
+new local directory first; the command refuses existing directories and never
+creates a runtime root or executes a workflow:
 
 ```bash
 rexecop version
 
+rexecop examples materialize --output /tmp/rexecop-first-run-demo
+
 rexecop --root /tmp/rexecop-first-run init --guided
 
 rexecop --root /tmp/rexecop-first-run doctor \
-  --profile examples/first-run-demo/profile/profile.yaml \
-  --env examples/first-run-demo/environment.yaml \
-  --catalog examples/first-run-demo/catalog.yaml
+  --profile /tmp/rexecop-first-run-demo/profile/profile.yaml \
+  --env /tmp/rexecop-first-run-demo/environment.yaml \
+  --catalog /tmp/rexecop-first-run-demo/catalog.yaml
 
 rexecop operations explain inspect \
-  --profile examples/first-run-demo/profile/profile.yaml
+  --profile /tmp/rexecop-first-run-demo/profile/profile.yaml
 
 rexecop --root /tmp/rexecop-first-run plan \
-  --catalog examples/first-run-demo/catalog.yaml \
+  --catalog /tmp/rexecop-first-run-demo/catalog.yaml \
   --intent inspect \
   --target fixture-target \
   --mode dry_run

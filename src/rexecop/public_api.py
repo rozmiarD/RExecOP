@@ -137,6 +137,7 @@ ALPHA_CLI_COMMANDS: tuple[tuple[str, ...], ...] = (
     ("doctor",),
     ("env", "lint"),
     ("escalate",),
+    ("examples", "materialize"),
     ("history",),
     ("init",),
     ("operation", "truth-path"),

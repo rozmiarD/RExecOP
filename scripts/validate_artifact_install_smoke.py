@@ -62,6 +62,34 @@ _SURFACE_TIMEOUT_SECONDS = 30.0
 _CLI_TIMEOUT_SECONDS = 30.0
 _ARTIFACT_WORKFLOW_TIMEOUT_SECONDS = 600.0
 _TIMEOUT_RETURN_CODE = 124
+_FIRST_RUN_FILES = (
+    "catalog.yaml",
+    "environment.yaml",
+    "profile/connectors/fixture.yaml",
+    "profile/docs/inspect.md",
+    "profile/intents/inspect.yaml",
+    "profile/profile.yaml",
+    "profile/validation_rules/inspect.yaml",
+    "profile/workflows/inspect.yaml",
+)
+_FIRST_RUN_SHA256 = {
+    "catalog.yaml": "7ab006ba6750ce09913d298d8fef4ff8d0a33f910e47c2b418bcd86e8f0eda4d",
+    "environment.yaml": "8df523efeec68e74ed8a3adb245679213e7f5c187ab1ea5c89210e093ddeaf68",
+    "profile/connectors/fixture.yaml": (
+        "25b9ba82e7deda6da5a9ae16147640309b0710645e98dd51f70622384d15a368"
+    ),
+    "profile/docs/inspect.md": "3d0543e05adf6feefdc9f731b29930cd9bf8af7a7ca4b758c88caba4f27e02f0",
+    "profile/intents/inspect.yaml": (
+        "534968a22865e6b3ae0f6991df841ba0a1921e6d61b52575e1f03c031686e1af"
+    ),
+    "profile/profile.yaml": "7781e0dbc8222e90bc9d12cdb8575dcff7b177fc323ef23c01e3ade9647ce57f",
+    "profile/validation_rules/inspect.yaml": (
+        "fa085678d53e921ad856e01b2b8e538737bc8d8b519ba79c55d0c73eeffa1aca"
+    ),
+    "profile/workflows/inspect.yaml": (
+        "20ba5114e9a452990ec5b74cc76f3b8c0a3282d5a702bba2ca12ce62a39d0a17"
+    ),
+}
 
 
 def _python(venv: Path) -> Path:
@@ -304,6 +332,152 @@ def _run_installed_workflow(
         print(smoke.stdout)
         print(smoke.stderr, file=sys.stderr)
         return smoke.returncode
+    cli_version = stage(
+        [rexecop, "version"],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if cli_version.returncode != 0 or cli_version.stdout.strip() != version:
+        print("artifact_install_smoke_failed:first_run_cli_version", file=sys.stderr)
+        return cli_version.returncode or 1
+    demo = empty_cwd / "first-run-demo"
+    materialize = stage(
+        [rexecop, "examples", "materialize", "--output", str(demo)],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if materialize.returncode != 0:
+        print(materialize.stdout)
+        print(materialize.stderr, file=sys.stderr)
+        return materialize.returncode
+    materialized = json.loads(materialize.stdout)
+    if (
+        materialized.get("status") != "materialized"
+        or materialized.get("example") != "first-run-demo"
+        or materialized.get("fixture_version") != "v0.1.0"
+        or materialized.get("files") != list(_FIRST_RUN_FILES)
+    ):
+        print("artifact_install_smoke_failed:first_run_materialize_output", file=sys.stderr)
+        return 1
+    actual_files = {
+        path.relative_to(demo).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in demo.rglob("*")
+        if path.is_file()
+    }
+    if actual_files != _FIRST_RUN_SHA256:
+        print("artifact_install_smoke_failed:first_run_materialize_bytes", file=sys.stderr)
+        return 1
+    runtime_root = empty_cwd / "first-run-runtime"
+    init_first_run = stage(
+        [rexecop, "--root", str(runtime_root), "init", "--guided"],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if init_first_run.returncode != 0:
+        print(init_first_run.stdout)
+        print(init_first_run.stderr, file=sys.stderr)
+        return init_first_run.returncode
+    guided_init = json.loads(init_first_run.stdout)
+    if (
+        guided_init.get("status") != "initialized"
+        or guided_init.get("guided") is not True
+        or guided_init.get("secrets_created") is not False
+        or not any(
+            "examples materialize" in str(step)
+            for step in guided_init.get("next_steps", [])
+        )
+    ):
+        print("artifact_install_smoke_failed:first_run_guided_init", file=sys.stderr)
+        return 1
+    profile = demo / "profile" / "profile.yaml"
+    environment = demo / "environment.yaml"
+    catalog = demo / "catalog.yaml"
+    doctor = stage(
+        [
+            rexecop,
+            "--root",
+            str(runtime_root),
+            "doctor",
+            "--profile",
+            str(profile),
+            "--env",
+            str(environment),
+            "--catalog",
+            str(catalog),
+        ],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if doctor.returncode != 0:
+        print(doctor.stdout)
+        print(doctor.stderr, file=sys.stderr)
+        return doctor.returncode
+    doctor_payload = json.loads(doctor.stdout)
+    if (
+        doctor_payload.get("status") != "passed"
+        or doctor_payload.get("blockers")
+        or doctor_payload.get("warnings")
+        or doctor_payload.get("security_blockers")
+    ):
+        print("artifact_install_smoke_failed:first_run_doctor", file=sys.stderr)
+        return 1
+    for command, label in (
+        (
+            [
+                rexecop,
+                "profile",
+                "lint",
+                "--profile",
+                str(profile),
+                "--track",
+                "readonly",
+            ],
+            "profile_lint",
+        ),
+        (
+            [rexecop, "env", "lint", "--env", str(environment), "--profile", str(profile)],
+            "env_lint",
+        ),
+    ):
+        lint = stage(command, cwd=empty_cwd, timeout=_CLI_TIMEOUT_SECONDS)
+        if lint.returncode != 0 or json.loads(lint.stdout).get("status") != "passed":
+            print(f"artifact_install_smoke_failed:first_run_{label}", file=sys.stderr)
+            return lint.returncode or 1
+    explain = stage(
+        [rexecop, "operations", "explain", "inspect", "--profile", str(profile)],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if explain.returncode != 0:
+        print(explain.stdout)
+        print(explain.stderr, file=sys.stderr)
+        return explain.returncode
+    explained = json.loads(explain.stdout)
+    operation = explained.get("operation", explained)
+    if not isinstance(operation, dict) or operation.get("side_effect_class") != "none":
+        print("artifact_install_smoke_failed:first_run_explain", file=sys.stderr)
+        return 1
+    plan = stage(
+        [
+            rexecop,
+            "--root",
+            str(runtime_root),
+            "plan",
+            "--catalog",
+            str(catalog),
+            "--intent",
+            "inspect",
+            "--target",
+            "fixture-target",
+            "--mode",
+            "dry_run",
+        ],
+        cwd=empty_cwd,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    if plan.returncode != 0 or not plan.stdout.strip().startswith("op-"):
+        print("artifact_install_smoke_failed:first_run_plan", file=sys.stderr)
+        return plan.returncode or 1
     source = empty_cwd / "source"
     archive = empty_cwd / "runtime-backup.tar"
     sidecar = empty_cwd / "runtime-backup.manifest.json"

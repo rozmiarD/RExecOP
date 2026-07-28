@@ -1,0 +1,18 @@
+intent:
+  id: inspect
+  workflow: workflows/inspect.yaml
+  risk: low
+  enforce_declared_modes: true
+  modes:
+    - read_only
+    - dry_run
+  catalog:
+    title: Inspect Fixture Target
+    summary: Inspect a deterministic no-I/O fixture target for first-run validation.
+    target_kinds:
+      - fixture
+    required_capabilities:
+      - fixture_readonly
+    side_effect_class: none
+    validation_ref: validation_rules/inspect.yaml
+    runbook_ref: docs/inspect.md

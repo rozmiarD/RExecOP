@@ -245,6 +245,7 @@ def test_cli_init_guided_returns_next_steps(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["guided"] is True
     assert payload["secrets_created"] is False
+    assert any("examples materialize" in item for item in payload["next_steps"])
     assert any("doctor" in item for item in payload["next_steps"])
 
 

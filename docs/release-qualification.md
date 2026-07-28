@@ -25,9 +25,10 @@ The aggregate script runs the current release qualification surfaces:
 - core-boundary and secret scans;
 - Ruff, mypy and `pytest -m delivery`;
 - optional build, `twine check` and
-  `validate_artifact_install_smoke.py` (including isolated-wheel runtime
-  backup/create/restore and guarded-store reopening from an empty working
-  directory) when
+  `validate_artifact_install_smoke.py` (including isolated wheel/sdist
+  first-run materialization, exact eight-file bytes, empty-working-directory
+  init/doctor/lint/explain/dry-run-plan, runtime backup/create/restore and
+  guarded-store reopening) when
   `REXECOP_SIGNOFF_BUILD=1`.
 
 Important individual commands include:

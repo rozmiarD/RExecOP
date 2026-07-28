@@ -81,6 +81,7 @@ def initialize_runtime_root(
     if guided:
         result["guided"] = True
         result["next_steps"] = [
+            "rexecop examples materialize --output <new-first-run-directory>",
             "rexecop doctor --profile <profile.yaml> --env <environment.yaml> "
             "--catalog <targets.yaml>",
             "rexecop profile lint --profile <profile.yaml> --track readonly",

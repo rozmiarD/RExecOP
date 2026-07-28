@@ -2,9 +2,11 @@
 
 RExecOp `1.0.0rc1` is the stable read-only release candidate published through
 the protected OIDC workflow on [PyPI](https://pypi.org/project/rexecop/).
-The wheel contains the versioned public subset, runtime implementation and
-packaged contract/schema resources. Qualification and release evidence remain
-repository/GitHub Release records, not claims embedded by installing the wheel.
+The wheel contains the versioned public subset, runtime implementation,
+packaged contract/schema resources, and the versioned first-run fixture used by
+`rexecop examples materialize --output NEW_DIR`. Qualification and release
+evidence remain repository/GitHub Release records, not claims embedded by
+installing the wheel.
 See [Known limitations](known-limitations.md).
 
 ## Supported install paths

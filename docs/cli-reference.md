@@ -49,6 +49,12 @@ binaries and do not make older binaries retroactively safe.
 | `init [--guided]` | Create runtime root layout; no secrets or backend IO |
 | `doctor [--profile] [--env] [--catalog]` | Read-only runtime-root manifest compatibility, storage, single-executor and mutation posture, plugin inventory, stack compatibility, `security_blockers` and optional operator inputs |
 
+## Alpha examples
+
+| Command | Purpose |
+| --- | --- |
+| `examples materialize --output NEW_DIR` | Copy the packaged `first-run-demo` v0.1.0 fixture to one new local directory; no runtime root, connector, admission, evidence, overwrite, merge or force behavior |
+
 For stable-runtime qualification, set `REXECOP_DEPLOYMENT_POSTURE=stable` and
 allowlist every reviewed in-process plugin with `REXECOP_PLUGIN_ALLOWLIST`. JSON
 output always includes all `blockers` plus `security_blockers`, the subset caused
@@ -309,6 +315,7 @@ for the manual equivalents.
 ```text
 rexecop [--root] [--instance] [--storage]
   init | doctor | version
+  examples materialize
   env lint
   secrets doctor | secrets suggest-ref
   profile lint | profile manifest | profile harness

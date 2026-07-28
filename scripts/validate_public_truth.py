@@ -454,7 +454,26 @@ def collect_errors() -> list[str]:
         "scripts/validate_cross_repo_golden_fixture.py",
         "cross_repo_golden_fixture_ok",
     )
-    _require(errors, "docs/first-run.md", "rexecop --root /tmp/rexecop-first-run init --guided")
+    _require(errors, "docs/first-run.md", "rexecop examples materialize --output")
+    _require(errors, "README.md", "rexecop examples materialize --output")
+    _require(errors, "README.md", "rexecop --root /tmp/rexecop-first-run init --guided")
+    _require(errors, "docs/cli-reference.md", "examples materialize --output NEW_DIR")
+    _require(errors, "docs/distribution.md", "rexecop examples materialize --output NEW_DIR")
+    _require(errors, "docs/architecture.md", "materializable package resource")
+    _require(errors, "docs/known-limitations.md", "no network/distributed atomicity")
+    _require(errors, "docs/release-qualification.md", "first-run materialization")
+    _require(
+        errors,
+        "scripts/validate_first_run_smoke.py",
+        'version = _run(empty_cwd, "version").strip()',
+    )
+    _require(errors, "scripts/validate_first_run_smoke.py", '"init", "--guided"')
+    _require(errors, "scripts/validate_artifact_install_smoke.py", '[rexecop, "version"]')
+    _require(
+        errors,
+        "scripts/validate_artifact_install_smoke.py",
+        '"init", "--guided"',
+    )
     _require(errors, "README.md", "docs/first-run.md")
     _require(errors, ".github/workflows/ci.yml", "python scripts/validate_public_truth.py")
     _require(errors, ".github/workflows/ci.yml", "python scripts/validate_stack_contracts.py")

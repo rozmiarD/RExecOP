@@ -68,8 +68,10 @@ orchestration decisions over equivalent recorded inputs and state.
 5. Unknown contract versions, unsupported controls and detected binding drift
    fail closed.
 6. Profiles provide domain semantics without domain imports in `src/rexecop`.
-   The bundled `examples/first-run-demo` and runtime fixtures exercise this
-   boundary without becoming product profiles.
+   The bundled `examples/first-run-demo` source mirror and its versioned,
+   materializable package resource exercise this boundary without becoming
+   product profiles. Materialization is static file copying only, not runtime
+   initialization, governance, connector dispatch, or evidence emission.
 7. Runtime events and receipt exports are not parallel SCLite truth formats.
 8. Secret values are host-owned and prohibited from profile/environment
    configuration and public evidence projections.

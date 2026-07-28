@@ -59,6 +59,10 @@ from rexecop.cli_output import (
 from rexecop.environment.loader import load_environment
 from rexecop.environment.sanitize import validate_no_inline_secrets
 from rexecop.errors import RExecOpError
+from rexecop.examples.first_run import (
+    FirstRunMaterializationError,
+    materialize_first_run_demo,
+)
 from rexecop.governance.operator_surface import collect_governance_controls
 from rexecop.operation.audit import (
     build_support_bundle,
@@ -112,6 +116,10 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 targets_app = typer.Typer(help="Query an operator-owned target catalog.", no_args_is_help=True)
+examples_app = typer.Typer(
+    help="Materialize static onboarding examples without runtime or backend IO.",
+    no_args_is_help=True,
+)
 env_app = typer.Typer(help="Validate operator environment files.", no_args_is_help=True)
 profile_app = typer.Typer(help="Validate profile contracts.", no_args_is_help=True)
 profiles_app = typer.Typer(
@@ -153,6 +161,7 @@ operations_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(targets_app, name="targets")
+app.add_typer(examples_app, name="examples")
 app.add_typer(env_app, name="env")
 app.add_typer(profile_app, name="profile")
 app.add_typer(profiles_app, name="profiles")
@@ -308,6 +317,27 @@ def _emit_lifecycle_state(item: Operation) -> None:
 def version_cmd() -> None:
     """Print the package version."""
     typer.echo(__version__)
+
+
+@examples_app.command("materialize")
+def examples_materialize_cmd(
+    output: Path = typer.Option(
+        ...,
+        "--output",
+        help="New local directory for the versioned first-run fixture.",
+    ),
+) -> None:
+    """Copy the bundled first-run fixture to one new directory only."""
+    try:
+        result = materialize_first_run_demo(output)
+    except FirstRunMaterializationError as exc:
+        emit_failure(
+            command=("examples", "materialize"),
+            message=str(exc),
+            reason_code="first_run_materialization_failed",
+            safe_next_actions=("Choose a new directory below a non-symlinked parent.",),
+        )
+    emit_payload(result)
 
 
 @app.command("init")

@@ -1,0 +1,9 @@
+connector:
+  name: fixture
+  backend: static_fixture
+  capabilities:
+    - read
+  modes:
+    - read_only
+    - dry_run
+  timeout_default: 10s

@@ -9,6 +9,14 @@ source candidates and milestone-level development notes are preserved in the
 
 ## Unreleased
 
+### Added
+
+- Alpha `rexecop examples materialize --output NEW_DIR` for the versioned,
+  byte-exact first-run fixture packaged in wheel and sdist artifacts. It only
+  accepts a new local directory and reports explicit onboarding non-claims;
+  it does not initialize a runtime root, execute connectors, make governance
+  decisions, emit evidence, or overwrite existing materializations.
+
 ### Changed
 
 - Reworked README and operator documentation around the verified execution
