@@ -251,7 +251,7 @@ Requires initialized runtime root unless noted.
 | `start --operation ID` | Execute workflow (queues when lock/capacity busy) |
 | `pause --operation ID` | Pause at `pause_safe` workflow steps only |
 | `resume --operation ID` | Resume from paused state |
-| `cancel --operation ID` | Abort before completion |
+| `cancel --operation ID` | Abort from exactly `waiting_for_approval`, `approved`, `running` or `paused` |
 | `retry --operation ID` | Operator retry when profile policy allows |
 | `rollback --operation ID` | Create/recover the persisted rollback child and start it only when independently admitted |
 | `validate --operation ID` | Re-run declarative profile validation rules for one operation |

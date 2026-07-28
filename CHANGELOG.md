@@ -57,10 +57,11 @@ source candidates and milestone-level development notes are preserved in the
   completes only its admission claim, retains the target lock and emits no
   terminal receipt or trailing drain.
 - Ordered cancellation cleanup after a valid durable `cancelled` transition as
-  lease-fenced queue removal, target release and trailing drain; this does not
-  expand the lifecycle states from which cancellation is valid. Public queue
-  mutation and release now validate compatible state before target release,
-  while fenced or invalid state fails without changing queue bytes or target.
+  lease-fenced queue removal, target release and trailing drain. Cancellation
+  now consistently accepts exactly `waiting_for_approval`, `approved`, `running`
+  and `paused`. Public queue mutation and release validate compatible state
+  before target release, while fenced or invalid state fails without changing
+  queue bytes or target.
 - Cleaned up a derived rollback FIFO claim when the existing rollback-authority
   preflight fails: the exact claim is completed and removed with queue metadata
   before the original validation error is re-raised, without connector IO or

@@ -118,9 +118,9 @@ entered `cancelled`. The controller then removes compatible queue state through
 the private lease-fenced path, releases the target and drains trailing work.
 Repeating cleanup repairs interruption after the state transition or after queue
 removal. An unfinished `pending` or `started` attempt blocks before queue change,
-target release or drain. This ordering does not expand the canonical lifecycle
-source states accepted by `cancel`; in particular, it is not a claim that
-`approved` or `paused` cancellation is supported.
+target release or drain. `cancel` accepts exactly `waiting_for_approval`,
+`approved`, `running` and `paused`; other source states remain rejected.
+Cancellation does not interrupt connector I/O already synchronously in progress.
 
 Public queue mutators, including public runtime release, retain compatibility
 for empty, bare and completed state. Release validates and removes compatible

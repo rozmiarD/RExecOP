@@ -31,7 +31,9 @@ ALLOWED_TRANSITIONS: dict[OperationState, frozenset[OperationState]] = {
             OperationState.APPROVED,
         }
     ),
-    OperationState.APPROVED: frozenset({OperationState.RUNNING}),
+    OperationState.APPROVED: frozenset(
+        {OperationState.RUNNING, OperationState.CANCELLED}
+    ),
     OperationState.RUNNING: frozenset(
         {
             OperationState.PAUSED,
@@ -41,7 +43,9 @@ ALLOWED_TRANSITIONS: dict[OperationState, frozenset[OperationState]] = {
             OperationState.CANCELLED,
         }
     ),
-    OperationState.PAUSED: frozenset({OperationState.RESUMING}),
+    OperationState.PAUSED: frozenset(
+        {OperationState.RESUMING, OperationState.CANCELLED}
+    ),
     OperationState.RESUMING: frozenset({OperationState.RUNNING}),
     OperationState.RETRYING: frozenset({OperationState.RUNNING}),
     OperationState.VALIDATING: frozenset({OperationState.COMPLETED, OperationState.FAILED}),

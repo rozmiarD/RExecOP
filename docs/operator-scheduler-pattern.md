@@ -86,8 +86,9 @@ retains the target and performs no terminal receipt or drain.
 
 After a valid durable `cancelled` transition, cleanup removes queue state under
 the current lease, releases the target and drains. Repeating it repairs either
-an interruption before queue cleanup or one before target release. This does not
-claim that `cancel` accepts `approved` or `paused` as source states. A derived
+an interruption before queue cleanup or one before target release. `cancel`
+accepts exactly `waiting_for_approval`, `approved`, `running` and `paused`; it
+does not interrupt connector I/O already synchronously in progress. A derived
 rollback candidate whose existing authority preflight fails has its FIFO claim
 and queue metadata cleaned before the original error is returned; that cleanup
 does not execute, retry or automatically resolve rollback work.

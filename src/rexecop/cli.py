@@ -1481,7 +1481,7 @@ def resume_cmd(
 def cancel_cmd(
     operation: str = typer.Option(..., "--operation", help="Operation id."),
 ) -> None:
-    """Cancel an operation before completion."""
+    """Cancel from waiting_for_approval, approved, running, or paused."""
     try:
         item = _controller().cancel(operation)
     except RExecOpError as exc:

@@ -116,8 +116,10 @@ no replacement claim.
 Cancellation cleanup starts only after a valid durable `cancelled` transition:
 lease-fenced queue removal, target release, then drain. Repeated cleanup repairs
 either interruption boundary, while unfinished `pending` or `started` attempts
-block before queue mutation, target release or drain. This does not assert that
-`approved` or `paused` are valid cancellation source states.
+block before queue mutation, target release or drain. `cancel` accepts exactly
+`waiting_for_approval`, `approved`, `running` and `paused`; other source states
+remain rejected. It does not interrupt connector I/O already synchronously in
+progress.
 
 When the existing authority preflight for a FIFO-selected derived rollback
 candidate fails, the controller exact-completes and removes that claim and its
