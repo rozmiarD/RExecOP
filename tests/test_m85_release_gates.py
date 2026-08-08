@@ -32,9 +32,14 @@ def test_validate_stack_invariants_gate_passes() -> None:
     assert "stack_invariants_ok" in result.stdout
 
 
-def test_validate_external_review_gate_passes_for_current_line() -> None:
+def test_validate_external_review_gate_passes_for_last_published_line() -> None:
     result = subprocess.run(
-        [sys.executable, "scripts/validate_external_review_gate.py"],
+        [
+            sys.executable,
+            "scripts/validate_external_review_gate.py",
+            "--version",
+            "1.0.0rc1",
+        ],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,

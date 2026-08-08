@@ -224,7 +224,7 @@ def test_release_preflight_rejects_missing_previous_evidence() -> None:
 
 def test_release_preflight_rejects_digest_mismatch(tmp_path: Path) -> None:
     validator = _load_validator()
-    version = validator._validator_modules()[0].PUBLISHED_PYPI_VERSION
+    version = validator._validator_modules()[0].PREVIOUS_PYPI_VERSION
     path = _write_evidence(tmp_path / "evidence.json", version)
     record = json.loads(path.read_text(encoding="utf-8"))
     record["doctor_status"] = "blocker"
@@ -239,7 +239,7 @@ def test_release_preflight_rejects_digest_mismatch(tmp_path: Path) -> None:
 
 def test_release_preflight_accepts_superseded_repair(tmp_path: Path) -> None:
     validator = _load_validator()
-    previous = validator._validator_modules()[0].PUBLISHED_PYPI_VERSION
+    previous = validator._validator_modules()[0].PREVIOUS_PYPI_VERSION
     path = _write_evidence(tmp_path / "repair.json", "0.2.25a0", supersedes=previous)
     errors = validator.collect_errors(
         release_mode=True,
@@ -251,7 +251,7 @@ def test_release_preflight_accepts_superseded_repair(tmp_path: Path) -> None:
 
 def test_release_preflight_accepts_legacy_previous_line_evidence(tmp_path: Path) -> None:
     validator = _load_validator()
-    previous = validator._validator_modules()[0].PUBLISHED_PYPI_VERSION
+    previous = validator._validator_modules()[0].PREVIOUS_PYPI_VERSION
     path = _write_evidence(tmp_path / "legacy.json", previous, legacy=True)
 
     errors = validator.collect_errors(

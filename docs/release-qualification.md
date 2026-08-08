@@ -11,7 +11,7 @@ bash scripts/run_alpha_signoff_checks.sh
 ```
 
 The script name is historical. It is not the maturity label of the complete
-`1.0.0rc1` package.
+`1.0.0rc2` package.
 
 ## Automated gate
 
@@ -40,7 +40,7 @@ python scripts/validate_profile_conformance.py
 python scripts/validate_first_run_smoke.py
 python scripts/validate_operator_journeys.py
 python scripts/validate_cross_repo_golden_fixture.py
-python scripts/validate_external_review_gate.py --version 1.0.0rc1
+python scripts/validate_external_review_gate.py --version 1.0.0rc2
 python scripts/validate_m10_public_api_gate.py
 python scripts/validate_m10_release_gate.py
 python scripts/validate_m10_operational_gate.py
@@ -70,6 +70,19 @@ operator-journey, workflow-security, package, lint, typing and test surfaces.
 The aggregate qualification gate is the broader local/release check. Consult
 `.github/workflows/ci.yml` and `scripts/run_alpha_signoff_checks.sh` for the
 executable source of truth.
+
+### Release-preparation state
+
+The `1.0.0rc2` version/docs/workflow preparation may be committed before the
+reviewer's v0.2 record exists, but it is not yet the immutable review source A.
+Ordinary CI and pytest must be green, while `validate_external_review_gate.py`
+and the final aggregate signoff remain fail-closed. The historical
+`release-qualification/m10-operational.json` also remains bound to rc1 and must
+produce `operational_qualification_version_drift`; it must not be relabelled or
+rewritten as rc2 evidence. First add and complete a new truthful rc2 operational
+qualification path, then freeze that later commit as source A. Do not create the
+review child, release tag or publishing dispatch until the corresponding gates
+make the aggregate signoff green.
 
 ## Ordinary CI source snapshots
 

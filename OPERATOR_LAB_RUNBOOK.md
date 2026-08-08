@@ -1,6 +1,6 @@
 # Operator lab runbook
 
-This runbook validates RExecOp `1.0.0rc1` with public fixtures and optional
+This runbook validates RExecOp `1.0.0rc2` with public fixtures and optional
 staging read-only endpoints. It is not a production mutation procedure.
 
 The lab has two mutation-related purposes only:

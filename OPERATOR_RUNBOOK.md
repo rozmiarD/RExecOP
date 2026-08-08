@@ -1,6 +1,6 @@
 # Operator runbook
 
-This runbook covers the stable read-only posture of RExecOp `1.0.0rc1`.
+This runbook covers the stable read-only posture of RExecOp `1.0.0rc2`.
 Mutating execution is intentionally excluded: the stock `stable_read_only`
 posture rejects `apply` and `recovery` before execution and again before
 connector I/O.
@@ -13,8 +13,8 @@ and expected mutation-block checks.
 | Requirement | Notes |
 | --- | --- |
 | Python | 3.11 or newer |
-| RExecOp | Public `rexecop==1.0.0rc1` |
-| Dependencies | Exact `govengine==1.0.0rc1` and `sclite-core==2.0.0` pins are installed with RExecOp |
+| RExecOp | Exact `rexecop==1.0.0rc2` release candidate |
+| Dependencies | Exact `govengine==1.0.0rc2` and `sclite-core==2.0.1` pins are installed with RExecOp |
 | Profile | A reviewed profile path or separately installed profile package |
 | Operator host | Access only to the targets and secret provider required for the selected read-only workflow |
 
@@ -26,7 +26,7 @@ distribution.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install "rexecop==1.0.0rc1"
+python -m pip install "rexecop==1.0.0rc2"
 rexecop version
 ```
 

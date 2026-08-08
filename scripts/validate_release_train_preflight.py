@@ -220,7 +220,7 @@ def collect_errors(
             )
         )
     if release_mode:
-        expected_previous = public_truth.PUBLISHED_PYPI_VERSION
+        expected_previous = public_truth.PREVIOUS_PYPI_VERSION
         evidence_path = previous_evidence
         if evidence_path is None:
             configured = os.environ.get(PREVIOUS_EVIDENCE_ENV, "").strip()

@@ -24,7 +24,7 @@ def _record() -> dict[str, object]:
     return payload
 
 
-def test_m10_operational_record_matches_current_candidate() -> None:
+def test_m10_operational_record_matches_historical_qualified_source() -> None:
     gate = _load()
 
     assert gate.validate_record(_record(), source_version="0.3.0rc3") == []
@@ -34,6 +34,14 @@ def test_m10_operational_record_allows_mechanical_target_release_bump() -> None:
     gate = _load()
 
     assert gate.validate_record(_record(), source_version="1.0.0rc1") == []
+
+
+def test_m10_operational_record_rejects_unqualified_rc2_target() -> None:
+    gate = _load()
+
+    errors = gate.validate_record(_record(), source_version="1.0.0rc2")
+
+    assert "operational_qualification_version_drift" in errors
 
 
 def test_m10_operational_record_rejects_live_mutation() -> None:

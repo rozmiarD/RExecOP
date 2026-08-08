@@ -18,9 +18,10 @@ EXPECTED_GOVENGINE = "govengine==1.0.0rc2"
 EXPECTED_SCLITE = "sclite-core==2.0.1"
 EXPECTED_TECRAX_CONSUMER = "0.4.0rc3"
 EXPECTED_GOVENGINE_STATUS = "`1.0.0rc1` (public release candidate)"
-PUBLISHED_PYPI_VERSION = "1.0.0rc1"
-PUBLISHED_GOVENGINE = "govengine==1.0.0rc1"
-PUBLISHED_SCLITE = "sclite-core==2.0.0"
+RELEASE_TARGET_VERSION = "1.0.0rc2"
+PREVIOUS_PYPI_VERSION = "1.0.0rc1"
+IMMUTABLE_RC1_GOVENGINE = "govengine==1.0.0rc1"
+IMMUTABLE_RC1_SCLITE = "sclite-core==2.0.0"
 SCLITE_SOURCE_REF = "c065d7a157665351054bacc7b5e3ae12b7cc9d98"
 GOVENGINE_SOURCE_REF = "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8"
 
@@ -259,19 +260,25 @@ def _assert_pypi_docs(errors: list[str], version: str) -> None:
     _require(
         errors,
         "README.md",
-        f"https://pypi.org/project/rexecop/{PUBLISHED_PYPI_VERSION}/",
+        f"https://pypi.org/project/rexecop/{PREVIOUS_PYPI_VERSION}/",
     )
     _require(
         errors,
         "README.md",
-        f'python -m pip install "rexecop=={PUBLISHED_PYPI_VERSION}"',
+        f'python -m pip install "rexecop=={version}"',
     )
-    if version != PUBLISHED_PYPI_VERSION:
-        _require(errors, "README.md", f"Current source line | `{version}`")
-        _require(errors, "README.md", "does not contain the watchdog decision truth path")
-        _require(errors, "README.md", "manual recovery record path")
+    _require(errors, "README.md", f"Current source line | `{version}`")
+    _require(errors, "README.md", f"Previous public line | `{PREVIOUS_PYPI_VERSION}`")
+    _require(errors, "README.md", "After the controlled release completes")
+    _require(errors, "README.md", "The previous `1.0.0rc1` wheel remains")
+    _require(errors, "README.md", "release-preparation candidate")
+    _require(errors, "README.md", "only after new rc2 operational qualification")
+    _require(errors, "README.md", "It is not reviewed")
+    _require(errors, "README.md", "or public until")
     _require(errors, "docs/distribution.md", "https://pypi.org/project/rexecop/")
-    _require(errors, "docs/distribution.md", f"rexecop=={PUBLISHED_PYPI_VERSION}")
+    _require(errors, "docs/distribution.md", "After the controlled release completes")
+    _require(errors, "docs/distribution.md", f"rexecop=={version}")
+    _require(errors, "docs/distribution.md", f"rexecop=={PREVIOUS_PYPI_VERSION}")
 
 
 def current_version() -> str:
@@ -288,6 +295,8 @@ def collect_errors() -> list[str]:
 
     if project["name"] != "rexecop":
         errors.append(f"distribution_name_mismatch:{project['name']}")
+    if version != RELEASE_TARGET_VERSION:
+        errors.append(f"release_target_version_mismatch:{version}!={RELEASE_TARGET_VERSION}")
     if rexecop.__version__ != version:
         errors.append(f"package_version_mismatch:{rexecop.__version__}!={version}")
     if govengine_dep != EXPECTED_GOVENGINE:
@@ -311,7 +320,7 @@ def collect_errors() -> list[str]:
         _require(errors, path, version)
         _reject_stale_operator_versions(errors, path, text, version)
 
-    badge = f"package-rexecop%20{PUBLISHED_PYPI_VERSION}"
+    badge = f"package-rexecop%20{version}"
     if badge not in _read("README.md"):
         errors.append(f"README.md:missing_badge:{badge}")
 
@@ -319,8 +328,8 @@ def collect_errors() -> list[str]:
     _require(errors, "README.md", EXPECTED_SCLITE)
     _require(errors, "docs/distribution.md", EXPECTED_GOVENGINE)
     _require(errors, "docs/distribution.md", EXPECTED_SCLITE)
-    _require(errors, "docs/distribution.md", PUBLISHED_GOVENGINE)
-    _require(errors, "docs/distribution.md", PUBLISHED_SCLITE)
+    _require(errors, "docs/distribution.md", IMMUTABLE_RC1_GOVENGINE)
+    _require(errors, "docs/distribution.md", IMMUTABLE_RC1_SCLITE)
     _require(errors, "docs/release-qualification-record.md", EXPECTED_GOVENGINE_STATUS)
     _forbid(
         errors,

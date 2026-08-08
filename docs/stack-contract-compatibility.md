@@ -1,6 +1,6 @@
 # Stack contract compatibility
 
-This matrix records the source contract baseline that RExecOp `1.0.0rc1`
+This matrix records the source contract baseline that RExecOp `1.0.0rc2`
 consumes. It is a compatibility guard, not a new source of truth.
 Document id: `stack-contract-compatibility`.
 
@@ -19,7 +19,7 @@ Document id: `stack-contract-compatibility`.
 | --- | --- | --- | --- |
 | `sclite-core` | `2.0.1` | `sclite-core==2.0.1` | Frozen SCLite lifecycle/evidence/review verification kernel; RExecOp owns reaction, trigger-decision, watchdog-decision and automation-chain schemas. |
 | `govengine` | `1.0.0rc2` | `govengine==1.0.0rc2` | Governance facade plus explicitly classified adapter/module imports. The downstream import map and stack gate, not this prose, define the consumed surface. |
-| `rexecop` | `1.0.0rc1` | current package | Stable read-only neutral runner, connectors, catalog and reaction mechanics. |
+| `rexecop` | `1.0.0rc2` | current package | Stable read-only neutral runner, connectors, catalog and reaction mechanics. |
 | `tecrax` | `0.4.0rc3` source candidate | external source consumer; no RExecOp package extra | Domain infrastructure profile tested through entry points and cross-repository fixtures. |
 
 ## Contract matrix
@@ -61,7 +61,7 @@ Document id: `stack-contract-compatibility`.
 
 `alpha_readonly` is a retained machine-readable readiness label. It classifies
 that compatibility track; it does not describe the maturity of the whole
-`1.0.0rc1` package.
+`1.0.0rc2` package.
 
 `scripts/validate_profile_conformance.py` defaults to `--track readonly`. The
 separate `--track mutation` report is allowed to discover and validate bounded

@@ -9,6 +9,8 @@ source candidates and milestone-level development notes are preserved in the
 
 ## Unreleased
 
+## [1.0.0rc2] - 2026-08-08
+
 ### Added
 
 - Alpha `rexecop examples materialize --output NEW_DIR` for the versioned,
@@ -29,7 +31,7 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Changed
 
-- The current source line now requires exact public `govengine==1.0.0rc2` and
+- This release requires exact public `govengine==1.0.0rc2` and
   `sclite-core==2.0.1`. Runtime doctor, release-train preflight, documentation
   and CI fail closed on drift while the already published `rexecop==1.0.0rc1`
   artifact and its historical dependency metadata remain unchanged.
@@ -229,4 +231,5 @@ the [archive](docs/archive/pre-1.0-development-history.md).
 | [`0.2.3a0`](https://pypi.org/project/rexecop/0.2.3a0/) | 2026-06-20 |
 | [`0.2.2a0`](https://pypi.org/project/rexecop/0.2.2a0/) | 2026-06-20 |
 
+[1.0.0rc2]: https://github.com/rozmiarD/RExecOP/compare/v1.0.0rc1...v1.0.0rc2
 [1.0.0rc1]: https://github.com/rozmiarD/RExecOP/releases/tag/v1.0.0rc1

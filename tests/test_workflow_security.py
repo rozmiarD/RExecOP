@@ -97,3 +97,52 @@ def test_workflow_security_rejects_duplicate_or_unexpected_sibling_checkout(
     )
     with pytest.raises(AssertionError, match="workflow_ci_sibling_checkout_mismatch"):
         validator.validate_workflow_security()
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'test "$GOVENGINE_REF" = "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8"',
+        'test "$SCLITE_REF" = "c065d7a157665351054bacc7b5e3ae12b7cc9d98"',
+        'test "$PREVIOUS_VERSION" = "1.0.0rc1"',
+    ],
+)
+def test_workflow_security_rejects_missing_exact_publish_ref_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+) -> None:
+    validator, _ = _workflow_fixture(tmp_path, monkeypatch)
+    publish_path = validator.WORKFLOWS / "publish.yml"
+    publish_path.write_text(
+        publish_path.read_text(encoding="utf-8").replace(source, "", 1),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="workflow_publish_missing"):
+        validator.validate_workflow_security()
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["govengine_ref", "sclite_ref", "version", "previous_version"],
+)
+def test_workflow_security_rejects_direct_shell_interpolation_of_publish_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+) -> None:
+    validator, _ = _workflow_fixture(tmp_path, monkeypatch)
+    publish_path = validator.WORKFLOWS / "publish.yml"
+    marker = "        run: |\n"
+    publish_path.write_text(
+        publish_path.read_text(encoding="utf-8").replace(
+            marker,
+            marker + f'          test "${{{{ inputs.{name} }}}}"\n',
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="workflow_publish_direct_input_in_run"):
+        validator.validate_workflow_security()

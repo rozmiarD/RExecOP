@@ -1,6 +1,6 @@
 # Known limitations (1.0 release candidate)
 
-RExecOp `1.0.0rc1` is the stable read-only release candidate for operator evaluation.
+RExecOp `1.0.0rc2` is the stable read-only release candidate for operator evaluation.
 This document states what the candidate does **not** provide so expectations stay aligned with implementation.
 
 ## Governance and truth
@@ -65,8 +65,8 @@ This document states what the candidate does **not** provide so expectations sta
 
 | Limitation | Detail |
 | --- | --- |
-| Public PyPI | `rexecop==1.0.0rc1` is the stable read-only release candidate — not a production-ready or mutation-ready claim |
-| Source release line | `1.0.0rc1` is the current candidate on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
+| Public PyPI | `rexecop==1.0.0rc2` is the controlled release target; it is not public until the protected tag/OIDC workflow and public-index smoke complete |
+| Source release line | `1.0.0rc2` is the current candidate on `main`; see [CHANGELOG.md](../CHANGELOG.md) for history |
 | Public API | `rexecop.public_api.v1` identifies the supported 1.x import/CLI subset; unlisted CLI and deep implementation modules retain their documented alpha status |
 | Coordinated dependencies | Current source requires public `govengine==1.0.0rc2` and public `sclite-core==2.0.1`; the immutable public `rexecop==1.0.0rc1` wheel retains its original rc1/2.0.0 metadata. RExecOp 1.x has no `tecrax` extra; Tecrax is a separately released external consumer/plugin. |
 | Operational qualification | The pre-release `0.3.0rc3` source at commit `9e1d13d947351c9904afd7d10b632eac041d6941`, targeting `1.0.0rc1`, passed the isolated clean-install, bounded live read-only, restart/recovery and public-projection journey recorded in [`release-qualification/m10-operational.json`](release-qualification/m10-operational.json). Later release-only deltas and the final tag are covered by separate release gates and review records. This qualification does not certify mutation or make the private runtime root publishable. |

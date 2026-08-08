@@ -152,7 +152,7 @@ src/rexecop/
 
 ## Exact stack baseline
 
-RExecOp `1.0.0rc1` pins:
+RExecOp `1.0.0rc2` pins:
 
 ```text
 govengine==1.0.0rc2

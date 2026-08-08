@@ -77,7 +77,8 @@ def validate_workflow_security() -> dict[str, int]:
     if missing:
         raise AssertionError(f"workflow_required_action_missing:{','.join(missing)}")
     sibling_checkout_count = _validate_ci_sibling_checkouts()
-    publish = (WORKFLOWS / "publish.yml").read_text(encoding="utf-8")
+    publish_path = WORKFLOWS / "publish.yml"
+    publish = publish_path.read_text(encoding="utf-8")
     for marker in (
         "name: pypi",
         "id-token: write",
@@ -106,8 +107,19 @@ def validate_workflow_security() -> dict[str, int]:
         "github_release_prerelease_flag.py",
         'release_args+=("$prerelease_flag")',
         "--verify-tag",
+        'default: "1.0.0rc2"',
+        'default: "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8"',
+        'default: "c065d7a157665351054bacc7b5e3ae12b7cc9d98"',
         'default: "1.0.0rc1"',
-        'default: "2470373c6384c284ab48df7ce763f0938797d155"',
+        "GOVENGINE_REF: ${{ inputs.govengine_ref }}",
+        "SCLITE_REF: ${{ inputs.sclite_ref }}",
+        'PREVIOUS_VERSION: ${{ inputs.previous_version }}',
+        'VERSION: ${{ inputs.version }}',
+        'test "$GOVENGINE_REF" = "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8"',
+        'test "$SCLITE_REF" = "c065d7a157665351054bacc7b5e3ae12b7cc9d98"',
+        'test "$PREVIOUS_VERSION" = "1.0.0rc1"',
+        '--version "$VERSION"',
+        '--supersedes "$PREVIOUS_VERSION"',
     ):
         if marker not in publish:
             raise AssertionError(f"workflow_publish_missing:{marker}")
@@ -123,6 +135,7 @@ def validate_workflow_security() -> dict[str, int]:
     ):
         if forbidden in publish:
             raise AssertionError(f"workflow_publish_unsafe_setting:{forbidden}")
+    _validate_no_direct_input_interpolation_in_run(publish_path)
     repair = (WORKFLOWS / "repair-release-evidence.yml").read_text(encoding="utf-8")
     for marker in (
         "artifact-metadata: write",
@@ -178,19 +191,45 @@ def _validate_ci_sibling_checkouts() -> int:
             if "repository" not in options and "path" not in options:
                 continue
             repository = options.get("repository")
-            path = options.get("path")
+            checkout_path = options.get("path")
             reference = options.get("ref")
-            if not all(isinstance(item, str) for item in (repository, path, reference)):
+            if not isinstance(repository, str):
+                raise AssertionError(f"workflow_ci_sibling_checkout_invalid:{job_name}")
+            if not isinstance(checkout_path, str):
+                raise AssertionError(f"workflow_ci_sibling_checkout_invalid:{job_name}")
+            if not isinstance(reference, str):
                 raise AssertionError(f"workflow_ci_sibling_checkout_invalid:{job_name}")
             if not FULL_SHA.fullmatch(reference):
                 raise AssertionError(
-                    f"workflow_ci_sibling_ref_not_literal_sha:{job_name}:{repository}:{path}"
+                    "workflow_ci_sibling_ref_not_literal_sha:"
+                    f"{job_name}:{repository}:{checkout_path}"
                 )
-            actual.append((job_name, repository, path, reference))
+            actual.append((job_name, repository, checkout_path, reference))
 
     if Counter(actual) != Counter(EXPECTED_CI_SIBLING_CHECKOUTS):
         raise AssertionError("workflow_ci_sibling_checkout_mismatch")
     return len(actual)
+
+
+def _validate_no_direct_input_interpolation_in_run(path: Path) -> None:
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise AssertionError(f"workflow_invalid_yaml:{path.name}") from exc
+
+    def visit(value: object) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "run" and isinstance(child, str) and "${{ inputs." in child:
+                    raise AssertionError(
+                        f"workflow_publish_direct_input_in_run:{path.name}"
+                    )
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(document)
 
 
 def main(argv: list[str] | None = None) -> int:

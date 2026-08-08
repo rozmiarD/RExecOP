@@ -6,18 +6,19 @@ on:
       version:
         description: Package version to publish (must match pyproject.toml)
         required: true
-        default: "1.0.0rc1"
+        default: "1.0.0rc2"
       govengine_ref:
         description: Exact GovEngine commit SHA for this release train
         required: true
+        default: "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8"
       sclite_ref:
         description: Exact SCLite commit SHA for this release train
         required: true
-        default: "2470373c6384c284ab48df7ce763f0938797d155"
+        default: "c065d7a157665351054bacc7b5e3ae12b7cc9d98"
       previous_version:
-        description: Previous evidence-backed public version; leave blank for the first line
-        required: false
-        default: ""
+        description: Exact previous evidence-backed public version for this release train
+        required: true
+        default: "1.0.0rc1"
 
 permissions:
   contents: write
@@ -92,14 +93,19 @@ jobs:
 
       - name: Validate version and public truth
         env:
+          GOVENGINE_REF: ${{ inputs.govengine_ref }}
           GOVSTACK_REPO_GOVENGINE: ${{ github.workspace }}/.govstack/govengine
           GOVSTACK_REPO_SCLITE: ${{ github.workspace }}/.govstack/sclite
           PREVIOUS_VERSION: ${{ inputs.previous_version }}
+          SCLITE_REF: ${{ inputs.sclite_ref }}
           VERSION: ${{ inputs.version }}
         run: |
           test "$GITHUB_REF" = "refs/heads/main"
-          test "${{ inputs.govengine_ref }}" = "$(printf '%s' '${{ inputs.govengine_ref }}' | grep -E '^[0-9a-f]{40}$')"
-          test "${{ inputs.sclite_ref }}" = "$(printf '%s' '${{ inputs.sclite_ref }}' | grep -E '^[0-9a-f]{40}$')"
+          test "$GOVENGINE_REF" = "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8"
+          test "$SCLITE_REF" = "c065d7a157665351054bacc7b5e3ae12b7cc9d98"
+          test "$PREVIOUS_VERSION" = "1.0.0rc1"
+          test "$GOVENGINE_REF" = "$(printf '%s' "$GOVENGINE_REF" | grep -E '^[0-9a-f]{40}$')"
+          test "$SCLITE_REF" = "$(printf '%s' "$SCLITE_REF" | grep -E '^[0-9a-f]{40}$')"
           python scripts/validate_public_truth.py
           python scripts/validate_stack_contracts.py
           preflight_args=()
@@ -157,16 +163,18 @@ jobs:
         env:
           GOVSTACK_REPO_GOVENGINE: ${{ github.workspace }}/.govstack/govengine
           GOVSTACK_REPO_SCLITE: ${{ github.workspace }}/.govstack/sclite
+          PREVIOUS_VERSION: ${{ inputs.previous_version }}
+          VERSION: ${{ inputs.version }}
         run: |
           python scripts/validate_public_index_release_smoke.py \
-            --version "${{ inputs.version }}" \
+            --version "$VERSION" \
             --dist-dir dist \
-            --sbom "dist/rexecop-${{ inputs.version }}.cdx.json" \
+            --sbom "dist/rexecop-${VERSION}.cdx.json" \
             --attestation-id "${{ steps.release_subject_attestation.outputs.attestation-id }}" \
             --attestation-url "${{ steps.release_subject_attestation.outputs.attestation-url }}" \
-            --evidence-output ".release-train/rexecop-release-evidence-${{ inputs.version }}.json" \
+            --evidence-output ".release-train/rexecop-release-evidence-${VERSION}.json" \
             --source-commit "${{ steps.release_source.outputs.commit }}" \
-            --supersedes "${{ inputs.previous_version }}" \
+            --supersedes "$PREVIOUS_VERSION" \
             --write-evidence \
             --verify-post-publish
 

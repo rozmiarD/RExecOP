@@ -294,11 +294,11 @@ def test_init_rejects_symlink_root_path_without_adoption(
         (
             b'{"schema":"rexecop.runtime_init.v0.1",'
             b'"schema":"rexecop.runtime_init.v0.1",'
-            b'"rexecop_version":"1.0.0rc1","storage_backend":"file"}\n'
+            b'"rexecop_version":"1.0.0rc2","storage_backend":"file"}\n'
         ),
         (
             b'{"schema":"rexecop.runtime_init.v0.1",'
-            b'"rexecop_version":"1.0.0rc1","storage_backend":"file",'
+            b'"rexecop_version":"1.0.0rc2","storage_backend":"file",'
             b'"metadata":{"note":"one","note":"two"}}\n'
         ),
     ],
@@ -330,7 +330,7 @@ def test_init_rejects_oversized_valid_manifest_without_side_effects(
     manifest_bytes = json.dumps(
         {
             "schema": "rexecop.runtime_init.v0.1",
-            "rexecop_version": "1.0.0rc1",
+            "rexecop_version": "1.0.0rc2",
             "storage_backend": "file",
             "padding": "x" * RUNTIME_MANIFEST_MAX_BYTES,
         }

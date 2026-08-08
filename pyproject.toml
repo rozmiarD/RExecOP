@@ -1,6 +1,6 @@
 [project]
 name = "rexecop"
-version = "1.0.0rc1"
+version = "1.0.0rc2"
 description = "Regulated Execution Operations control-plane for profile-defined workflows bound to GovEngine and SCLite."
 readme = "README.md"
 requires-python = ">=3.11"

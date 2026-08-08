@@ -58,7 +58,7 @@ artifacts outside the host.
 
 ## Release-candidate limits
 
-RExecOp `1.0.0rc1` is a release candidate with a stable read-only core. Alpha
+RExecOp `1.0.0rc2` is a release candidate with a stable read-only core. Alpha
 classifications still apply to explicitly listed CLI/API surfaces, SQLite and
 legacy runtime-root compatibility; they do not describe the entire package.
 See [known-limitations.md](known-limitations.md) and

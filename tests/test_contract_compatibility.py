@@ -43,7 +43,7 @@ def test_doctor_accepts_exact_release_train_package_pair(
 
     assert check["status"] == "passed"
     assert check["details"]["found"] == {
-        "rexecop": "1.0.0rc1",
+        "rexecop": "1.0.0rc2",
         "govengine": "1.0.0rc2",
         "sclite-core": "2.0.1",
     }

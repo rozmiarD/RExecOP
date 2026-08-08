@@ -1,7 +1,7 @@
 # RExecOp
 
 [![CI: pytest](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml/badge.svg)](https://github.com/rozmiarD/RExecOP/actions/workflows/ci.yml)
-[![Package: rexecop 1.0.0rc1](https://img.shields.io/badge/package-rexecop%201.0.0rc1-blueviolet.svg)](https://pypi.org/project/rexecop/1.0.0rc1/)
+[![Release target: rexecop 1.0.0rc2](https://img.shields.io/badge/package-rexecop%201.0.0rc2-blueviolet.svg)](CHANGELOG.md#100rc2---2026-08-08)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![Status: release candidate](https://img.shields.io/badge/status-release%20candidate-green.svg)](#release-status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
@@ -24,7 +24,9 @@ that connect those inputs and decisions to actual I/O.
 
 | Item | Current value |
 | --- | --- |
-| Package | [`rexecop==1.0.0rc1`](https://pypi.org/project/rexecop/1.0.0rc1/) |
+| Current source line | `1.0.0rc2` |
+| Release preparation | `rexecop==1.0.0rc2` candidate; not yet the immutable review target |
+| Previous public line | `1.0.0rc1` ([PyPI](https://pypi.org/project/rexecop/1.0.0rc1/)) |
 | Maturity | Release candidate with a stable read-only core |
 | Python | 3.11 or newer |
 | Public `1.0.0rc1` wheel dependencies | `govengine==1.0.0rc1`, `sclite-core==2.0.0` |
@@ -33,10 +35,12 @@ that connect those inputs and decisions to actual I/O.
 | Mutating execution | Blocked by the stock stable posture |
 | Compatibility | [Stack contract compatibility](docs/stack-contract-compatibility.md) |
 
-The `main` branch contains the qualified upstream repin recorded under
-[Unreleased](CHANGELOG.md#unreleased). The public `1.0.0rc1` wheel remains the
-current evaluation release and retains the dependency metadata with which it
-was published; use a source checkout for the newer coordinated stack line.
+The `1.0.0rc2` source is a release-preparation candidate for the coordinated
+stack line. It becomes the immutable target for source-bound independent review
+only after new rc2 operational qualification is complete. It is not reviewed
+or public until the evidence-only review child and protected tag/OIDC workflow
+complete successfully. The previous `1.0.0rc1` wheel remains immutable and
+retains the dependency metadata with which it was published.
 
 ## Why RExecOp exists
 
@@ -118,7 +122,7 @@ RExecOp does not claim that:
 - a successful connector call proves the intended real-world outcome;
 - recovery can always determine whether an interrupted side effect occurred;
 - read-only compatibility mode carries signed governance authenticity;
-- the stock `1.0.0rc1` CLI supports unrestricted production mutation;
+- the stock `1.0.0rc2` CLI supports unrestricted production mutation;
 - redaction makes every runtime artifact safe to publish without operator
   review;
 - RExecOp is a policy engine, secret manager, domain workflow product,
@@ -132,7 +136,7 @@ The current security posture and residual risks are documented in
 [Known limitations](docs/known-limitations.md), and
 [Security threat model](docs/security-threat-model.md).
 
-## What ships in `1.0.0rc1`
+## What ships in `1.0.0rc2`
 
 ### Operation runtime
 
@@ -189,10 +193,10 @@ The exhaustive command and schema inventories live in
 
 ## Install
 
-Install the public release candidate:
+After the controlled release completes, install the exact release candidate:
 
 ```bash
-python -m pip install "rexecop==1.0.0rc1"
+python -m pip install "rexecop==1.0.0rc2"
 rexecop version
 ```
 

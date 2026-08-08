@@ -24,7 +24,7 @@ from rexecop.runtime.doctor import (  # noqa: E402
 )
 from rexecop.runtime.doctor import EXPECTED_SCLITE as DOCTOR_EXPECTED_SCLITE  # noqa: E402
 
-EXPECTED_REXECOP = "1.0.0rc1"
+EXPECTED_REXECOP = "1.0.0rc2"
 EXPECTED_GOVENGINE = "govengine==1.0.0rc2"
 EXPECTED_SCLITE = "sclite-core==2.0.1"
 EXPECTED_TECRAX_CONSUMER = "0.4.0rc3"
@@ -42,7 +42,7 @@ NON_ACTIVE_READINESS = (
 REQUIRED_DOC_MARKERS = (
     "sclite-core==2.0.1",
     "govengine==1.0.0rc2",
-    "rexecop` | `1.0.0rc1`",
+    "rexecop` | `1.0.0rc2`",
     "`0.4.0rc3`",
     "external source consumer",
     "observation_envelope.v0.1",

@@ -1,7 +1,10 @@
 # Distribution and installation
 
-RExecOp `1.0.0rc1` is the stable read-only release candidate published through
-the protected OIDC workflow on [PyPI](https://pypi.org/project/rexecop/).
+RExecOp `1.0.0rc2` is the stable read-only release target. It becomes public
+only through the protected OIDC workflow on
+[PyPI](https://pypi.org/project/rexecop/) after source-bound independent review,
+tag validation and public-index smoke. The previous public line remains
+`rexecop==1.0.0rc1` until that workflow completes.
 The wheel contains the versioned public subset, runtime implementation,
 packaged contract/schema resources, and the versioned first-run fixture used by
 `rexecop examples materialize --output NEW_DIR`. Qualification and release
@@ -13,7 +16,7 @@ See [Known limitations](known-limitations.md).
 
 | Path | When to use |
 | --- | --- |
-| **PyPI** (`pip install rexecop==1.0.0rc1`) | Evaluation of the stable read-only release candidate |
+| **PyPI** (`pip install rexecop==1.0.0rc2`) | Evaluation after the controlled release completes |
 | Coordinated editable source (`pip install -e`) | Development, cross-repository integration and operator lab |
 | Wheel from `dist/` after `python -m build` | Offline install, internal mirrors |
 | Git URL install | Pin a commit or tag without PyPI |
@@ -22,17 +25,19 @@ See [Known limitations](known-limitations.md).
 
 - Python **3.11+** (CI on `main` exercises **3.11**, **3.12**, and **3.13**)
 - Network access to install pinned dependencies:
-  - `govengine==1.0.0rc1`
-  - `sclite-core==2.0.0`
+  - `govengine==1.0.0rc2`
+  - `sclite-core==2.0.1`
 - Optional domain profile consumer: [`tecrax`](https://github.com/rozmiarD/tecrax),
   installed and released separately
 
 ## Install from PyPI
 
+After the controlled release completes and the public-index smoke is green:
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "rexecop==1.0.0rc1"
+python -m pip install "rexecop==1.0.0rc2"
 rexecop version
 ```
 
@@ -70,9 +75,9 @@ set. For this release line the RExecOp-owned core constraints are:
 python -m venv .venv-fresh && source .venv-fresh/bin/activate
 python -m pip install --upgrade pip
 python -m pip install \
-  "rexecop==1.0.0rc1" \
-  "govengine==1.0.0rc1" \
-  "sclite-core==2.0.0" \
+  "rexecop==1.0.0rc2" \
+  "govengine==1.0.0rc2" \
+  "sclite-core==2.0.1" \
   "<profile-or-plugin>==<exact-compatible-version>"
 python -m pip check
 rexecop doctor --profile <registered-profile>
@@ -213,14 +218,15 @@ do not combine that source with the old public-wheel dependency set.
 
 ## Private index / GitHub Packages (operator-owned)
 
-Mirror the exact public wheel/sdist and pinned GovEngine/SCLite distributions
-into a PyPI-compatible index. Preserve filenames and SHA-256 digests from
-release evidence, then verify from a clean environment:
+After the controlled release completes, mirror the exact public wheel/sdist and
+pinned GovEngine/SCLite distributions into a PyPI-compatible index. Preserve
+filenames and SHA-256 digests from release evidence, then verify from a clean
+environment:
 
 ```bash
 python -m pip install \
   --index-url https://packages.example.invalid/simple \
-  "rexecop==1.0.0rc1"
+  "rexecop==1.0.0rc2"
 python -m pip check
 rexecop version
 ```

@@ -1,6 +1,6 @@
 # CLI reference
 
-Complete `rexecop` command reference for the current release candidate (`1.0.0rc1`).
+Complete `rexecop` command reference for the current release candidate (`1.0.0rc2`).
 Only commands listed by `CLI_CONTRACTS` carry the candidate `stable_v1` JSON
 compatibility promise; all other command surfaces are explicitly alpha. Stable
 JSON/error projections are designed to omit secret values, private connector

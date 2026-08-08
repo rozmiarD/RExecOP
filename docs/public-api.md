@@ -1,10 +1,10 @@
 # Public API and compatibility policy
 
-RExecOp `1.0.0rc1` freezes the Python and CLI compatibility surface for
-the 1.x line. This is an API compatibility decision, not a production
-readiness claim. The release, operational and independent-review gates completed
-for `1.0.0rc1`, but their evidence does not widen the API promise or certify
-production mutation.
+RExecOp `1.0.0rc2` preserves the Python and CLI compatibility surface frozen
+for the 1.x line by `1.0.0rc1`. This is an API compatibility decision, not a
+production readiness claim. Prior release and operational evidence does not
+widen the API promise or certify production mutation; `1.0.0rc2` requires its
+own source-bound independent review.
 
 The machine-readable source of truth is
 `rexecop.public_api.public_api_manifest()` (`rexecop.public_api.v1`). The public
