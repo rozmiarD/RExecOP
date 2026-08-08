@@ -66,3 +66,16 @@ def test_stack_contract_validator_rejects_dependency_drift(
     monkeypatch.setattr(validator, "_pyproject", lambda: project)
     errors = validator.collect_errors()
     assert "govengine_dependency_mismatch" in errors
+
+
+def test_stack_contract_validator_rejects_doctor_pin_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validator()
+    monkeypatch.setattr(validator, "DOCTOR_EXPECTED_GOVENGINE", "1.0.0rc1")
+    monkeypatch.setattr(validator, "DOCTOR_EXPECTED_SCLITE", "2.0.0")
+
+    errors = validator.collect_errors()
+
+    assert "doctor_govengine_dependency_mismatch" in errors
+    assert "doctor_sclite_dependency_mismatch" in errors

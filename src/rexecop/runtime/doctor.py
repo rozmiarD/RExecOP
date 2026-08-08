@@ -30,8 +30,8 @@ from rexecop.runtime.mutation_posture import (
 from rexecop.runtime.root_compatibility import inspect_runtime_root_compatibility
 from rexecop.storage.factory import resolve_storage_backend
 
-EXPECTED_GOVENGINE = "1.0.0rc1"
-EXPECTED_SCLITE = "2.0.0"
+EXPECTED_GOVENGINE = "1.0.0rc2"
+EXPECTED_SCLITE = "2.0.1"
 
 CHECK_PASSED = "passed"
 CHECK_WARNING = "warning"

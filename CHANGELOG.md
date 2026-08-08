@@ -29,6 +29,10 @@ source candidates and milestone-level development notes are preserved in the
 
 ### Changed
 
+- The current source line now requires exact public `govengine==1.0.0rc2` and
+  `sclite-core==2.0.1`. Runtime doctor, release-train preflight, documentation
+  and CI fail closed on drift while the already published `rexecop==1.0.0rc1`
+  artifact and its historical dependency metadata remain unchanged.
 - Ordinary CI sibling checkouts now use reviewed immutable source snapshots
   validated as an exact job, repository, path, and commit-ref multiset. This
   does not auto-update sources, prove package compatibility, or change publish
@@ -48,9 +52,9 @@ source candidates and milestone-level development notes are preserved in the
   version in both publish and repair workflows.
 - Runtime permits, leases, fencing and attempt bindings are revalidated after
   durable attempt creation and immediately before connector I/O.
-- CI's immutable GovEngine source checkout is advanced to
-  `9a78650a0e39524dcbf07d98f5fb71f89093fc66` for the optional governed-admission
-  source surface; package versions and dependency pins are unchanged.
+- CI's immutable stack checkouts are advanced to the release-record commits
+  `c065d7a157665351054bacc7b5e3ae12b7cc9d98` (SCLite `v2.0.1`) and
+  `e65ad22ec25d74bbbb4969bd614981a8ed5e47c8` (GovEngine `v1.0.0rc2`).
 
 ### Fixed
 

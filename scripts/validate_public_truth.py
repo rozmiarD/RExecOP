@@ -14,11 +14,15 @@ if str(SRC) not in sys.path:
 import rexecop  # noqa: E402
 from rexecop.public_api import public_api_manifest  # noqa: E402
 
-EXPECTED_GOVENGINE = "govengine==1.0.0rc1"
-EXPECTED_SCLITE = "sclite-core==2.0.0"
+EXPECTED_GOVENGINE = "govengine==1.0.0rc2"
+EXPECTED_SCLITE = "sclite-core==2.0.1"
 EXPECTED_TECRAX_CONSUMER = "0.4.0rc3"
 EXPECTED_GOVENGINE_STATUS = "`1.0.0rc1` (public release candidate)"
 PUBLISHED_PYPI_VERSION = "1.0.0rc1"
+PUBLISHED_GOVENGINE = "govengine==1.0.0rc1"
+PUBLISHED_SCLITE = "sclite-core==2.0.0"
+SCLITE_SOURCE_REF = "c065d7a157665351054bacc7b5e3ae12b7cc9d98"
+GOVENGINE_SOURCE_REF = "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8"
 
 VERSION_DOCS = (
     "README.md",
@@ -290,6 +294,11 @@ def collect_errors() -> list[str]:
         errors.append(f"govengine_dependency_mismatch:{govengine_dep}!={EXPECTED_GOVENGINE}")
     if sclite_dep != EXPECTED_SCLITE:
         errors.append(f"sclite_dependency_mismatch:{sclite_dep}!={EXPECTED_SCLITE}")
+    if optional_dependencies.get("sclite") != [EXPECTED_SCLITE]:
+        errors.append(
+            "sclite_extra_dependency_mismatch:"
+            f"{optional_dependencies.get('sclite')}!=[{EXPECTED_SCLITE}]"
+        )
     if "tecrax" in optional_dependencies:
         errors.append("tecrax_extra_must_not_ship_in_v1_core")
 
@@ -310,6 +319,8 @@ def collect_errors() -> list[str]:
     _require(errors, "README.md", EXPECTED_SCLITE)
     _require(errors, "docs/distribution.md", EXPECTED_GOVENGINE)
     _require(errors, "docs/distribution.md", EXPECTED_SCLITE)
+    _require(errors, "docs/distribution.md", PUBLISHED_GOVENGINE)
+    _require(errors, "docs/distribution.md", PUBLISHED_SCLITE)
     _require(errors, "docs/release-qualification-record.md", EXPECTED_GOVENGINE_STATUS)
     _forbid(
         errors,
@@ -370,7 +381,7 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         "docs/stack-contract-compatibility.md",
-        "9a78650a0e39524dcbf07d98f5fb71f89093fc66",
+        GOVENGINE_SOURCE_REF,
     )
     _require(
         errors,
@@ -387,7 +398,7 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         "docs/known-limitations.md",
-        "may lack optional v0.2; configured plugin mutation fails closed",
+        "does not configure host authority adapters or make mutation ready",
     )
     _require(errors, "CHANGELOG.md", "do not enable `mutation_ready`")
     _require(errors, "docs/architecture.md", EXPECTED_GOVENGINE)
@@ -489,12 +500,12 @@ def collect_errors() -> list[str]:
     _require(
         errors,
         ".github/workflows/ci.yml",
-        "ref: 0b90c21569ea908ba7ddb468cd1ab6126342924f",
+        f"ref: {SCLITE_SOURCE_REF}",
     )
     _require(
         errors,
         ".github/workflows/ci.yml",
-        "ref: 9a78650a0e39524dcbf07d98f5fb71f89093fc66",
+        f"ref: {GOVENGINE_SOURCE_REF}",
     )
     _require(
         errors,

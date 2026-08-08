@@ -19,10 +19,14 @@ from rexecop.runtime.contract_compatibility import (  # noqa: E402
     evaluate_stack_contract_compatibility,
     validate_sclite_artifact_pins,
 )
+from rexecop.runtime.doctor import (  # noqa: E402
+    EXPECTED_GOVENGINE as DOCTOR_EXPECTED_GOVENGINE,
+)
+from rexecop.runtime.doctor import EXPECTED_SCLITE as DOCTOR_EXPECTED_SCLITE  # noqa: E402
 
 EXPECTED_REXECOP = "1.0.0rc1"
-EXPECTED_GOVENGINE = "govengine==1.0.0rc1"
-EXPECTED_SCLITE = "sclite-core==2.0.0"
+EXPECTED_GOVENGINE = "govengine==1.0.0rc2"
+EXPECTED_SCLITE = "sclite-core==2.0.1"
 EXPECTED_TECRAX_CONSUMER = "0.4.0rc3"
 
 ACTIVE_READINESS = (
@@ -36,8 +40,8 @@ NON_ACTIVE_READINESS = (
 )
 
 REQUIRED_DOC_MARKERS = (
-    "sclite-core==2.0.0",
-    "govengine==1.0.0rc1",
+    "sclite-core==2.0.1",
+    "govengine==1.0.0rc2",
     "rexecop` | `1.0.0rc1`",
     "`0.4.0rc3`",
     "external source consumer",
@@ -94,6 +98,10 @@ def collect_errors() -> list[str]:
         errors.append("govengine_dependency_mismatch")
     if _dependency(project, "sclite-core") != EXPECTED_SCLITE:
         errors.append("sclite_dependency_mismatch")
+    if f"govengine=={DOCTOR_EXPECTED_GOVENGINE}" != EXPECTED_GOVENGINE:
+        errors.append("doctor_govengine_dependency_mismatch")
+    if f"sclite-core=={DOCTOR_EXPECTED_SCLITE}" != EXPECTED_SCLITE:
+        errors.append("doctor_sclite_dependency_mismatch")
     if "tecrax" in (project.get("optional-dependencies") or {}):
         errors.append("tecrax_extra_must_not_ship_in_v1_core")
 

@@ -27,14 +27,16 @@ that connect those inputs and decisions to actual I/O.
 | Package | [`rexecop==1.0.0rc1`](https://pypi.org/project/rexecop/1.0.0rc1/) |
 | Maturity | Release candidate with a stable read-only core |
 | Python | 3.11 or newer |
-| Exact dependencies | `govengine==1.0.0rc1`, `sclite-core==2.0.0` |
+| Public `1.0.0rc1` wheel dependencies | `govengine==1.0.0rc1`, `sclite-core==2.0.0` |
+| Current `main` dependencies | `govengine==1.0.0rc2`, `sclite-core==2.0.1` |
 | Default posture | `stable_read_only` |
 | Mutating execution | Blocked by the stock stable posture |
 | Compatibility | [Stack contract compatibility](docs/stack-contract-compatibility.md) |
 
-The `main` branch may contain changes recorded under
-[Unreleased](CHANGELOG.md#unreleased). The public `1.0.0rc1` wheel is the
-current evaluation and integration release.
+The `main` branch contains the qualified upstream repin recorded under
+[Unreleased](CHANGELOG.md#unreleased). The public `1.0.0rc1` wheel remains the
+current evaluation release and retains the dependency metadata with which it
+was published; use a source checkout for the newer coordinated stack line.
 
 ## Why RExecOp exists
 

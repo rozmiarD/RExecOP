@@ -87,13 +87,13 @@ def test_release_train_preflight_passes(tmp_path: Path) -> None:
         "govengine": f'''
 [project]
 name = "govengine"
-version = "1.0.0rc1"
+version = "1.0.0rc2"
 dependencies = ["{public_truth.EXPECTED_SCLITE}"]
 ''',
         "sclite": '''
 [project]
 name = "sclite-core"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = []
 ''',
     }
@@ -148,7 +148,29 @@ dependencies = []
         encoding="utf-8",
     )
     errors = validator.collect_errors(stack_repos={"sclite": sclite_root})
-    assert "sclite_repo_version_mismatch:2.0.0rc1!=2.0.0" in errors
+    assert "sclite_repo_version_mismatch:2.0.0rc1!=2.0.1" in errors
+
+
+def test_release_train_preflight_rejects_govengine_repo_version_drift(
+    tmp_path: Path,
+) -> None:
+    validator = _load_validator()
+    govengine_root = tmp_path / "govengine"
+    govengine_root.mkdir()
+    (govengine_root / "pyproject.toml").write_text(
+        '''
+[project]
+name = "govengine"
+version = "1.0.0rc1"
+dependencies = ["sclite-core==2.0.1"]
+'''.strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    errors = validator.collect_errors(stack_repos={"govengine": govengine_root})
+
+    assert "govengine_repo_version_mismatch:1.0.0rc1!=1.0.0rc2" in errors
 
 
 def test_release_train_preflight_rejects_missing_sibling_repos() -> None:

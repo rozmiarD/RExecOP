@@ -158,6 +158,7 @@ def _assert_validator_constants_align(errors: list[str]) -> None:
 def _collect_sibling_repo_errors(
     errors: list[str],
     *,
+    expected_govengine: str,
     expected_sclite: str,
     stack_repos: dict[str, Path],
 ) -> None:
@@ -179,6 +180,10 @@ def _collect_sibling_repo_errors(
     govengine_repo = stack_repos.get("govengine")
     if govengine_repo and (govengine_repo / "pyproject.toml").is_file():
         project = _read_toml_project(govengine_repo / "pyproject.toml")
+        govengine_pin = expected_govengine.split("==", 1)[1]
+        version = str(project.get("version", ""))
+        if version != govengine_pin:
+            errors.append(f"govengine_repo_version_mismatch:{version}!={govengine_pin}")
         dep = _dependency(project, "sclite-core")
         if dep != expected_sclite:
             errors.append(f"govengine_repo_sclite_pin_mismatch:{dep}!={expected_sclite}")
@@ -200,6 +205,7 @@ def collect_errors(
     errors.extend(stack_contracts.collect_errors())
     _collect_sibling_repo_errors(
         errors,
+        expected_govengine=public_truth.EXPECTED_GOVENGINE,
         expected_sclite=public_truth.EXPECTED_SCLITE,
         stack_repos=stack_repos if stack_repos is not None else stack_repos_from_env(),
     )

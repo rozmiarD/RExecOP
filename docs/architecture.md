@@ -155,9 +155,12 @@ src/rexecop/
 RExecOp `1.0.0rc1` pins:
 
 ```text
-govengine==1.0.0rc1
-sclite-core==2.0.0
+govengine==1.0.0rc2
+sclite-core==2.0.1
 ```
+
+This is the current `main` source baseline. The immutable public
+`rexecop==1.0.0rc1` wheel retains its original dependency metadata.
 
 The exact contract and downstream-consumer baseline is maintained in
 [Stack contract compatibility](stack-contract-compatibility.md).

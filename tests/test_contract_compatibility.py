@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import govengine
+import pytest
 from govengine import validate_supported_contract_version
 
+from rexecop.runtime import doctor
 from rexecop.runtime.contract_compatibility import (
     STACK_CONTRACT_COMPATIBILITY_SCHEMA,
     evaluate_govengine_contract_compatibility,
@@ -13,6 +15,63 @@ from rexecop.runtime.contract_compatibility import (
     validate_sclite_artifact_pins,
 )
 from rexecop.runtime.doctor import run_runtime_doctor
+
+
+def _patch_stack_package_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    govengine_version: str,
+    sclite_version: str,
+) -> None:
+    versions = {
+        "govengine": govengine_version,
+        "sclite-core": sclite_version,
+    }
+    monkeypatch.setattr(doctor.metadata, "version", versions.__getitem__)
+
+
+def test_doctor_accepts_exact_release_train_package_pair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_stack_package_versions(
+        monkeypatch,
+        govengine_version="1.0.0rc2",
+        sclite_version="2.0.1",
+    )
+
+    check = doctor._check_stack_packages()
+
+    assert check["status"] == "passed"
+    assert check["details"]["found"] == {
+        "rexecop": "1.0.0rc1",
+        "govengine": "1.0.0rc2",
+        "sclite-core": "2.0.1",
+    }
+
+
+@pytest.mark.parametrize(
+    ("govengine_version", "sclite_version", "expected_mismatch"),
+    [
+        ("1.0.0rc1", "2.0.1", "govengine:1.0.0rc1!=1.0.0rc2"),
+        ("1.0.0rc2", "2.0.0", "sclite-core:2.0.0!=2.0.1"),
+    ],
+)
+def test_doctor_rejects_stale_release_train_package(
+    monkeypatch: pytest.MonkeyPatch,
+    govengine_version: str,
+    sclite_version: str,
+    expected_mismatch: str,
+) -> None:
+    _patch_stack_package_versions(
+        monkeypatch,
+        govengine_version=govengine_version,
+        sclite_version=sclite_version,
+    )
+
+    check = doctor._check_stack_packages()
+
+    assert check["status"] == "blocker"
+    assert expected_mismatch in check["details"]["mismatches"]
 
 
 def test_rexecop_runtime_projection_matrix_lists_execution_surfaces() -> None:

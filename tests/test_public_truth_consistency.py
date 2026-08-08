@@ -90,6 +90,21 @@ def test_public_truth_rejects_reintroduced_tecrax_extra(
     assert "tecrax_extra_must_not_ship_in_v1_core" in errors
 
 
+def test_public_truth_rejects_sclite_extra_pin_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = _load_validator()
+    project = validator._pyproject()
+    project.setdefault("optional-dependencies", {})["sclite"] = [
+        "sclite-core==2.0.0"
+    ]
+    monkeypatch.setattr(validator, "_pyproject", lambda: project)
+
+    errors = validator.collect_errors()
+
+    assert any(item.startswith("sclite_extra_dependency_mismatch:") for item in errors)
+
+
 def test_public_truth_rejects_stale_govengine_public_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

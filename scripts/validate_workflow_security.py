@@ -32,25 +32,25 @@ EXPECTED_CI_SIBLING_CHECKOUTS = (
         "test",
         "rozmiarD/SCLite",
         "ci-deps/sclite",
-        "0b90c21569ea908ba7ddb468cd1ab6126342924f",
+        "c065d7a157665351054bacc7b5e3ae12b7cc9d98",
     ),
     (
         "test",
         "rozmiarD/GovEngine",
         "ci-deps/govengine",
-        "9a78650a0e39524dcbf07d98f5fb71f89093fc66",
+        "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8",
     ),
     (
         "package-dry-run",
         "rozmiarD/SCLite",
         "ci-deps/sclite",
-        "0b90c21569ea908ba7ddb468cd1ab6126342924f",
+        "c065d7a157665351054bacc7b5e3ae12b7cc9d98",
     ),
     (
         "package-dry-run",
         "rozmiarD/GovEngine",
         "ci-deps/govengine",
-        "9a78650a0e39524dcbf07d98f5fb71f89093fc66",
+        "e65ad22ec25d74bbbb4969bd614981a8ed5e47c8",
     ),
 )
 

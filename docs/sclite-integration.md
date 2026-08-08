@@ -8,8 +8,12 @@ persist RExecOp operations.
 Exact dependency:
 
 ```text
-sclite-core==2.0.0
+sclite-core==2.0.1
 ```
+
+This is the current `main` source pin. The already published
+`rexecop==1.0.0rc1` wheel remains immutable with its original dependency
+metadata.
 
 ## Ownership and non-claims
 

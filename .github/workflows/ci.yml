@@ -29,14 +29,14 @@ jobs:
         with:
           repository: rozmiarD/SCLite
           path: ci-deps/sclite
-          ref: 0b90c21569ea908ba7ddb468cd1ab6126342924f
+          ref: c065d7a157665351054bacc7b5e3ae12b7cc9d98
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: rozmiarD/GovEngine
           path: ci-deps/govengine
-          ref: 9a78650a0e39524dcbf07d98f5fb71f89093fc66
+          ref: e65ad22ec25d74bbbb4969bd614981a8ed5e47c8
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -113,14 +113,14 @@ jobs:
         with:
           repository: rozmiarD/SCLite
           path: ci-deps/sclite
-          ref: 0b90c21569ea908ba7ddb468cd1ab6126342924f
+          ref: c065d7a157665351054bacc7b5e3ae12b7cc9d98
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: rozmiarD/GovEngine
           path: ci-deps/govengine
-          ref: 9a78650a0e39524dcbf07d98f5fb71f89093fc66
+          ref: e65ad22ec25d74bbbb4969bd614981a8ed5e47c8
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1

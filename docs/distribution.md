@@ -90,12 +90,17 @@ serialization also does not contain a hostile or hanging `__str__` method.
 
 ## Coordinated editable install
 
+The current `main` source line is qualified with exact public
+`govengine==1.0.0rc2` and `sclite-core==2.0.1`. This does not rewrite the
+dependency metadata of the already published `rexecop==1.0.0rc1` wheel.
+
 ```bash
 git clone https://github.com/rozmiarD/RExecOP.git
 cd RExecOP
 python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
 git clone https://github.com/rozmiarD/GovEngine.git ../govengine
+git -C ../govengine checkout e65ad22ec25d74bbbb4969bd614981a8ed5e47c8
 python -m pip install -e ../govengine
 python -m pip install -e ".[dev]"
 
@@ -188,6 +193,9 @@ Do not store upload tokens in the repository, handoffs, or agent memory.
 
 ## Install an immutable Git revision
 
+For the immutable public RExecOp `v1.0.0rc1` line, retain its original
+GovEngine/SCLite dependency set:
+
 ```bash
 python -m pip install \
   "govengine @ git+https://github.com/rozmiarD/GovEngine.git@v1.0.0rc1"
@@ -198,6 +206,10 @@ python -m pip install \
 Use a reviewed tag or full commit SHA, not a moving branch. The selected source
 must still satisfy the exact `govengine==1.0.0rc1` and
 `sclite-core==2.0.0` metadata pins.
+
+For current-source integration, use the reviewed RExecOp commit and let its
+metadata resolve the exact `govengine==1.0.0rc2` / `sclite-core==2.0.1` pair;
+do not combine that source with the old public-wheel dependency set.
 
 ## Private index / GitHub Packages (operator-owned)
 

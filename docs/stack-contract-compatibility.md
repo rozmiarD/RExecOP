@@ -17,8 +17,8 @@ Document id: `stack-contract-compatibility`.
 
 | Package | Public line | Required range in RExecOp | Role |
 | --- | --- | --- | --- |
-| `sclite-core` | `2.0.0` | `sclite-core==2.0.0` | Frozen SCLite lifecycle/evidence/review verification kernel; RExecOp owns reaction, trigger-decision, watchdog-decision and automation-chain schemas. |
-| `govengine` | `1.0.0rc1` | `govengine==1.0.0rc1` | Governance facade plus explicitly classified adapter/module imports. The downstream import map and stack gate, not this prose, define the consumed surface. |
+| `sclite-core` | `2.0.1` | `sclite-core==2.0.1` | Frozen SCLite lifecycle/evidence/review verification kernel; RExecOp owns reaction, trigger-decision, watchdog-decision and automation-chain schemas. |
+| `govengine` | `1.0.0rc2` | `govengine==1.0.0rc2` | Governance facade plus explicitly classified adapter/module imports. The downstream import map and stack gate, not this prose, define the consumed surface. |
 | `rexecop` | `1.0.0rc1` | current package | Stable read-only neutral runner, connectors, catalog and reaction mechanics. |
 | `tecrax` | `0.4.0rc3` source candidate | external source consumer; no RExecOp package extra | Domain infrastructure profile tested through entry points and cross-repository fixtures. |
 
@@ -78,7 +78,7 @@ runtime behavior change. Compatibility policy id: `unknown_major_fail_closed`.
 | Unknown major version | Fail closed before execution planning or backend IO. |
 | Unknown minor/patch within supported major | Fail closed until the host explicitly pins the version. |
 | GovEngine catalog | `govengine-policy compatibility --json` is the machine-readable supported-contract report. |
-| Optional governed admission | Source integration is qualified against immutable GovEngine commit `9a78650a0e39524dcbf07d98f5fb71f89093fc66`. The public `govengine==1.0.0rc1` baseline need not expose v0.2; read-only use remains compatible and plugin mutation configuration fails closed when it is absent or incompatible. |
+| Optional governed admission | Source integration is qualified against immutable GovEngine `v1.0.0rc2` release-record commit `e65ad22ec25d74bbbb4969bd614981a8ed5e47c8`, which exposes v0.1 and v0.2. Read-only use remains compatible, while plugin mutation configuration fails closed when that surface or the required host authority boundary is absent or incompatible. |
 | RExecOp doctor | `rexecop doctor` emits `rexecop.doctor_report.v0.1` with `contract_versions`, all `blockers`, and the runtime-configuration `security_blockers` subset; `stack_contract_compatibility` remains fail-closed. |
 | RExecOp explain | `rexecop operation explain` includes the same `contract_versions` summary for operator review. |
 | SCLite artifact refs | RExecOp pins `SCLITE_SCHEMA_REFS` to supported `v0.x` artifact versions and validates them in `scripts/validate_stack_contracts.py`. |
